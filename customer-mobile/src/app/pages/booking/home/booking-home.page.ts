@@ -9,7 +9,7 @@ import {
   ViewChild,
 } from '@angular/core';
 import { Router } from '@angular/router';
-import { AlertController, ViewDidEnter, ViewDidLeave, ViewWillEnter } from '@ionic/angular';
+import { AlertController, ModalController, ViewDidEnter, ViewDidLeave, ViewWillEnter } from '@ionic/angular';
 import { Subscription, interval } from 'rxjs';
 
 import { ApiService } from '../../../core/api.service';
@@ -34,6 +34,8 @@ import {
 } from '../booking.service';
 import { City, RideMode, ServiceTile, TripScope } from '../booking.models';
 import { environment } from '../../../../environments/environment';
+import { AiBookingAssistantModalComponent } from '../../../shared/ai-booking-assistant/ai-booking-assistant.component';
+import { ModeSelectModalComponent, AssistantMode } from '../../../shared/mode-select-modal/mode-select-modal.component';
 
 declare const google: any;
 
@@ -127,6 +129,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
 
   constructor(
     private alertCtrl: AlertController,
+    private modalCtrl: ModalController,
     private api: ApiService,
     private auth: AuthService,
     private booking: BookingService,
@@ -164,6 +167,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     if (this.map && this.activeFixedRide) {
       this.syncActiveRideMap();
     }
+    void this.maybeShowModePrompt();
   }
 
   ionViewDidLeave(): void {
@@ -889,5 +893,72 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     if (depStatus === 'CLOSED') return 'Departure ready';
     return 'Booking confirmed';
   }
+
+  /**
+   * Opens the conversational AI Booking Assistant modal.
+   */
+  async openAiAssistant(initialQuery?: string): Promise<void> {
+    const lat = this.userLocation?.lat;
+    const lng = this.userLocation?.lng;
+
+    const modal = await this.modalCtrl.create({
+      component: AiBookingAssistantModalComponent,
+      cssClass: 'dc-ai-booking-modal',
+      componentProps: {
+        initialQuery,
+        userLat: lat,
+        userLng: lng,
+      },
+    });
+    await modal.present();
+    const { data } = await modal.onWillDismiss<{ booked?: boolean; holdId?: number }>();
+    if (data?.booked) {
+      this.checkActiveFixedRide();
+    }
+  }
+
+  /**
+   * App-open mode chooser. Offers the rider hands-free voice AI vs manual tapping.
+   */
+  private async maybeShowModePrompt(): Promise<void> {
+    try {
+      if (sessionStorage.getItem('dc_mode_prompt_shown') === '1') return;
+    } catch {
+      /* ignore */
+    }
+    try {
+      sessionStorage.setItem('dc_mode_prompt_shown', '1');
+    } catch {
+      /* ignore */
+    }
+
+    const modal = await this.modalCtrl.create({
+      component: ModeSelectModalComponent,
+      cssClass: 'mode-select-modal',
+      componentProps: { current: this.readMode() },
+    });
+    await modal.present();
+    const { data } = await modal.onWillDismiss<{ mode?: AssistantMode }>();
+    if (data?.mode) {
+      try {
+        localStorage.setItem('dc_customer_mode', data.mode);
+      } catch {
+        /* ignore */
+      }
+      if (data.mode === 'voice') {
+        void this.openAiAssistant();
+      }
+    }
+  }
+
+  private readMode(): AssistantMode | null {
+    try {
+      const m = localStorage.getItem('dc_customer_mode');
+      return m === 'voice' || m === 'self' ? (m as AssistantMode) : null;
+    } catch {
+      return null;
+    }
+  }
 }
+
 

@@ -1,0 +1,258 @@
+<ion-header class="dc-ai-header ion-no-border">
+  <ion-toolbar class="dc-ai-toolbar">
+    <div class="dc-ai-header-content">
+      <div class="dc-ai-brand">
+        <div class="dc-ai-avatar" [class.is-online]="isOnline">
+          <ion-icon name="sparkles"></ion-icon>
+          <span class="dc-ai-status-dot"></span>
+        </div>
+        <div class="dc-ai-title-wrap">
+          <h2 class="dc-ai-title">DreamCabs AI</h2>
+          <span class="dc-ai-subtitle">{{ isOnline ? 'Ready to help with your ride' : 'Service offline' }}</span>
+        </div>
+      </div>
+
+      <div class="dc-ai-actions">
+        <button
+          type="button"
+          class="dc-ai-icon-btn dc-press"
+          (click)="resetConversation()"
+          aria-label="Reset conversation"
+          title="Restart Chat"
+        >
+          <ion-icon name="refresh-outline"></ion-icon>
+        </button>
+        <button
+          type="button"
+          class="dc-ai-icon-btn dc-press"
+          (click)="close()"
+          aria-label="Close Assistant"
+        >
+          <ion-icon name="close"></ion-icon>
+        </button>
+      </div>
+    </div>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="dc-ai-content" [fullscreen]="true">
+  <div class="dc-ai-chat-wrap">
+    <!-- Chat messages list -->
+    <div class="dc-ai-messages" #chatScroll>
+      <div
+        *ngFor="let msg of messages"
+        class="dc-ai-msg-row"
+        [class.is-user]="msg.sender === 'user'"
+        [class.is-assistant]="msg.sender === 'assistant'"
+      >
+        <div class="dc-ai-msg-bubble">
+          <p class="dc-ai-msg-text">{{ msg.text }}</p>
+
+          <!-- 1. Matched Route Badge Card -->
+          <div class="dc-ai-route-card" *ngIf="msg.matchedRoute">
+            <div class="dc-ai-route-title">
+              <ion-icon name="navigate-outline"></ion-icon>
+              <span>{{ msg.matchedRoute.name }}</span>
+            </div>
+            <div class="dc-ai-route-stops">
+              <div class="dc-ai-stop">
+                <span class="dc-ai-stop-dot is-pickup"></span>
+                <span class="dc-ai-stop-label">Boarding:</span>
+                <strong class="dc-ai-stop-name">{{ msg.matchedRoute.board_stop.name }}</strong>
+              </div>
+              <div class="dc-ai-stop">
+                <span class="dc-ai-stop-dot is-drop"></span>
+                <span class="dc-ai-stop-label">Drop-off:</span>
+                <strong class="dc-ai-stop-name">{{ msg.matchedRoute.drop_stop.name }}</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Departures Options List -->
+          <div class="dc-ai-departures-card" *ngIf="msg.options && msg.options.length">
+            <h4 class="dc-ai-card-heading">Available Departures</h4>
+            <div
+              *ngFor="let dep of msg.options"
+              class="dc-ai-dep-item dc-press"
+              [class.is-selected]="selectedDepartureId === dep.id"
+              (click)="selectDeparture(dep)"
+            >
+              <div class="dc-ai-dep-header">
+                <div class="dc-ai-dep-time">
+                  <ion-icon name="time-outline"></ion-icon>
+                  <span>{{ dep.announced_depart_at || 'Ready to board' }}</span>
+                </div>
+                <div class="dc-ai-dep-fare" *ngIf="dep.price_per_seat">
+                  ₹{{ dep.price_per_seat }}<small>/seat</small>
+                </div>
+              </div>
+
+              <div class="dc-ai-dep-meta">
+                <span class="dc-ai-dep-vehicle">{{ dep.vehicle_name || 'Fixed Shared Cab' }}</span>
+                <span class="dc-ai-dep-seats" *ngIf="dep.available_seats !== undefined">
+                  {{ dep.available_seats }} seats left
+                </span>
+              </div>
+
+              <button type="button" class="dc-ai-select-btn">
+                <span>Select this ride</span>
+                <ion-icon name="arrow-forward"></ion-icon>
+              </button>
+            </div>
+          </div>
+
+          <!-- 3. Available Seat Selection Chips -->
+          <div class="dc-ai-seats-card" *ngIf="msg.availableSeats && msg.availableSeats.length">
+            <h4 class="dc-ai-card-heading">Select Preferred Seat</h4>
+            <div class="dc-ai-seat-chips">
+              <button
+                type="button"
+                *ngFor="let s of msg.availableSeats"
+                class="dc-ai-seat-chip dc-press"
+                [class.is-picked]="selectedSeats.includes(s)"
+                (click)="toggleSeat(s)"
+              >
+                💺 {{ s }}
+              </button>
+            </div>
+          </div>
+
+          <!-- 4. Luggage Options -->
+          <div class="dc-ai-luggage-card" *ngIf="msg.stage === 'CONFIRMING_DEPARTURE'">
+            <div class="dc-ai-luggage-header">
+              <ion-icon name="briefcase-outline"></ion-icon>
+              <span>Extra Luggage:</span>
+            </div>
+            <div class="dc-ai-luggage-chips">
+              <button
+                type="button"
+                class="dc-ai-lug-chip dc-press"
+                [class.is-active]="!hasExtraLuggage"
+                (click)="setLuggage(false, 0)"
+              >
+                No extra luggage
+              </button>
+              <button
+                type="button"
+                class="dc-ai-lug-chip dc-press"
+                [class.is-active]="hasExtraLuggage && extraLuggageCount === 1"
+                (click)="setLuggage(true, 1)"
+              >
+                +1 Extra Bag
+              </button>
+              <button
+                type="button"
+                class="dc-ai-lug-chip dc-press"
+                [class.is-active]="hasExtraLuggage && extraLuggageCount === 2"
+                (click)="setLuggage(true, 2)"
+              >
+                +2 Extra Bags
+              </button>
+            </div>
+
+            <button
+              type="button"
+              class="dc-ai-confirm-btn dc-press"
+              (click)="confirmBooking()"
+            >
+              <ion-icon name="checkmark-circle"></ion-icon>
+              <span>Confirm &amp; Request Driver</span>
+            </button>
+          </div>
+
+          <!-- 5. Awaiting Driver Status Card -->
+          <div class="dc-ai-hold-card" *ngIf="msg.stage === 'AWAITING_DRIVER'">
+            <div class="dc-ai-hold-spinner">
+              <ion-spinner name="crescent"></ion-spinner>
+            </div>
+            <div class="dc-ai-hold-body">
+              <strong>Driver Notified</strong>
+              <p>Waiting for driver to accept seat hold (Hold #{{ msg.seatHoldId }})...</p>
+            </div>
+          </div>
+
+          <!-- 6. Payment / Acceptance Card -->
+          <div class="dc-ai-payment-card" *ngIf="msg.paymentOrder || msg.stage === 'ACCEPTED_PAYMENT'">
+            <div class="dc-ai-pay-icon">
+              <ion-icon name="checkmark-done-circle"></ion-icon>
+            </div>
+            <div class="dc-ai-pay-body">
+              <h4>Seat Request Accepted!</h4>
+              <p>Your driver accepted the ride. Complete payment to secure your ticket.</p>
+              <button
+                type="button"
+                class="dc-ai-pay-btn dc-press"
+                (click)="openPayment(msg.paymentOrder, msg.seatHoldId)"
+              >
+                <span>Complete Payment / View Booking</span>
+                <ion-icon name="card-outline"></ion-icon>
+              </button>
+            </div>
+          </div>
+
+          <span class="dc-ai-msg-time">{{ msg.time }}</span>
+        </div>
+      </div>
+
+      <!-- Loading Indicator -->
+      <div class="dc-ai-typing-indicator" *ngIf="isLoading">
+        <span class="dc-ai-typing-dot"></span>
+        <span class="dc-ai-typing-dot"></span>
+        <span class="dc-ai-typing-dot"></span>
+      </div>
+    </div>
+  </div>
+</ion-content>
+
+<!-- Footer with Quick Prompts & Input Bar -->
+<ion-footer class="dc-ai-footer ion-no-border">
+  <!-- Quick Prompts carousel -->
+  <div class="dc-ai-quick-strip" *ngIf="!isLoading">
+    <button
+      type="button"
+      *ngFor="let p of quickPrompts"
+      class="dc-ai-quick-chip dc-press"
+      (click)="sendQuickPrompt(p)"
+    >
+      {{ p }}
+    </button>
+  </div>
+
+  <!-- Interactive Input Row -->
+  <div class="dc-ai-input-bar">
+    <!-- Glowing voice mic button -->
+    <button
+      type="button"
+      class="dc-ai-mic-btn dc-press"
+      [class.is-recording]="isListening"
+      (click)="toggleVoice()"
+      aria-label="Voice input"
+    >
+      <ion-icon [name]="isListening ? 'mic' : 'mic-outline'"></ion-icon>
+      <span class="dc-ai-mic-pulse" *ngIf="isListening"></span>
+    </button>
+
+    <!-- Text input field -->
+    <div class="dc-ai-input-wrap">
+      <input
+        type="text"
+        class="dc-ai-input"
+        [(ngModel)]="inputText"
+        placeholder="Type or speak, e.g. Ride to Sopore..."
+        (keyup.enter)="sendMessage()"
+        [disabled]="isLoading"
+      />
+    </div>
+
+    <!-- Send button -->
+    <button
+      type="button"
+      class="dc-ai-send-btn dc-press"
+      [disabled]="isLoading || !inputText.trim()"
+      (click)="sendMessage()"
+      aria-label="Send message"
+    >
+      <ion-icon name="send"></ion-icon>
+    </button>
+  </div>
+</ion-footer>

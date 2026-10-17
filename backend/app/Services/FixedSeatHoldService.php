@@ -254,6 +254,14 @@ class FixedSeatHoldService
 
             return $lockedHold;
         });
+
+        try {
+            app(AgenticAiService::class)->notifyDriverEvent((int) $acceptedHold->id, 'DRIVER_ACCEPTED', (int) $driver->id);
+        } catch (\Throwable $e) {
+            Log::warning('AgenticAiService notifyDriverEvent DRIVER_ACCEPTED failed', ['error' => $e->getMessage()]);
+        }
+
+        return $acceptedHold;
     }
 
     public function driverRejectHold(User $driver, FixedSeatHold $hold): void
@@ -298,6 +306,12 @@ class FixedSeatHoldService
         });
 
         $this->broadcastDepartureUpdate((int) $hold->route_departure_id, 'seat_hold_released');
+
+        try {
+            app(AgenticAiService::class)->notifyDriverEvent((int) $hold->id, 'DRIVER_REJECTED', (int) $driver->id, 'driver_rejected');
+        } catch (\Throwable $e) {
+            Log::warning('AgenticAiService notifyDriverEvent DRIVER_REJECTED failed', ['error' => $e->getMessage()]);
+        }
     }
 
     public function activeHoldForCustomer(User $customer): ?FixedSeatHold

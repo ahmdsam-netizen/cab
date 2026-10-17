@@ -1114,6 +1114,61 @@
   }
 }
 
+/* Floating AI booking trigger pill */
+.dc-ai-floating-pill {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 64px);
+  right: 16px;
+  z-index: 45;
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%);
+  color: #ffffff;
+  border-radius: 9999px;
+  padding: 8px 14px 8px 11px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  box-shadow: 0 6px 20px rgba(67, 56, 202, 0.4);
+  border: 1px solid rgba(165, 180, 252, 0.35);
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.dc-ai-pill-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #a855f7;
+  box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.7);
+  animation: dcAiPillPulse 2s infinite;
+}
+
+.dc-ai-pill-icon {
+  font-size: 15px;
+  color: #c084fc;
+}
+
+@keyframes dcAiPillPulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.7);
+  }
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 7px rgba(168, 85, 247, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(168, 85, 247, 0);
+  }
+}
+
+
 .bh-location-status {
   position: absolute;
   top: calc(env(safe-area-inset-top, 0px) + 76px);

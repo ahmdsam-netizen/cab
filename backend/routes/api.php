@@ -75,6 +75,7 @@ use App\Http\Controllers\Admin\AdminCustomersController;
 use App\Http\Controllers\Admin\AdminSubscriptionsController;
 use App\Http\Controllers\DriverSubscriptionsController;
 use App\Http\Controllers\DriverWalletController;
+use App\Http\Controllers\AgenticAiController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -692,3 +693,11 @@ Route::middleware(['auth:sanctum', 'role:admin', 'permission:finance'])->group(f
     Route::get('/admin/payouts/monitor', [\App\Http\Controllers\Admin\PayoutMonitorController::class, 'payouts']);
     Route::get('/admin/ledger', [\App\Http\Controllers\Admin\PayoutMonitorController::class, 'ledger']);
 });
+
+// Agentic AI Microservice — conversational ride booking & status checks
+Route::get('/ai/status', [AgenticAiController::class, 'health']);
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/ai/health', [AgenticAiController::class, 'health']);
+    Route::post('/ai/chat', [AgenticAiController::class, 'chat'])->middleware('throttle:60,1');
+});
+

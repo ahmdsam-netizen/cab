@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CitySettingsComponent } from './city-settings.component';
+import { AdminAiAssistantComponent } from './admin-ai-assistant.component';
 import { IconComponent, IconName } from '../../ui';
 
 /**
@@ -15,6 +16,7 @@ import { IconComponent, IconName } from '../../ui';
     CommonModule,
     IconComponent,
     CitySettingsComponent,
+    AdminAiAssistantComponent,
   ],
   template: `
     <div class="stg">
@@ -34,7 +36,8 @@ import { IconComponent, IconName } from '../../ui';
       </nav>
 
       <div class="stg__panel">
-        <app-city-settings></app-city-settings>
+        <app-city-settings *ngIf="activeIndex === 0"></app-city-settings>
+        <app-admin-ai-assistant *ngIf="activeIndex === 1"></app-admin-ai-assistant>
       </div>
     </div>
   `,
@@ -78,5 +81,7 @@ export class SettingsComponent {
 
   tabs: { label: string; icon: IconName }[] = [
     { label: 'City Settings', icon: 'cog' },
+    { label: 'Agentic AI Service', icon: 'bolt' },
   ];
 }
+

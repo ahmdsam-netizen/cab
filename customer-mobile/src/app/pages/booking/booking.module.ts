@@ -5,6 +5,8 @@ import { IonicModule } from '@ionic/angular';
 import { RouterModule, Routes } from '@angular/router';
 
 import { BookingHomePage } from './home/booking-home.page';
+import { AiBookingAssistantModule } from '../../shared/ai-booking-assistant/ai-booking-assistant.module';
+import { ModeSelectModalModule } from '../../shared/mode-select-modal/mode-select-modal.module';
 
 /**
  * The redesigned booking flow (rev 5). Home is the bottom-sheet screen; the
@@ -31,7 +33,14 @@ const routes: Routes = [
 ];
 
 @NgModule({
-  imports: [CommonModule, FormsModule, IonicModule, RouterModule.forChild(routes)],
+  imports: [
+    CommonModule,
+    FormsModule,
+    IonicModule,
+    RouterModule.forChild(routes),
+    AiBookingAssistantModule,
+    ModeSelectModalModule,
+  ],
   declarations: [BookingHomePage],
 })
 export class BookingPageModule {}

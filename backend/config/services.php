@@ -109,4 +109,11 @@ return [
         'default_message' => env('MSG91_DEFAULT_OTP_MESSAGE', '{otp} is your verification code. Valid for {ttl} minutes.'),
     ],
 
+    // Agentic AI Microservice (FastAPI + LangGraph) for conversational ride booking.
+    'agent_service' => [
+        'base_url' => env('AGENT_SERVICE_URL', 'http://127.0.0.1:8105'),
+        'webhook_secret' => env('AGENT_SERVICE_WEBHOOK_SECRET', 'dreamcabs-agent-secret-key'),
+        'timeout' => (float) env('AGENT_SERVICE_TIMEOUT', 15.0),
+    ],
+
 ];
