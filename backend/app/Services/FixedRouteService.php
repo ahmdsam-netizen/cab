@@ -62,11 +62,20 @@ class FixedRouteService
             ->when(isset($filters['dest_city_id']), fn ($q) => $q->where('dest_city_id', (int) $filters['dest_city_id']))
             ->when(!empty($filters['q']), function ($q) use ($filters) {
                 $term = '%' . str_replace(['%', '_'], ['\\%', '\\_'], trim((string) $filters['q'])) . '%';
-                $q->where(function ($inner) use ($term) {
-                    $inner->where('name', 'like', $term)
-                        ->orWhere('origin_name', 'like', $term)
-                        ->orWhere('dest_name', 'like', $term)
-                        ->orWhereHas('stops', fn ($stop) => $stop->where('name', 'like', $term));
+                $mode = $filters['search_by'] ?? 'all';
+                $q->where(function ($inner) use ($term, $mode) {
+                    if ($mode === 'destination') {
+                        $inner->where('dest_name', 'like', $term);
+                    } elseif ($mode === 'origin') {
+                        $inner->where('origin_name', 'like', $term);
+                    } elseif ($mode === 'stop') {
+                        $inner->whereHas('stops', fn ($stop) => $stop->where('name', 'like', $term));
+                    } else {
+                        $inner->where('name', 'like', $term)
+                            ->orWhere('origin_name', 'like', $term)
+                            ->orWhere('dest_name', 'like', $term)
+                            ->orWhereHas('stops', fn ($stop) => $stop->where('name', 'like', $term));
+                    }
                 });
             })
             ->orderBy('sort_order')

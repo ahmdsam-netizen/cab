@@ -102,6 +102,10 @@ export class FixedBookPage implements OnInit, OnDestroy {
   cities: City[] = [];
   selectedCity: City | null = null;
   search = '';
+  searchMode: 'destination' | 'origin' | 'stop' = 'destination';
+  get searchPlaceholder(): string {
+    return `Search by ${this.searchMode}`;
+  }
   private searchTimer?: ReturnType<typeof setTimeout>;
   private routesSub?: Subscription;
   private routesRequestId = 0;
@@ -381,7 +385,11 @@ export class FixedBookPage implements OnInit, OnDestroy {
     this.loading = true;
     this.error = null;
     const params = new URLSearchParams();
-    if (this.search.trim()) params.set('q', this.search.trim());
+    if (this.search.trim()) {
+      params.set('q', this.search.trim());
+      params.set('search_by', this.searchMode);
+    }
+    if (this.routeScope !== 'all') params.set('scope', this.routeScope);
     if (this.cityId != null && this.cityId > 0) {
       params.set('city_id', String(this.cityId));
     }
@@ -542,6 +550,15 @@ export class FixedBookPage implements OnInit, OnDestroy {
     clearTimeout(this.searchTimer);
     this.routes = [];
     this.loading = true;
+    this.searchTimer = setTimeout(() => this.loadRoutes(), 300);
+    this.cdr.markForCheck();
+  }
+
+  onSearchModeChange(): void {
+    if (!this.search.trim()) return;
+    this.routesSub?.unsubscribe();
+    ++this.routesRequestId;
+    clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => this.loadRoutes(), 300);
     this.cdr.markForCheck();
   }

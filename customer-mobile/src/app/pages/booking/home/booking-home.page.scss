@@ -1043,18 +1043,19 @@
 }
 .bh-banner-offer {
   isolation: isolate;
-  min-height: 168px;
-  > div { position: relative; z-index: 2; }
-  .bh-offer-art { position: relative; z-index: 2; }
-  &.has-banner-image::after {
-    content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
-    background: linear-gradient(100deg, rgba(8, 20, 28, .9), rgba(8, 20, 28, .68) 65%, rgba(8, 20, 28, .5));
-  }
-  &.has-banner-image > div { flex: 1; padding-right: 20px; }
-  &.has-banner-image h2 { text-shadow: 0 1px 3px #0004; }
-  .bh-eyebrow { opacity: 1; }
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  min-height: 0;
+  padding: 0;
+  .bh-offer-banner-image { position: relative; inset: auto; z-index: 0; display: block; width: 100%; height: 150px; object-fit: contain; object-position: center; border-radius: 18px 18px 0 0; background: #076b44; }
+  .bh-offer-art { flex: none; width: 100%; height: 120px; border-radius: 18px 18px 0 0; background: #076b44; }
+  > .bh-banner-copy { position: relative; z-index: 2; flex: none; padding: 14px 16px 16px; }
+  h2 { margin: 6px 0 10px; }
+  .bh-eyebrow { opacity: .9; }
 }
-.bh-inline-offer .bh-offer-banner-image { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: contain; object-position: center; border-radius: inherit; }
+.bh-inline-offer .bh-offer-banner-image { object-fit: contain; object-position: center; }
 .bh-promotion-empty { width: 100%; margin: 0; padding: 16px; background: #fff; border: 1px solid var(--home-line); border-radius: 14px; color: var(--home-muted); font-size: 12px; line-height: 1.6; }
 .bh-offers-section .bh-section-heading > a { display: flex; align-items: center; gap: 3px; color: var(--home-green); font-size: 12px; text-decoration: none; min-height: 36px; }
 .bh-offer-carousel {

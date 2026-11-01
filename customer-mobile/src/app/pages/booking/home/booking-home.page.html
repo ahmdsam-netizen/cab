@@ -228,14 +228,14 @@
           <ion-segment-button value="coupons"><ion-label>Coupons</ion-label></ion-segment-button>
         </ion-segment>
         <div class="bh-offer-carousel" *ngIf="promotionTab === 'offers'" aria-label="Offer banners">
-          <aside class="bh-inline-offer bh-banner-offer" *ngFor="let banner of visibleHomeBanners; trackBy: trackHomeBanner" [class.has-banner-image]="!!homeBannerImage(banner)" aria-label="Promotional banner">
-            <button class="dc-banner-close-btn" type="button" (click)="dismissHomeBanner(banner)" aria-label="Collapse banner"><ion-icon name="close" aria-hidden="true"></ion-icon></button>
+          <aside class="bh-inline-offer bh-banner-offer" *ngFor="let banner of visibleHomeBanners; trackBy: trackHomeBanner" aria-label="Promotional banner">
             <img *ngIf="homeBannerImage(banner) as bannerImage; else bannerIcon" class="bh-offer-banner-image"
               [src]="bannerImage" alt="" aria-hidden="true" (error)="onHomeBannerImageError(banner)" />
             <ng-template #bannerIcon><span class="bh-offer-art" aria-hidden="true"><ion-icon name="gift-outline"></ion-icon></span></ng-template>
-            <div><span class="bh-eyebrow">FROM DREAMCABS</span><h2>{{ banner.title }}</h2>
+            <div class="bh-banner-copy"><span class="bh-eyebrow">FROM DREAMCABS</span><h2>{{ banner.title }}</h2>
               <button *ngIf="banner.url_link" type="button" (click)="onBannerClick(banner)">Learn more<ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></button>
             </div>
+            <button class="dc-banner-close-btn" type="button" (click)="dismissHomeBanner(banner)" aria-label="Collapse banner"><ion-icon name="close" aria-hidden="true"></ion-icon></button>
           </aside>
           <p class="bh-promotion-empty" *ngIf="!visibleHomeBanners.length">No offers to show right now. Check back soon.</p>
         </div>

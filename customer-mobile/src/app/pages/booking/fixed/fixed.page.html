@@ -14,8 +14,13 @@
       <ion-icon name="chevron-down-outline" class="fb-city-pill__arrow"></ion-icon>
     </button>
     <label class="bk-field fb-search-field">
-      <input class="bk-field__input" type="search" placeholder="Search routes or stops"
+      <input class="bk-field__input" type="search" [placeholder]="searchPlaceholder"
              autocomplete="off" [ngModel]="search" (ngModelChange)="onSearchChange($event)" maxlength="80" />
+      <select class="fb-search-mode" [(ngModel)]="searchMode" (ngModelChange)="onSearchModeChange()" aria-label="Search by">
+        <option value="destination">Destination</option>
+        <option value="origin">Origin</option>
+        <option value="stop">Stop</option>
+      </select>
       <button *ngIf="search" type="button" class="fb-search-clear-btn" (click)="clearSearch()" aria-label="Clear search">
         <ion-icon name="close-circle-sharp"></ion-icon>
       </button>
@@ -82,15 +87,18 @@
           <ion-icon *ngIf="!r.image_url" name="bus-outline" aria-hidden="true"></ion-icon>
         </span>
         <span class="bk-opt__main">
-          <span class="bk-opt__t">{{ r.name }}</span>
           <span class="bk-opt__s">
-            <span class="fb-route-endpoints">{{ r.origin_name }} → {{ r.dest_name }}</span>
             <span class="fb-route-stops-tag">{{ (r.stops || []).length }} {{ (r.stops || []).length === 1 ? 'stop' : 'stops' }}</span>
           </span>
         </span>
         <span class="bk-opt__r">
           <span class="fb-route-fare-val">₹{{ r.flat_fare }}</span>
           <small class="fb-route-fare-unit">a seat</small>
+        </span>
+        <span class="fb-route-corridor" [attr.aria-label]="'Origin: ' + r.origin_name + '. Destination: ' + r.dest_name">
+          <span class="fb-route-place"><span class="fb-route-place-label">Origin</span><span class="fb-route-place-name">{{ r.origin_name }}</span></span>
+          <ion-icon class="fb-route-place-arrow" name="arrow-forward-outline" aria-hidden="true"></ion-icon>
+          <span class="fb-route-place"><span class="fb-route-place-label">Destination</span><span class="fb-route-place-name">{{ r.dest_name }}</span></span>
         </span>
         <span class="fb-route-bottom">
           <span class="fb-route-nearest" *ngIf="r.starting_stop">
@@ -110,10 +118,10 @@
       <!-- Case 1: Search returned 0 results -->
       <ng-container *ngIf="search.trim()">
         <p class="fb-empty-title">
-          No routes matching "<b>{{ search.trim() }}</b>"
+          No routes with a matching {{ searchMode }} for "<b>{{ search.trim() }}</b>"
         </p>
         <p class="fb-empty-sub">
-          We couldn't find any routes or stops in {{ selectedCityName }} matching your search.
+          We couldn't find a route with that {{ searchMode }} in {{ selectedCityName }}.
         </p>
         <button type="button" class="fb-switch-city-btn dc-press" (click)="clearSearch()">
           <ion-icon name="close-circle-outline"></ion-icon>
