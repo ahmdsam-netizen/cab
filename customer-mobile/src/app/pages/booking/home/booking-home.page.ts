@@ -139,11 +139,10 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
   city: City | null = null;
   located = false;
   homeExpanded = false;
+  offersTab: 'offers' | 'coupons' = 'offers';
   savedPlaces: Array<{ label: string }> = [];
   homeOffers: HomeOffer[] = [];
-  promotionTab: 'coupons' | 'offers' = 'offers';
   offerBanners: AppBanner[] = [];
-  private dismissedHomeBanners = new Set<number>();
   private failedHomeBannerImages = new Set<string>();
   private homeOffersSub?: Subscription;
   homeRoutes: HomeRoute[] = [];
@@ -285,7 +284,6 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
         for (const banner of nextOffers) {
           const previous = this.offerBanners.find(item => item.id === banner.id);
           if (!previous || previous.title !== banner.title || previous.image_url !== banner.image_url || previous.url_link !== banner.url_link) {
-            this.dismissedHomeBanners.delete(banner.id);
             this.failedHomeBannerImages.delete(`${banner.id}:${banner.image_url}`);
           }
         }
@@ -342,34 +340,8 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     this.cdr.markForCheck();
   }
 
-  get showOfferPill(): boolean {
-    if (this.locationPermissionNeeded) return false;
-    if (this.fullScreenBanner && !this.isFullScreenDismissed) return false;
-    if (this.halfBanner && !this.isHalfBannerCollapsed) return false;
-    return (
-      (!!this.fullScreenBanner && this.isFullScreenDismissed) ||
-      (!!this.halfBanner && this.isHalfBannerCollapsed)
-    );
-  }
-
-  reopenOfferBanner(): void {
-    this.promotionTab = 'offers';
-    this.dismissedHomeBanners.clear();
-    if (this.fullScreenBanner && this.isFullScreenDismissed) {
-      this.isFullScreenDismissed = false;
-    } else if (this.halfBanner && this.isHalfBannerCollapsed) {
-      this.isHalfBannerCollapsed = false;
-    } else {
-      this.isFullScreenDismissed = false;
-      this.isHalfBannerCollapsed = false;
-    }
-    this.cdr.markForCheck();
-  }
-
-  get visibleHomeBanners(): AppBanner[] {
-    const banners = this.offerBanners.length ? this.offerBanners : (this.halfBanner ? [this.halfBanner] : []);
-    return banners.filter(banner => !this.dismissedHomeBanners.has(banner.id)
-      && !(banner.id === this.halfBanner?.id && this.isHalfBannerCollapsed));
+  get homeOfferBanners(): AppBanner[] {
+    return this.offerBanners.length ? this.offerBanners : (this.halfBanner ? [this.halfBanner] : []);
   }
 
   trackHomeBanner = (_: number, banner: AppBanner): number => banner.id;
@@ -380,12 +352,6 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
 
   onHomeBannerImageError(banner: AppBanner): void {
     this.failedHomeBannerImages.add(`${banner.id}:${banner.image_url}`);
-    this.cdr.markForCheck();
-  }
-
-  dismissHomeBanner(banner: AppBanner): void {
-    this.dismissedHomeBanners.add(banner.id);
-    if (banner.id === this.halfBanner?.id) this.collapseHalfBanner();
     this.cdr.markForCheck();
   }
 

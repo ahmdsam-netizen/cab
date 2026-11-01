@@ -1,7 +1,4 @@
-<ion-header class="ion-no-border" [class.is-banner-open]="showHalfBanner"><app-driver-topbar>
-
-  <button driverHeaderActions type="button" class="home-offer-link" *ngIf="showOfferPill" (click)="reopenOfferBanner()"><ion-icon name="gift-outline" aria-hidden="true"></ion-icon>Offers</button>
-</app-driver-topbar></ion-header>
+<ion-header class="ion-no-border"><app-driver-topbar></app-driver-topbar></ion-header>
 <ion-content [fullscreen]="false" class="dash-content">
 
   <!-- ===== FULL-SCREEN LOCATION FETCHING LOADING OVERLAY =====
@@ -24,7 +21,7 @@
     </div>
   </div>
 
-  <main class="home-workspace" [class.is-banner-open]="showHalfBanner">
+  <main class="home-workspace">
   <!-- ===== Driver Home ===== -->
 
 
@@ -33,12 +30,10 @@
     <div><h1>{{ firstName }}</h1><p *ngIf="homeVehicleIdentity"><ion-icon name="car-outline" aria-hidden="true"></ion-icon><span>{{ homeVehicleIdentity }}</span></p></div>
   </section>
 
-  <!-- ── Half Screen Floating Banner Card ── -->
-  <ion-modal class="home-banner-overlay" [isOpen]="showHalfBanner" (didDismiss)="collapseHalfBanner()" [backdropDismiss]="true" aria-label="Promotional banner">
-  <ng-template>
+  <!-- ── Inline promotional banner card ── -->
   <aside
     class="dc-banner-half-card dc-anim-pop"
-    *ngIf="halfBanner"
+    *ngIf="showHalfBanner && halfBanner"
     role="complementary"
     aria-label="Promotional banner"
   >
@@ -70,8 +65,6 @@
       </button>
     </div>
   </aside>
-  </ng-template>
-  </ion-modal>
 
   <!-- ── Full-Screen App Banner Overlay Modal (True Mobile Full Screen) ── -->
   <div
@@ -282,6 +275,7 @@
       <button type="button" (click)="navTo('/tabs/history')"><span><ion-icon name="time-outline" aria-hidden="true"></ion-icon></span>History</button>
       <button type="button" (click)="navTo('/profile?tab=documents')"><span><ion-icon name="document-text-outline" aria-hidden="true"></ion-icon></span>Documents</button>
       <button type="button" (click)="navTo('/support')"><span><ion-icon name="headset-outline" aria-hidden="true"></ion-icon></span>Support</button>
+      <button type="button" (click)="reopenOfferBanner()" aria-label="Open available offers"><span><ion-icon name="gift-outline" aria-hidden="true"></ion-icon></span>Offers</button>
     </div>
   </section>
   <aside class="home-readiness" *ngIf="driver">
@@ -349,7 +343,7 @@
 
 </ion-content>
 
-<ion-footer class="home-footer ion-no-border" [class.is-banner-open]="showHalfBanner">
+<ion-footer class="home-footer ion-no-border">
   <nav class="home-navigation" aria-label="Driver navigation">
     <button type="button" class="is-current" aria-current="page" (click)="navTo('/tabs/dashboard')"><ion-icon name="home-outline" aria-hidden="true"></ion-icon><span>Home</span></button>
     <button type="button" (click)="navTo('/tabs/rides')"><ion-icon name="car-outline" aria-hidden="true"></ion-icon><span>Trips</span></button>

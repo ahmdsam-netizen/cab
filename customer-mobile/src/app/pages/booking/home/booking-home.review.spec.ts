@@ -60,7 +60,8 @@ describe('Booking Home location regressions', () => {
     expect(root.querySelector('ion-menu-button ion-icon')?.getAttribute('name')).toBe('person-outline');
     avatar = 'https://example.invalid/updated.png';
     // A subsequent bound event triggers the same OnPush refresh as returning from profile.
-    root.querySelector('ion-segment')!.dispatchEvent(new CustomEvent('ionChange', { detail: { value: 'offers' } }));
+    page.located = true;
+    root.querySelector<HTMLButtonElement>('.bh-offer-floating-entry')!.click();
     view.detectChanges();
     expect(root.querySelector('.bh-profile-image')?.getAttribute('src')).toBe(avatar);
   });
@@ -80,27 +81,29 @@ describe('Booking Home location regressions', () => {
     expect(gate.querySelector('[aria-label*="Close"]')).toBeNull();
   });
 
-  it('keeps available coupons separate from promotional banners', () => {
+  it('opens promotional banners and coupons from the floating entry point', () => {
     const view = fixture();
     const page = view.componentInstance;
+    page.located = true;
     page.locationFetching = false;
     page.halfBanner = { id: 1, title: 'Banner-only offer', image_url: '' } as any;
     page.homeOffers = [{ id: 2, title: 'COUPON_ONLY', discount_label: '10% off', status: 'available', is_available: true }];
-    page.promotionTab = 'offers';
     view.detectChanges();
     const root = view.nativeElement as HTMLElement;
-    expect(root.querySelector('[aria-label="Offer banners"]')?.textContent).toContain('Banner-only offer');
-    expect(root.querySelector('[aria-label="Available coupons"]')).toBeNull();
-    root.querySelector('ion-segment')!.dispatchEvent(new CustomEvent('ionChange', { detail: { value: 'coupons' } }));
+    expect(root.querySelector('.bh-offers-section')).toBeNull();
+    expect(root.querySelector('.bh-offers-modal')).toBeNull();
+    root.querySelector<HTMLButtonElement>('.bh-offer-floating-entry')!.click();
     view.detectChanges();
+    expect(root.querySelector('[aria-label="Promotional offers"]')?.textContent).toContain('Banner-only offer');
     expect(root.querySelector('[aria-label="Available coupons"]')?.textContent).toContain('COUPON_ONLY');
-    expect(root.querySelector('[aria-label="Offer banners"]')).toBeNull();
   });
 
   it('replaces a failed banner image with the standard fallback', () => {
     const view = fixture();
     const page = view.componentInstance;
+    page.located = true;
     page.halfBanner = { id: 1, title: 'Offer', image_url: 'https://example.invalid/banner.png' } as any;
+    page.offersModalOpen = true;
     view.detectChanges();
     const root = view.nativeElement as HTMLElement;
     const image = root.querySelector('.bh-offer-banner-image') as HTMLImageElement;

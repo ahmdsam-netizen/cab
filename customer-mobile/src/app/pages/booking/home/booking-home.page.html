@@ -74,19 +74,6 @@
     </div>
   </aside>
 
-  <!-- ── Collapsed Floating Trigger Pill (Shows for both Full-Screen & Half Banners) ── -->
-  <button
-    class="dc-banner-floating-pill dc-anim-pop dc-press"
-    type="button"
-    *ngIf="activeFixedRide && showOfferPill"
-    (click)="reopenOfferBanner()"
-    aria-label="View promotional banner"
-  >
-    <span class="dc-banner-pill-pulse"></span>
-    <ion-icon name="gift-outline" class="dc-banner-pill-icon"></ion-icon>
-    <span class="dc-banner-pill-label">Offer</span>
-  </button>
-
   <!-- ── Full-Screen App Banner Overlay Modal (True Mobile Full Screen) ── -->
   <div
     class="dc-banner-fullscreen-modal dc-anim-fade"
@@ -221,38 +208,39 @@
         <ion-icon name="locate-outline" aria-hidden="true"></ion-icon>Use my current location
       </button>
 
-      <section class="bh-offers-section" aria-labelledby="home-offers-title">
-        <div class="bh-section-heading"><h2 id="home-offers-title">Offers for you</h2><a *ngIf="promotionTab === 'coupons'" routerLink="/customer-tabs/coupons">View all<ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon></a></div>
-        <ion-segment class="bh-promotion-tabs" [value]="promotionTab" (ionChange)="promotionTab = $any($event.detail.value)" aria-label="Coupons and offers">
-          <ion-segment-button value="offers"><ion-label>Offers</ion-label></ion-segment-button>
-          <ion-segment-button value="coupons"><ion-label>Coupons</ion-label></ion-segment-button>
-        </ion-segment>
-        <div class="bh-offer-carousel" *ngIf="promotionTab === 'offers'" aria-label="Offer banners">
-          <aside class="bh-inline-offer bh-banner-offer" *ngFor="let banner of visibleHomeBanners; trackBy: trackHomeBanner" aria-label="Promotional banner">
-            <img *ngIf="homeBannerImage(banner) as bannerImage; else bannerIcon" class="bh-offer-banner-image"
-              [src]="bannerImage" alt="" aria-hidden="true" (error)="onHomeBannerImageError(banner)" />
-            <ng-template #bannerIcon><span class="bh-offer-art" aria-hidden="true"><ion-icon name="gift-outline"></ion-icon></span></ng-template>
-            <div class="bh-banner-copy"><span class="bh-eyebrow">FROM DREAMCABS</span><h2>{{ banner.title }}</h2>
-              <button *ngIf="banner.url_link" type="button" (click)="onBannerClick(banner)">Learn more<ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></button>
-            </div>
-            <button class="dc-banner-close-btn" type="button" (click)="dismissHomeBanner(banner)" aria-label="Collapse banner"><ion-icon name="close" aria-hidden="true"></ion-icon></button>
-          </aside>
-          <p class="bh-promotion-empty" *ngIf="!visibleHomeBanners.length">No offers to show right now. Check back soon.</p>
+      <section class="bh-offers-section" aria-labelledby="bh-home-offers-title">
+        <div class="bh-section-heading"><h2 id="bh-home-offers-title">Offers for you</h2></div>
+        <div class="bh-promotion-tabs" role="tablist" aria-label="Offers and coupons">
+          <button type="button" role="tab" aria-controls="bh-home-offers-panel" [class.is-selected]="offersTab === 'offers'" [attr.aria-selected]="offersTab === 'offers'" (click)="offersTab = 'offers'">Offers</button>
+          <button type="button" role="tab" aria-controls="bh-home-coupons-panel" [class.is-selected]="offersTab === 'coupons'" [attr.aria-selected]="offersTab === 'coupons'" (click)="offersTab = 'coupons'">Coupons</button>
         </div>
-        <div class="bh-offer-carousel" *ngIf="promotionTab === 'coupons'" aria-label="Available coupons">
-          <article class="bh-inline-offer bh-coupon-offer" *ngFor="let offer of homeOffers">
-            <span class="bh-offer-art" aria-hidden="true"><ion-icon name="pricetag-outline"></ion-icon></span>
-            <div><span class="bh-eyebrow">YOUR COUPON</span><h2>{{ offer.discount_label }}</h2>
-              <p>{{ offer.subtitle || offer.description || 'View your coupon for offer details.' }}</p>
-              <a routerLink="/customer-tabs/coupons">{{ offer.title }}<ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></a>
-            </div>
-          </article>
-          <p class="bh-promotion-empty" *ngIf="!homeOffers.length">No available coupons right now. View all coupons to check your history.</p>
+        <div id="bh-home-offers-panel" [hidden]="offersTab !== 'offers'" role="tabpanel" aria-label="Offers">
+          <div class="bh-offer-carousel" aria-label="Promotional offers">
+            <aside class="bh-inline-offer bh-banner-offer" *ngFor="let banner of homeOfferBanners; trackBy: trackHomeBanner" aria-label="Promotional banner">
+              <img *ngIf="homeBannerImage(banner) as bannerImage; else bannerIcon" class="bh-offer-banner-image"
+                [src]="bannerImage" alt="" aria-hidden="true" (error)="onHomeBannerImageError(banner)" />
+              <ng-template #bannerIcon><span class="bh-offer-art" aria-hidden="true"><ion-icon name="gift-outline"></ion-icon></span></ng-template>
+              <div class="bh-banner-copy"><span class="bh-eyebrow">FROM DREAMCABS</span><h2>{{ banner.title }}</h2>
+                <button *ngIf="banner.url_link" type="button" (click)="onBannerClick(banner)">Learn more<ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></button>
+              </div>
+            </aside>
+            <p class="bh-promotion-empty" *ngIf="!homeOfferBanners.length">No offers to show right now. Check back soon.</p>
+          </div>
+        </div>
+        <div id="bh-home-coupons-panel" [hidden]="offersTab !== 'coupons'" role="tabpanel" aria-label="Coupons">
+          <div class="bh-offer-carousel" aria-label="Available coupons">
+            <article class="bh-inline-offer bh-coupon-offer" *ngFor="let offer of homeOffers">
+              <span class="bh-offer-art" aria-hidden="true"><ion-icon name="pricetag-outline"></ion-icon></span>
+              <div><span class="bh-eyebrow">YOUR COUPON</span><h2>{{ offer.discount_label }}</h2>
+                <p>{{ offer.subtitle || offer.description || 'View your coupon for offer details.' }}</p>
+                <a routerLink="/customer-tabs/coupons">{{ offer.title }}<ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></a>
+              </div>
+            </article>
+            <p class="bh-promotion-empty" *ngIf="!homeOffers.length">No available coupons right now.</p>
+          </div>
+          <a class="bh-offers-section__all-coupons" routerLink="/customer-tabs/coupons">View all coupons<ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon></a>
         </div>
       </section>
-      <button class="bh-offer-reopen" *ngIf="showOfferPill" type="button" (click)="reopenOfferBanner()">
-        <ion-icon name="gift-outline" aria-hidden="true"></ion-icon>View offers<ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon>
-      </button>
 
       <div class="bh-saved-places" aria-label="Saved places">
         <a *ngFor="let place of savedPlaces" routerLink="/customer-tabs/saved-locations" [attr.aria-label]="'View saved place: ' + place.label">

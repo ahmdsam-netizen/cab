@@ -321,11 +321,8 @@ export class FixedDriverPage implements OnDestroy {
       // 3. Search Query Filter
       if (this.routeSearchQuery && this.routeSearchQuery.trim()) {
         const q = this.routeSearchQuery.toLowerCase().trim();
-        const nameMatches = (r.name || '').toLowerCase().includes(q);
-        const originMatches = (r.origin_name || '').toLowerCase().includes(q);
         const destMatches = (r.dest_name || '').toLowerCase().includes(q);
-        const stopsMatch = (r.stops || []).some((s) => (s.name || '').toLowerCase().includes(q));
-        if (!nameMatches && !originMatches && !destMatches && !stopsMatch) return false;
+        if (!destMatches) return false;
       }
 
       return true;
@@ -883,8 +880,8 @@ export class FixedDriverPage implements OnDestroy {
   async startRide(): Promise<void> {
     if (!this.activeVehicle) return;
     const alert = await this.alerts.create({
-      header: 'Start boarding?',
-      message: 'Customers can still book from upcoming stops while seats are available.',
+      header: 'Start boarding here?',
+      message: 'Begin boarding passengers at the current stop. Customers can still book seats for upcoming stops.',
       buttons: [
         { text: 'Cancel', role: 'cancel' },
         { text: 'Start boarding', role: 'confirm' },
@@ -916,9 +913,9 @@ export class FixedDriverPage implements OnDestroy {
   async departRide(): Promise<void> {
     if (!this.activeVehicle || !this.canDepart(this.activeVehicle)) return;
     const alert = await this.alerts.create({
-      header: 'Depart now?',
-      message: 'Finish boarding at this stop before departing. Customers can still book from upcoming stops.',
-      buttons: [{ text: 'Cancel', role: 'cancel' }, { text: 'Depart', role: 'confirm' }],
+      header: 'Depart from origin?',
+      message: 'This starts the route from its origin and closes boarding here. Customers can still book seats for upcoming stops.',
+      buttons: [{ text: 'Cancel', role: 'cancel' }, { text: 'Depart from origin', role: 'confirm' }],
     });
     await alert.present();
     if ((await alert.onDidDismiss()).role !== 'confirm') return;
@@ -2158,16 +2155,6 @@ export class FixedDriverPage implements OnDestroy {
     this.passengerSheetExpanded = !this.passengerSheetExpanded;
   }
 
-  recenterMap(): void {
-    if (!this.map) return;
-    if (this.selfMarker?.position) {
-      this.map.panTo(this.selfMarker.position);
-      this.map.setZoom(16);
-    } else {
-      this.fitEmbeddedMap();
-    }
-  }
-
   private async initEmbeddedMap(): Promise<void> {
     if (this.map) return;
     try {
@@ -2594,20 +2581,24 @@ export class FixedDriverPage implements OnDestroy {
 
   private buildStopMarker(stop: FixedStop): HTMLElement {
     const reachedSeq = this.completedStopSeq;
-    return buildStopMarkerElement({
+    const marker = buildStopMarkerElement({
       seq: stop.seq,
       name: stop.name,
       isNext: this.nextStopGuide?.id === stop.id,
       isReached: Number(stop.seq || 0) <= reachedSeq,
     });
+    // The Next Stop card above the map already names the upcoming stop.
+    marker.querySelector('.next-stop-marker-label')?.remove();
+    return marker;
   }
 
   private buildDriverMarker(bearing: number): HTMLElement {
-    return buildReusableCarMarkerElement({
+    const marker = buildReusableCarMarkerElement({
       bearing,
-      label: 'You (Car)',
       markerUrl: this.driverMapMarkerUrl,
     });
+    marker.setAttribute('aria-label', 'Your vehicle location');
+    return marker;
   }
 
   /* ─── Route Preview Map Methods (Step 2: Detail View Before Start Ride) ─── */

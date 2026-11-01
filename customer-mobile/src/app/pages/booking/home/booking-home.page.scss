@@ -1038,8 +1038,10 @@
 .bh-eyebrow { font-size: 9px; letter-spacing: 1.6px; font-weight: 650; opacity: .8; }
 .bh-offers-section { margin: 20px 0 16px; }
 .bh-promotion-tabs {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px;
   width: 100%; padding: 4px; margin: 0 0 14px; border-radius: 13px; background: #e8edf3;
-  ion-segment-button { min-height: 38px; --border-radius: 10px; --indicator-color: #fff; --indicator-box-shadow: 0 2px 6px #1527390d; --color: #63738b; --color-checked: #087f50; font-size: 12px; font-weight: 700; text-transform: none; letter-spacing: 0; }
+  button { min-height: 38px; border: 0; border-radius: 10px; padding: 6px; background: transparent; color: #63738b; font-size: 12px; font-weight: 700; cursor: pointer; }
+  button.is-selected { background: #fff; color: #087f50; box-shadow: 0 2px 6px #1527390d; }
 }
 .bh-banner-offer {
   isolation: isolate;
@@ -1057,7 +1059,7 @@
 }
 .bh-inline-offer .bh-offer-banner-image { object-fit: contain; object-position: center; }
 .bh-promotion-empty { width: 100%; margin: 0; padding: 16px; background: #fff; border: 1px solid var(--home-line); border-radius: 14px; color: var(--home-muted); font-size: 12px; line-height: 1.6; }
-.bh-offers-section .bh-section-heading > a { display: flex; align-items: center; gap: 3px; color: var(--home-green); font-size: 12px; text-decoration: none; min-height: 36px; }
+.bh-offers-section .bh-section-heading > a, .bh-offers-section__all-coupons { display: flex; align-items: center; justify-content: center; gap: 5px; color: var(--home-green); font-size: 12px; text-decoration: none; min-height: 40px; font-weight: 700; }
 .bh-offer-carousel {
   display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
   overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: #bdcfca transparent;
@@ -1073,7 +1075,6 @@
 @media (max-width: 380px) {
   .bh-offer-carousel .bh-offer-art { flex-basis: 48px; height: 48px; ion-icon { font-size: 28px; } }
 }
-.bh-offer-reopen { width: 100%; display: flex; gap: 9px; align-items: center; padding: 12px 15px; margin-bottom: 14px; min-height: 46px; background: #e4f3eb; border: 1px solid #c9e6d6; border-radius: 14px; color: var(--home-green); font-size: 13px; font-weight: 650; ion-icon:last-child { margin-left: auto; } }
 .bh-saved-places { display: flex; gap: 7px; overflow-x: auto; margin: 0 0 24px; padding: 2px 0 4px; scrollbar-width: none; a { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; min-height: 40px; max-width: 160px; overflow: hidden; padding: 8px 12px; border: 1px solid var(--home-line); border-radius: 24px; background: #fff; font-size: 11px; font-weight: 650; color: var(--home-ink); text-decoration: none; white-space: nowrap; } ion-icon { font-size: 15px; flex-shrink: 0; } }
 .bh-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; h2 { font-size: 16px; font-weight: 750; letter-spacing: -.25px; margin: 0; } > span { font-size: 8px; letter-spacing: 1px; color: var(--home-muted); } button { display: flex; align-items: center; gap: 3px; min-height: 36px; border: 0; background: none; font-size: 12px; color: var(--home-green); padding: 0 2px; cursor: pointer; white-space: nowrap; } }
 .bh-section-subtitle { font-size: 12px; color: var(--home-muted); margin: -7px 0 14px; }
@@ -1089,7 +1090,7 @@
 .bh-route-card { width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer; }
 .bh-route-card:hover { border-color: var(--home-green); }
 .bh-route-card:active { background: #f0f8f4; }
-.bh-home-sheet button:focus-visible, .bh-home-sheet a:focus-visible, .bh-home-nav a:focus-visible, .bh-home-nav button:focus-visible, .bh-topbar button:focus-visible, .bh-topbar a:focus-visible { outline: 2px solid var(--home-green); outline-offset: -2px; }
+.bh-home-sheet button:focus-visible, .bh-home-sheet a:focus-visible, .bh-home-nav a:focus-visible, .bh-home-nav button:focus-visible, .bh-topbar button:focus-visible, .bh-topbar a:focus-visible, .bh-promotion-tabs button:focus-visible, .bh-offers-section a:focus-visible, .bh-offers-section button:focus-visible { outline: 2px solid var(--home-green); outline-offset: 2px; }
 
 @media (min-width: 768px) {
   .bh-home-sheet, .bh-home-sheet.is-expanded { left: 24px; right: auto; width: 410px; height: calc(100dvh - 112px - var(--home-nav-height)); max-height: none; border-radius: 24px 24px 0 0; }
