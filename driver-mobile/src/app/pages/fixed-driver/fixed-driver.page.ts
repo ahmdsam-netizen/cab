@@ -409,6 +409,7 @@ export class FixedDriverPage implements OnDestroy {
 
   // Route details preview map (Step 2: Detail View Before Start Ride)
   previewMap: any = null;
+  previewDriverMarker: any = null;
   previewStopMarkers: any[] = [];
   selectedPreviewStop: FixedStop | null = null;
   previewMapLoading = false;
@@ -479,6 +480,7 @@ export class FixedDriverPage implements OnDestroy {
   private appStateHandle?: PluginListenerHandle;
 
   driverPosition: { lat: number; lng: number } | null = null;
+  driverBearing: number = 0;
 
   constructor(
     private api: ApiService,
@@ -522,6 +524,7 @@ export class FixedDriverPage implements OnDestroy {
     this.api.get<{ driver?: { map_marker_url?: string | null; vehicle?: { map_marker_url?: string | null } } }>('/drivers/me').subscribe({
       next: response => {
         this.configuredDriverMarkerUrl = response.driver?.vehicle?.map_marker_url || response.driver?.map_marker_url || null;
+        this.updatePreviewDriverMarker();
         this.cd.markForCheck();
       },
       error: () => {},
@@ -534,6 +537,8 @@ export class FixedDriverPage implements OnDestroy {
     void this.geo.getCurrentPosition({ timeout: 8000, maximumAge: 15000 }).then((fix) => {
       if (fix) {
         this.driverPosition = { lat: fix.lat, lng: fix.lng };
+        this.driverBearing = fix.bearing ?? 0;
+        this.updatePreviewDriverMarker();
         this.updatePassengerMarkerDistances();
         this.cd.markForCheck();
       }
@@ -2316,6 +2321,10 @@ export class FixedDriverPage implements OnDestroy {
   private onDriverPosition(fix: GeoFix): void {
     const position = { lat: fix.lat, lng: fix.lng };
     this.driverPosition = position;
+    if (fix.bearing != null) {
+      this.driverBearing = fix.bearing;
+    }
+    this.updatePreviewDriverMarker();
     if (this.map) {
       if (!this.selfMarker) {
         this.selfMarker = new google.maps.marker.AdvancedMarkerElement({
@@ -2737,6 +2746,19 @@ export class FixedDriverPage implements OnDestroy {
       return fallbackMarker;
     });
 
+    this.updatePreviewDriverMarker();
+    if (!this.driverPosition) {
+      void this.geo.getCurrentPosition({ timeout: 8000, maximumAge: 15000 }).then((fix) => {
+        if (fix) {
+          this.driverPosition = { lat: fix.lat, lng: fix.lng };
+          this.driverBearing = fix.bearing ?? 0;
+          this.updatePreviewDriverMarker();
+          this.cd.markForCheck();
+        }
+      }).catch(() => {});
+    }
+    void this.startDriverWatch();
+
     void this.fitRoutePreviewMap(route);
   }
 
@@ -2836,6 +2858,11 @@ export class FixedDriverPage implements OnDestroy {
       }
     }
 
+    if (this.driverPosition && this.routeStartsNearby(route)) {
+      bounds.extend(this.driverPosition);
+      hasCoords = true;
+    }
+
     if (hasCoords) {
       const padding = this.previewMapFullscreen
         ? { top: 80, right: 45, bottom: 80, left: 45 }
@@ -2869,9 +2896,56 @@ export class FixedDriverPage implements OnDestroy {
       .replace(/"/g, '&quot;');
   }
 
+  private updatePreviewDriverMarker(): void {
+    if (!this.previewMap || !this.driverPosition) return;
+
+    if (!this.previewDriverMarker) {
+      const bearing = this.driverBearing ?? 0;
+      try {
+        if (typeof google !== 'undefined' && google.maps?.marker?.AdvancedMarkerElement) {
+          this.previewDriverMarker = new google.maps.marker.AdvancedMarkerElement({
+            position: this.driverPosition,
+            map: this.previewMap,
+            title: 'Your vehicle location',
+            content: this.buildDriverMarker(bearing),
+            zIndex: 1000,
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn('AdvancedMarkerElement failed for previewDriverMarker, fallback to standard Marker', err);
+      }
+
+      this.previewDriverMarker = new google.maps.Marker({
+        position: this.driverPosition,
+        map: this.previewMap,
+        title: 'Your vehicle location',
+      });
+    } else {
+      this.previewDriverMarker.position = this.driverPosition;
+      if (this.previewDriverMarker.map !== this.previewMap) {
+        this.previewDriverMarker.map = this.previewMap;
+      }
+      if (this.driverBearing != null) {
+        updateCarMarkerBearing(this.previewDriverMarker, this.driverBearing);
+      }
+      if (this.driverMapMarkerUrl) {
+        updateCarMarkerImage(this.previewDriverMarker, this.driverMapMarkerUrl);
+      }
+    }
+  }
+
   private destroyRoutePreviewMap(resetFullscreen = true): void {
     if (resetFullscreen) {
       this.previewMapFullscreen = false;
+    }
+    if (this.previewDriverMarker) {
+      if (typeof this.previewDriverMarker.setMap === 'function') {
+        this.previewDriverMarker.setMap(null);
+      } else {
+        this.previewDriverMarker.map = null;
+      }
+      this.previewDriverMarker = null;
     }
     for (const m of this.previewStopMarkers) {
       if (m) {
@@ -2885,5 +2959,8 @@ export class FixedDriverPage implements OnDestroy {
     this.previewStopMarkers = [];
     this.previewMap = null;
     this.selectedPreviewStop = null;
+    if (!this.activeVehicle) {
+      void this.stopDriverWatch();
+    }
   }
 }
