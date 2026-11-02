@@ -4539,19 +4539,19 @@ ion-content.is-map-fullscreen {
 .route-workspace.dc-fullmap-view .route-map-navigate {
   position: absolute;
   z-index: 5;
-  right: 14px;
-  bottom: 14px;
+  right: 12px;
+  top: 12px;
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
+  width: 36px;
+  height: 36px;
   border: 0;
   border-radius: 50%;
   background: #1166df;
   color: #fff;
-  box-shadow: 0 4px 12px rgba(17,102,223,.3);
+  box-shadow: 0 3px 10px rgba(17, 102, 223, 0.28);
 }
-.route-workspace.dc-fullmap-view .route-map-navigate ion-icon { font-size: 21px; }
+.route-workspace.dc-fullmap-view .route-map-navigate ion-icon { font-size: 17px; }
 .route-workspace.dc-fullmap-view .route-map-navigate:active { transform: scale(.95); }
 .route-workspace.dc-fullmap-view .dc-fullscreen-map {
   position: relative;
