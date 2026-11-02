@@ -1614,7 +1614,7 @@ ion-content.is-map-fullscreen {
 /* ─── 3. Floating Bottom Bar on Map ─── */
 .dc-map-floating-bottom-bar {
   position: absolute;
-  bottom: calc(14px + env(safe-area-inset-bottom));
+  bottom: calc(36px + env(safe-area-inset-bottom, 16px));
   left: 12px;
   right: 12px;
   max-width: 520px;
@@ -1622,7 +1622,7 @@ ion-content.is-map-fullscreen {
   z-index: 25;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .route-lifecycle-actions {
@@ -1633,8 +1633,8 @@ ion-content.is-map-fullscreen {
 }
 
 .route-workspace .dc-map-floating-bottom-bar {
-  gap: 6px;
-  .route-lifecycle-actions { gap: 6px; }
+  gap: 10px;
+  .route-lifecycle-actions { gap: 8px; margin-bottom: 2px; }
   .route-navigate, .dc-float-cta {
     height: 44px;
     min-height: 44px;
@@ -4495,7 +4495,7 @@ ion-content.is-map-fullscreen {
   height: auto;
   min-height: 0;
   overflow: visible;
-  padding: 0 0 20px;
+  padding: 0 0 calc(56px + env(safe-area-inset-bottom, 24px));
   background: #f5f8fa;
 }
 .route-workspace.dc-fullmap-view .route-map-section {
@@ -4571,9 +4571,9 @@ ion-content.is-map-fullscreen {
   flex: 0 0 auto;
   width: min(calc(100% - 16px), 720px);
   max-width: none;
-  margin: 16px auto 0;
+  margin: 16px auto calc(48px + env(safe-area-inset-bottom, 24px));
   padding: 12px;
-  gap: 8px;
+  gap: 10px;
   border: 1px solid #d9e4eb;
   border-radius: 20px;
   background: #eef4f8;

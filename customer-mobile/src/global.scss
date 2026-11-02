@@ -272,6 +272,10 @@ ion-content .floating-step-progress {
 
     .vector-car-svg {
       display: block;
+
+
+
+
     }
   }
 
@@ -344,18 +348,45 @@ ion-content .floating-step-progress {
 
     .person-avatar-svg {
       display: block;
-      filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+
+
+
+
+      filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+    }
+
+    .person-dot-svg {
+      width: 22px;
+      height: 22px;
+      display: block;
+
+
+
+
+      filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.3));
     }
 
     .person-avatar-img {
       width: 36px;
       height: 36px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 2.5px solid #2563EB;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
-      background: #FFFFFF;
+      object-fit: contain;
+      &--avatar {
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2.5px solid #2563EB;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+        background: #FFFFFF;
+      }
+      filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+
+
+
+
       display: block;
+
+
+
+
     }
   }
 
