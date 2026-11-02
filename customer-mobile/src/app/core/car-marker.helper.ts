@@ -120,6 +120,25 @@ export function updateCarMarkerImage(marker: any, markerUrl: string | null): voi
   }
 }
 
+let globalCustomerMarkerUrl: string | null = null;
+
+export function setGlobalCustomerMarkerUrl(url: string | null): void {
+  globalCustomerMarkerUrl = url;
+  try {
+    if (url) localStorage.setItem('dc_customer_marker_url', url);
+    else localStorage.removeItem('dc_customer_marker_url');
+  } catch {}
+}
+
+export function getGlobalCustomerMarkerUrl(): string | null {
+  if (globalCustomerMarkerUrl !== null) return globalCustomerMarkerUrl;
+  try {
+    return localStorage.getItem('dc_customer_marker_url') || null;
+  } catch {
+    return null;
+  }
+}
+
 export interface PassengerMarkerOptions {
   kind?: 'pickup' | 'drop';
   name?: string;
@@ -131,11 +150,10 @@ export interface PassengerMarkerOptions {
 }
 
 /**
- * Builds the unified passenger avatar marker with dynamic avatar/asset support,
- * drop pin, seat count, and live walking pulsing ring.
+ * Builds the customer / passenger marker element.
  *
- * Uses avatarUrl first, falls back to assetIcon, then to clean SVG figure.
- * Fallback SVG remains displayed while images load to prevent blank markers.
+ * Defaults to a clean location dot when no custom marker is configured.
+ * When a custom marker image is uploaded or available, displays that custom marker.
  */
 export function buildPassengerMarkerElement(options: PassengerMarkerOptions = {}): HTMLElement {
   const kind = options.kind || 'pickup';
@@ -144,6 +162,7 @@ export function buildPassengerMarkerElement(options: PassengerMarkerOptions = {}
   const displayName = isGeneric ? '' : rawName;
   const count = options.count ?? 1;
   const isLive = !!options.isLive;
+  const customMarker = getGlobalCustomerMarkerUrl();
   const avatarUrl = options.avatarUrl?.trim() || null;
   const assetIcon = options.assetIcon?.trim() || null;
 
@@ -153,41 +172,34 @@ export function buildPassengerMarkerElement(options: PassengerMarkerOptions = {}
   const wrap = document.createElement('div');
   wrap.className = `person-avatar-wrap ${kind === 'drop' ? 'person-avatar-wrap--drop' : ''}`;
 
+  // Default fallback: crisp location dot for customer/pickup in place of person figure
   const fallbackSvgHtml = kind === 'pickup'
-    ? `<svg viewBox="0 0 24 32" width="28" height="38" fill="#2563EB" stroke="#FFFFFF" stroke-width="1.2" stroke-linejoin="round" class="person-avatar-svg">
-         <!-- Head -->
-         <circle cx="12" cy="5" r="3.5" />
-         <!-- Full Body: Torso, Arms, Legs -->
-         <path d="M15 10.5h-6c-1.1 0-2 .9-2 2v5.5c0 .6.45 1 1 1s1-.4 1-1V13.5h1V28c0 .6.45 1 1 1s1-.4 1-1v-8h2v8c0 .6.45 1 1 1s1-.4 1-1V13.5h1v4.5c0 .6.45 1 1 1s1-.4 1-1v-5.5c0-1.1-.9-2-2-2z" />
+    ? `<svg viewBox="0 0 24 24" width="22" height="22" class="person-avatar-svg person-dot-svg">
+         <circle cx="12" cy="12" r="8" fill="#2563EB" stroke="#FFFFFF" stroke-width="2.5" />
+         <circle cx="12" cy="12" r="3" fill="#FFFFFF" opacity="0.95" />
        </svg>`
-    : `<svg viewBox="0 0 24 32" width="26" height="36" fill="#F59E0B" stroke="#FFFFFF" stroke-width="1.2" class="person-avatar-svg">
+    : `<svg viewBox="0 0 24 32" width="24" height="32" fill="#F59E0B" stroke="#FFFFFF" stroke-width="1.2" class="person-avatar-svg">
          <path d="M12 2C7.58 2 4 5.58 4 10c0 6 8 16 8 16s8-10 8-16c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/>
        </svg>`;
 
   wrap.innerHTML = fallbackSvgHtml;
   const svgEl = wrap.querySelector('.person-avatar-svg') as SVGElement | null;
 
-  const targetImgUrl = avatarUrl || assetIcon;
+  const targetImgUrl = kind === 'pickup' ? (customMarker || assetIcon) : assetIcon;
   if (targetImgUrl) {
     const img = document.createElement('img');
     img.className = 'person-avatar-img';
-    img.alt = displayName || 'Passenger';
+    img.alt = displayName || 'Customer';
     img.style.display = 'none';
 
-    let attemptedAsset = false;
     img.addEventListener('load', () => {
       img.style.display = 'block';
       if (svgEl) svgEl.style.display = 'none';
     });
 
     img.addEventListener('error', () => {
-      if (!attemptedAsset && avatarUrl && assetIcon && img.src !== assetIcon) {
-        attemptedAsset = true;
-        img.src = assetIcon;
-      } else {
-        img.style.display = 'none';
-        if (svgEl) svgEl.style.display = 'block';
-      }
+      img.style.display = 'none';
+      if (svgEl) svgEl.style.display = 'block';
     });
 
     img.src = targetImgUrl;
@@ -222,6 +234,49 @@ export function buildPassengerMarkerElement(options: PassengerMarkerOptions = {}
   }
 
   return el;
+}
+
+/**
+ * Reactively updates an existing customer / passenger marker's icon image.
+ */
+export function updatePassengerMarkerImage(marker: any, url: string | null): void {
+  const content = marker?.content as HTMLElement | undefined;
+  if (!content) return;
+  const wrap = content.querySelector('.person-avatar-wrap') as HTMLElement | null;
+  const svgEl = wrap?.querySelector('.person-avatar-svg') as SVGElement | null;
+  let img = wrap?.querySelector('.person-avatar-img') as HTMLImageElement | null;
+
+  if (!url) {
+    if (img) img.remove();
+    if (svgEl) svgEl.style.display = 'block';
+    return;
+  }
+
+  if (img && img.src === url) return;
+
+  if (!img && wrap) {
+    img = document.createElement('img');
+    img.className = 'person-avatar-img';
+    img.alt = 'Customer';
+    img.style.display = 'none';
+    img.addEventListener('load', () => {
+      img!.style.display = 'block';
+      if (svgEl) svgEl.style.display = 'none';
+    });
+    img.addEventListener('error', () => {
+      if (svgEl) svgEl.style.display = 'block';
+      img!.remove();
+    });
+    wrap.appendChild(img);
+  }
+
+  if (img) {
+    img.src = url;
+    if (img.complete && img.naturalWidth > 0) {
+      img.style.display = 'block';
+      if (svgEl) svgEl.style.display = 'none';
+    }
+  }
 }
 
 export interface StopMarkerOptions {
