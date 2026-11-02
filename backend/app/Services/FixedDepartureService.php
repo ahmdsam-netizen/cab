@@ -402,6 +402,16 @@ class FixedDepartureService
             'city_vehicle_type_id' => $departure->city_vehicle_type_id,
             'vehicle_name' => $identity['vehicle_name'],
             'image_url' => $image['image_url'],
+            'map_marker_url' => $image['map_marker_url'],
+            'vehicle' => [
+                'type' => $identity['vehicle_type_name'] ?? null,
+                'brand' => $identity['vehicle_brand'] ?? null,
+                'model' => $identity['vehicle_model'] ?? null,
+                'color' => $identity['vehicle_color'] ?? null,
+                'reg_no' => $identity['vehicle_reg_no'] ?? null,
+                'image_url' => $image['image_url'],
+                'map_marker_url' => $image['map_marker_url'],
+            ],
             'vehicle_type_name' => $identity['vehicle_type_name'],
             'vehicle_brand' => $identity['vehicle_brand'],
             'vehicle_model' => $identity['vehicle_model'],
@@ -446,6 +456,17 @@ class FixedDepartureService
         $originName = $originFromRoute ?: ($firstStop?->name ?: ($originRaw !== '' && strtolower($originRaw) !== 'origin' ? $originRaw : 'Origin'));
         $destName = $destFromRoute ?: ($lastStop?->name ?: ($destRaw !== '' && strtolower($destRaw) !== 'destination' ? $destRaw : 'Destination'));
 
+        $requestedPlatform = request()?->header('X-Platform', 'android') ?? 'android';
+        $family = $identity['vehicle_name']
+            ?? $departure->cityVehicleType?->display_name
+            ?? $departure->driver?->cityVehicleType?->display_name
+            ?? $departure->driver?->driver?->vehicle_type;
+        $image = $this->vehicleImages->resolveForVehicle(
+            $departure->route?->city_id,
+            $family,
+            $requestedPlatform
+        );
+
         return [
             'id' => $departure->id,
             'route_id' => $departure->route_id,
@@ -486,6 +507,17 @@ class FixedDepartureService
             'driver' => $departure->driver?->name,
             'driver_id' => $departure->driver_id,
             'city_vehicle_type_id' => $departure->city_vehicle_type_id,
+            'image_url' => $image['image_url'],
+            'map_marker_url' => $image['map_marker_url'],
+            'vehicle' => [
+                'type' => $identity['vehicle_type_name'] ?? null,
+                'brand' => $identity['vehicle_brand'] ?? null,
+                'model' => $identity['vehicle_model'] ?? null,
+                'color' => $identity['vehicle_color'] ?? null,
+                'reg_no' => $identity['vehicle_reg_no'] ?? null,
+                'image_url' => $image['image_url'],
+                'map_marker_url' => $image['map_marker_url'],
+            ],
             ...$identity,
             'status' => $departure->status,
             'departure_kind' => $departure->departure_kind,
