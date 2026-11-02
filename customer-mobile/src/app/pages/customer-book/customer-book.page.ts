@@ -9,6 +9,7 @@ import { AuthService, AuthUser } from '../../core/auth.service';
 import {
   buildReusableCarMarkerElement,
   updateCarMarkerBearing,
+  updateCarMarkerImage,
   buildPassengerMarkerElement,
 } from '../../core/car-marker.helper';
 import { GeolocationService, LatLng, GeoFix } from '../../core/geolocation.service';
@@ -121,12 +122,16 @@ type NearbyDriver = {
   avatar_path?: string | null;
   rating_avg?: number;
   rating_count?: number;
+  image_url?: string | null;
+  map_marker_url?: string | null;
   vehicle?: {
     type?: string | null;
     brand?: string | null;
     model?: string | null;
     color?: string | null;
     reg_no?: string | null;
+    image_url?: string | null;
+    map_marker_url?: string | null;
   } | null;
   lat: number;
   lng: number;
@@ -781,7 +786,6 @@ export class CustomerBookPage implements OnDestroy {
         title: 'You',
         content: buildPassengerMarkerElement({
           kind: 'pickup',
-          name: this.auth.getUser()?.name || 'You',
           isLive: true,
           avatarUrl: this.auth.resolveAvatarUrl(this.auth.getUser()),
         }),
@@ -835,7 +839,7 @@ export class CustomerBookPage implements OnDestroy {
   }
 
   private renderNearbyDrivers(
-    drivers: { id: number; lat: number; lng: number; bearing_deg?: number | null }[]
+    drivers: { id: number; lat: number; lng: number; bearing_deg?: number | null; map_marker_url?: string | null; vehicle?: any }[]
   ): void {
     if (!this.map) return;
     const seen = new Set<number>();
@@ -847,6 +851,10 @@ export class CustomerBookPage implements OnDestroy {
         existing.position = pos;
         if (d.bearing_deg != null) {
           updateCarMarkerBearing(existing, d.bearing_deg);
+        }
+        const markerUrl = d.map_marker_url || d.vehicle?.map_marker_url;
+        if (markerUrl) {
+          updateCarMarkerImage(existing, markerUrl);
         }
       } else {
         const marker = new google.maps.marker.AdvancedMarkerElement({
@@ -915,7 +923,6 @@ export class CustomerBookPage implements OnDestroy {
         title: 'You',
         content: buildPassengerMarkerElement({
           kind: 'pickup',
-          name: this.auth.getUser()?.name || 'You',
           isLive: true,
           avatarUrl: this.auth.resolveAvatarUrl(this.auth.getUser()),
         }),
@@ -2248,7 +2255,11 @@ export class CustomerBookPage implements OnDestroy {
           const entry = {
             driver_id: d.driver_id,
             name: d.name ?? 'Driver',
-            vehicle: d.vehicle ? { brand: d.vehicle, model: '', color: '' } : null,
+            vehicle: typeof d.vehicle === 'object' && d.vehicle !== null
+              ? d.vehicle
+              : (d.vehicle ? { brand: d.vehicle, model: '', color: '', map_marker_url: d.map_marker_url } : null),
+            map_marker_url: d.map_marker_url || d.vehicle?.map_marker_url || null,
+            image_url: d.image_url || d.vehicle?.image_url || null,
             distance_km: d.distance_km ?? 0,
             eta_min: null,
             rating_avg: null,
@@ -2263,7 +2274,14 @@ export class CustomerBookPage implements OnDestroy {
       // Re-plot map markers using the accumulated driver list.
       const markerData = this.drivers
         .filter((d: any) => Number.isFinite(d.lat) && Number.isFinite(d.lng))
-        .map((d: any) => ({ id: d.driver_id, lat: d.lat, lng: d.lng, bearing_deg: 0 }));
+        .map((d: any) => ({
+          id: d.driver_id,
+          lat: d.lat,
+          lng: d.lng,
+          bearing_deg: d.bearing_deg ?? 0,
+          map_marker_url: d.map_marker_url || d.vehicle?.map_marker_url,
+          vehicle: d.vehicle,
+        }));
       if (markerData.length) this.renderNearbyDrivers(markerData);
 
       // Replace the backend's haversine distance with Google's road distance

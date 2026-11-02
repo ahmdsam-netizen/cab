@@ -14,6 +14,7 @@ import {
 import {
   buildReusableCarMarkerElement,
   updateCarMarkerBearing,
+  updateCarMarkerImage,
   buildPassengerMarkerElement,
 } from '../../core/car-marker.helper';
 import { PaymentChoice } from '../../shared/payment-method-modal.component';
@@ -430,6 +431,7 @@ export class TripActivePage implements OnInit, OnDestroy {
       else this.fitMap();
       // A live fix / seed may have landed before the map was ready.
       this.ensureDriverMarker();
+      this.ensurePassengerMarker();
     } catch {
       /* maps not available — page still works without it */
     }
@@ -606,6 +608,7 @@ export class TripActivePage implements OnInit, OnDestroy {
 
     // The trip path is only drawn once the customer is in the car.
     this.syncRoute();
+    this.ensurePassengerMarker();
 
     this.fitMap();
   }
@@ -732,8 +735,8 @@ export class TripActivePage implements OnInit, OnDestroy {
       this.driverMarker = new google.maps.marker.AdvancedMarkerElement({
         position: this.driverPosition,
         map: this.map,
-        title: this.driverName,
-        content: this.buildDriverMarker(this.driverName),
+        title: 'Driver',
+        content: this.buildDriverMarker(),
         gmpClickable: true,
       });
       // Tapping the driver (marker or its label) opens the details modal.
@@ -741,6 +744,44 @@ export class TripActivePage implements OnInit, OnDestroy {
       this.fitMap();
     } else {
       this.driverMarker.position = this.driverPosition;
+      const markerUrl = (this.trip?.driver as any)?.vehicle?.map_marker_url
+        || (this.trip?.driver as any)?.map_marker_url
+        || (this.trip as any)?.map_marker_url
+        || null;
+      if (markerUrl) {
+        updateCarMarkerImage(this.driverMarker, markerUrl);
+      }
+    }
+  }
+
+  /**
+   * Passenger map marker: person avatar with pulse ring and Passenger label.
+   * Ensures the passenger icon is always visible on the live screen.
+   */
+  private ensurePassengerMarker(): void {
+    if (!this.map || !this.trip) return;
+    const pos = this.selfPosition || (this.trip.pickup_lat != null && this.trip.pickup_lng != null
+      ? { lat: Number(this.trip.pickup_lat), lng: Number(this.trip.pickup_lng) }
+      : null);
+    if (!pos) return;
+
+    if (!this.selfMarker) {
+      this.selfMarker = new google.maps.marker.AdvancedMarkerElement({
+        position: pos,
+        map: this.map,
+        title: 'Passenger',
+        content: buildPassengerMarkerElement({
+          kind: 'pickup',
+          name: '',
+          isLive: !!this.selfPosition,
+          avatarUrl: this.auth.resolveAvatarUrl(this.auth.getUser()),
+        }),
+        zIndex: 4,
+      });
+      this.fitMap();
+    } else {
+      this.selfMarker.position = pos;
+      if (!this.selfMarker.map) this.selfMarker.map = this.map;
     }
   }
 
@@ -762,12 +803,11 @@ export class TripActivePage implements OnInit, OnDestroy {
   }
 
   /**
-   * Driver map marker: top-down vector vehicle with driver name pill.
+   * Driver map marker: top-down vector vehicle.
    */
-  private buildDriverMarker(name: string): HTMLElement {
+  private buildDriverMarker(): HTMLElement {
     const el = buildReusableCarMarkerElement({
       bearing: 0,
-      label: name,
       markerUrl: (this.trip?.driver as any)?.vehicle?.map_marker_url || (this.trip?.driver as any)?.map_marker_url || (this.trip as any)?.map_marker_url,
     });
     el.addEventListener('click', () => this.openDriverDetails());
@@ -1066,23 +1106,7 @@ export class TripActivePage implements OnInit, OnDestroy {
     // Render/move our own marker every tick so the customer can visually
     // confirm where they are relative to the driver.
     if (this.map) {
-      if (!this.selfMarker) {
-        this.selfMarker = new google.maps.marker.AdvancedMarkerElement({
-          position: p,
-          map: this.map,
-          title: 'You',
-          content: buildPassengerMarkerElement({
-            kind: 'pickup',
-            name: this.auth.getUser()?.name || 'You',
-            isLive: true,
-            avatarUrl: this.auth.resolveAvatarUrl(this.auth.getUser()),
-          }),
-          zIndex: 4,
-        });
-        this.fitMap();
-      } else {
-        this.selfMarker.position = p;
-      }
+      this.ensurePassengerMarker();
     }
 
     // Throttle the network POST to one per 5s, independent of the marker render.

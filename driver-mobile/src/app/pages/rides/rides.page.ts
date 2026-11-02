@@ -18,6 +18,7 @@ import {
 import {
   buildReusableCarMarkerElement,
   updateCarMarkerBearing,
+  updateCarMarkerImage,
   buildPassengerMarkerElement,
 } from '../../core/car-marker.helper';
 import { AudioRingtoneService } from '../../core/audio-ringtone.service';
@@ -1075,6 +1076,14 @@ export class RidesPage implements OnInit, OnDestroy {
   private onSelfPosition(fix: GeoFix): void {
     if (!this.map) return;
     const p = { lat: fix.lat, lng: fix.lng };
+    const markerUrl = (this.lastTrip as any)?.driver?.vehicle?.map_marker_url
+      || (this.lastTrip as any)?.driver?.map_marker_url
+      || (this.lastTrip as any)?.map_marker_url
+      || (this.lastTrip as any)?.vehicle?.map_marker_url
+      || (this.auth.getUser() as any)?.map_marker_url
+      || (this.auth.getUser() as any)?.vehicle?.map_marker_url
+      || null;
+
     if (!this.selfMarker) {
       this.selfMarker = new google.maps.marker.AdvancedMarkerElement({
         position: p,
@@ -1083,7 +1092,7 @@ export class RidesPage implements OnInit, OnDestroy {
         content: buildReusableCarMarkerElement({
           bearing: fix.bearing ?? 0,
           label: 'You',
-          markerUrl: (this.lastTrip as any)?.driver?.vehicle?.map_marker_url || (this.auth.getUser() as any)?.vehicle?.map_marker_url,
+          markerUrl,
         }),
         zIndex: 1000,
       });
@@ -1092,6 +1101,9 @@ export class RidesPage implements OnInit, OnDestroy {
       this.selfMarker.position = p;
       if (fix.bearing != null) {
         updateCarMarkerBearing(this.selfMarker, fix.bearing);
+      }
+      if (markerUrl) {
+        updateCarMarkerImage(this.selfMarker, markerUrl);
       }
     }
   }

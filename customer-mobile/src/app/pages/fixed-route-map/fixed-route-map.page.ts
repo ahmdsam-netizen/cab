@@ -4,6 +4,7 @@ import { ApiService } from '../../core/api.service';
 import {
   buildReusableCarMarkerElement,
   updateCarMarkerBearing,
+  updateCarMarkerImage,
   buildPassengerMarkerElement,
 } from '../../core/car-marker.helper';
 import { PlacesService } from '../../core/places.service';
@@ -23,6 +24,10 @@ interface FixedBooking {
   drop_lng?: number | null;
   status?: string | null;
   driver_name?: string | null;
+  map_marker_url?: string | null;
+  image_url?: string | null;
+  vehicle?: any;
+  departure?: any;
   latest_driver_location?: { lat: number; lng: number; recorded_at?: string | null } | null;
 }
 
@@ -44,6 +49,7 @@ export class FixedRouteMapPage {
   private driverMarker: any | null = null;
   private routePolylines: any[] = [];
   private driverPosition: { lat: number; lng: number } | null = null;
+  private driverBearing = 0;
   private trackingTripId: number | null = null;
   private unsubscribeTracking: (() => void) | null = null;
 
@@ -223,6 +229,9 @@ export class FixedRouteMapPage {
     if (!loc || loc.lat == null || loc.lng == null) return;
     this.zone.run(() => {
       this.driverPosition = { lat: Number(loc.lat), lng: Number(loc.lng) };
+      if (loc.bearing_deg != null) {
+        this.driverBearing = Number(loc.bearing_deg);
+      }
       if (this.booking) this.ensureDriverMarker(this.booking);
     });
   }
@@ -233,18 +242,30 @@ export class FixedRouteMapPage {
       this.driverMarker = new google.maps.marker.AdvancedMarkerElement({
         position: this.driverPosition,
         map: this.map,
-        title: booking.driver_name || 'Driver',
+        title: 'Driver',
         content: this.buildDriverMarker(),
       });
     } else {
       this.driverMarker.position = this.driverPosition;
+      updateCarMarkerBearing(this.driverMarker, this.driverBearing);
+      const markerUrl = (booking as any)?.map_marker_url
+        || (booking as any)?.vehicle?.map_marker_url
+        || (booking as any)?.departure?.map_marker_url
+        || null;
+      if (markerUrl) {
+        updateCarMarkerImage(this.driverMarker, markerUrl);
+      }
     }
   }
 
   private buildDriverMarker(): HTMLElement {
     return buildReusableCarMarkerElement({
-      bearing: 0,
-      label: this.booking?.driver_name || 'Driver',
+      bearing: this.driverBearing,
+      markerUrl: (this.booking as any)?.map_marker_url
+        || (this.booking as any)?.vehicle?.map_marker_url
+        || (this.booking as any)?.departure?.map_marker_url
+        || null,
+
     });
   }
 

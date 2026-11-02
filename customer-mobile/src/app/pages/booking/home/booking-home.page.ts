@@ -18,6 +18,7 @@ import {
   buildPassengerMarkerElement,
   buildReusableCarMarkerElement,
   updateCarMarkerBearing,
+  updateCarMarkerImage,
 } from '../../../core/car-marker.helper';
 import { GeolocationService } from '../../../core/geolocation.service';
 import { PlacesService } from '../../../core/places.service';
@@ -59,6 +60,9 @@ export interface ActiveFixedRide {
   vehicle_model?: string | null;
   vehicle_color?: string | null;
   vehicle_reg_no?: string | null;
+  map_marker_url?: string | null;
+  image_url?: string | null;
+  vehicle?: any;
   board?: string | null;
   drop?: string | null;
   board_lat?: number | null;
@@ -545,7 +549,6 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
         position: latlng,
         content: buildPassengerMarkerElement({
           kind: 'pickup',
-          name: this.auth.getUser()?.name || 'You',
           isLive: true,
           avatarUrl: this.auth.resolveAvatarUrl(this.auth.getUser()),
         }),
@@ -933,15 +936,14 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
 
     // 3. Driver Vehicle Live Marker (Only when real driver GPS position exists)
     if (this.driverPosition) {
-      const driverLabel = b.driver_name || b.vehicle_name || 'Driver';
       if (!this.fixedDriverMarker) {
         this.fixedDriverMarker = new google.maps.marker.AdvancedMarkerElement({
           position: this.driverPosition,
           map: this.map,
-          title: driverLabel,
+          title: 'Driver',
           content: buildReusableCarMarkerElement({
             bearing: this.driverBearing,
-            label: driverLabel,
+            markerUrl: b.map_marker_url || (b as any).vehicle?.map_marker_url || null,
           }),
           zIndex: 1000,
         });
@@ -949,6 +951,10 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
         this.fixedDriverMarker.position = this.driverPosition;
         if (!this.fixedDriverMarker.map) this.fixedDriverMarker.map = this.map;
         updateCarMarkerBearing(this.fixedDriverMarker, this.driverBearing);
+        const markerUrl = b.map_marker_url || (b as any).vehicle?.map_marker_url || null;
+        if (markerUrl) {
+          updateCarMarkerImage(this.fixedDriverMarker, markerUrl);
+        }
       }
     } else if (this.fixedDriverMarker) {
       this.fixedDriverMarker.map = null;

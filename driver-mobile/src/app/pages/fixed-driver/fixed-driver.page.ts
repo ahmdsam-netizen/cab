@@ -12,6 +12,7 @@ import { BackgroundLocationService } from '../../core/background-location.servic
 import {
   buildReusableCarMarkerElement,
   updateCarMarkerBearing,
+  updateCarMarkerImage,
   buildPassengerMarkerElement,
   buildStopMarkerElement,
 } from '../../core/car-marker.helper';
@@ -207,7 +208,12 @@ interface ManifestResponse {
 export class FixedDriverPage implements OnDestroy {
   private configuredDriverMarkerUrl: string | null = null;
   get driverMapMarkerUrl(): string | null {
-    return this.activeVehicle?.map_marker_url || this.configuredDriverMarkerUrl || (this.auth.getUser() as any)?.vehicle?.map_marker_url || null;
+    return this.activeVehicle?.map_marker_url
+      || (this.activeVehicle as any)?.vehicle?.map_marker_url
+      || this.configuredDriverMarkerUrl
+      || (this.auth.getUser() as any)?.vehicle?.map_marker_url
+      || (this.auth.getUser() as any)?.map_marker_url
+      || null;
   }
 
   get stopDistanceLabel(): string {
@@ -2324,6 +2330,9 @@ export class FixedDriverPage implements OnDestroy {
         this.selfMarker.position = position;
         if (fix.bearing != null) {
           updateCarMarkerBearing(this.selfMarker, fix.bearing);
+        }
+        if (this.driverMapMarkerUrl) {
+          updateCarMarkerImage(this.selfMarker, this.driverMapMarkerUrl);
         }
       }
     }

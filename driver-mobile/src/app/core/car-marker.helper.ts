@@ -57,6 +57,10 @@ export function buildReusableCarMarkerElement(options: CarMarkerOptions = {}): H
       img.remove();
     });
     img.src = markerUrl;
+    if (img.complete && img.naturalWidth > 0) {
+      img.style.display = 'block';
+      if (svgEl) svgEl.style.display = 'none';
+    }
     carWrap.appendChild(img);
   }
 
@@ -77,6 +81,49 @@ export function updateCarMarkerBearing(marker: any, bearing: number): void {
   const carWrap = (marker.content as HTMLElement).querySelector('.car-icon-wrap') as HTMLElement | null;
   if (carWrap) {
     carWrap.style.transform = `translate(-50%, -50%) rotate(${bearing}deg)`;
+  }
+}
+
+export function updateCarMarkerImage(marker: any, markerUrl: string | null): void {
+  if (!marker?.content) return;
+  const root = marker.content as HTMLElement;
+  const carWrap = root.querySelector('.car-icon-wrap') as HTMLElement | null;
+  if (!carWrap) return;
+  const svgEl = carWrap.querySelector('.vector-car-svg') as SVGElement | null;
+  let img = carWrap.querySelector('.vector-car-img') as HTMLImageElement | null;
+  const url = markerUrl?.trim() || null;
+
+  if (!url) {
+    if (img) img.remove();
+    if (svgEl) svgEl.style.display = 'block';
+    return;
+  }
+
+  if (img && img.src === url) return;
+
+  if (!img) {
+    img = document.createElement('img');
+    img.className = 'vector-car-img';
+    img.alt = 'Vehicle';
+    img.style.width = '28px';
+    img.style.height = '54px';
+    img.style.objectFit = 'contain';
+    img.style.display = 'none';
+    img.addEventListener('load', () => {
+      img!.style.display = 'block';
+      if (svgEl) svgEl.style.display = 'none';
+    });
+    img.addEventListener('error', () => {
+      if (svgEl) svgEl.style.display = 'block';
+      img!.remove();
+    });
+    carWrap.appendChild(img);
+  }
+
+  img.src = url;
+  if (img.complete && img.naturalWidth > 0) {
+    img.style.display = 'block';
+    if (svgEl) svgEl.style.display = 'none';
   }
 }
 
@@ -161,20 +208,24 @@ export function buildPassengerMarkerElement(options: PassengerMarkerOptions = {}
     el.appendChild(pulse);
   }
 
-  const safeName = (name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const rawName = (options.name !== undefined ? (options.name?.trim() || '') : '');
+  const isGeneric = !rawName || ['passenger', 'you'].includes(rawName.toLowerCase());
+  const safeName = isGeneric ? '' : rawName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const seatBadge = count > 1 ? `<span class="person-tag-seats">${count}s</span>` : '';
   const distBadge = options.distanceText ? `<span class="person-tag-dist">${options.distanceText}</span>` : '';
-  const liveDot = isLive ? `<span class="person-live-dot" title="Live Walking">●</span>` : '';
+  const liveDot = isLive && safeName ? `<span class="person-live-dot" title="Live Walking">●</span>` : '';
 
-  const pill = document.createElement('div');
-  pill.className = 'person-tag-pill';
-  pill.innerHTML = `
-    <span class="person-tag-name">${safeName}</span>
-    ${seatBadge}
-    ${distBadge}
-    ${liveDot}
-  `;
-  el.appendChild(pill);
+  if (safeName || seatBadge || distBadge) {
+    const pill = document.createElement('div');
+    pill.className = 'person-tag-pill';
+    pill.innerHTML = `
+      ${safeName ? `<span class="person-tag-name">${safeName}</span>` : ''}
+      ${seatBadge}
+      ${distBadge}
+      ${liveDot}
+    `;
+    el.appendChild(pill);
+  }
 
   return el;
 }

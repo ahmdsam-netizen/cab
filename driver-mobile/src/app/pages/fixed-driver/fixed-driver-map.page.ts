@@ -6,6 +6,7 @@ import { ApiService } from '../../core/api.service';
 import {
   buildReusableCarMarkerElement,
   updateCarMarkerBearing,
+  updateCarMarkerImage,
   buildPassengerMarkerElement,
   buildStopMarkerElement,
 } from '../../core/car-marker.helper';
@@ -279,6 +280,10 @@ export class FixedDriverMapPage implements OnDestroy {
     this.api.get<ManifestResponse>(`/fixed/departures/${departureId}/manifest`).subscribe({
       next: (res) => {
         this.vehicle = res.departure;
+        const depMarkerUrl = res.departure?.map_marker_url || (res.departure as any)?.vehicle?.map_marker_url || null;
+        if (this.selfMarker && depMarkerUrl) {
+          updateCarMarkerImage(this.selfMarker, depMarkerUrl);
+        }
         this.passengers = res.passengers ?? [];
         this.stops = this.visibleManifestStops(res.stops ?? [], this.passengers);
         this.citySettings = res.city_settings || null;
@@ -485,6 +490,10 @@ export class FixedDriverMapPage implements OnDestroy {
     if (fix.bearing != null) {
       updateCarMarkerBearing(this.selfMarker, fix.bearing);
     }
+    const markerUrl = this.vehicle?.map_marker_url || (this.vehicle as any)?.vehicle?.map_marker_url || null;
+    if (markerUrl) {
+      updateCarMarkerImage(this.selfMarker, markerUrl);
+    }
     this.updatePassengerMarkerDistances();
   }
 
@@ -636,7 +645,7 @@ export class FixedDriverMapPage implements OnDestroy {
     return buildReusableCarMarkerElement({
       bearing,
       label: 'You (Car)',
-      markerUrl: this.vehicle?.map_marker_url || null,
+      markerUrl: this.vehicle?.map_marker_url || (this.vehicle as any)?.vehicle?.map_marker_url || null,
     });
   }
 }

@@ -15,6 +15,7 @@ import {
 import {
   buildReusableCarMarkerElement,
   updateCarMarkerBearing,
+  updateCarMarkerImage,
   buildPassengerMarkerElement,
   buildStopMarkerElement,
 } from '../../core/car-marker.helper';
@@ -99,6 +100,8 @@ interface FixedDeparture {
   vehicle_model?: string | null;
   vehicle_color?: string | null;
   vehicle_reg_no?: string | null;
+  map_marker_url?: string | null;
+  vehicle?: any;
 }
 
 interface SeatHold {
@@ -773,8 +776,16 @@ export class FixedBookPage implements OnInit, OnDestroy {
   }
 
   private buildVehicleMarker(): HTMLElement {
+    const booking = this.currentMapBooking();
+    const markerUrl = (this.selectedDeparture as any)?.map_marker_url
+      || (this.selectedDeparture as any)?.vehicle?.map_marker_url
+      || (booking as any)?.map_marker_url
+      || (booking as any)?.vehicle?.map_marker_url
+      || null;
+
     return buildReusableCarMarkerElement({
-      label: this.departureDriverName(this.selectedDeparture) || 'Fixed Cab',
+
+      markerUrl,
     });
   }
 
@@ -1804,7 +1815,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
       this.fixedVehicleMarker = new google.maps.marker.AdvancedMarkerElement({
         position: this.fixedVehiclePosition,
         map: this.fixedMap,
-        title: this.departureDriverName(this.selectedDeparture),
+        title: 'Driver',
         content: this.buildVehicleMarker(),
         zIndex: 10,
       });
@@ -1813,6 +1824,15 @@ export class FixedBookPage implements OnInit, OnDestroy {
 
     this.fixedVehicleMarker.position = this.fixedVehiclePosition;
     this.fixedVehicleMarker.map = this.fixedMap;
+    const booking = this.currentMapBooking();
+    const markerUrl = (this.selectedDeparture as any)?.map_marker_url
+      || (this.selectedDeparture as any)?.vehicle?.map_marker_url
+      || (booking as any)?.map_marker_url
+      || (booking as any)?.vehicle?.map_marker_url
+      || null;
+    if (markerUrl) {
+      updateCarMarkerImage(this.fixedVehicleMarker, markerUrl);
+    }
   }
 
   private isLiveTrackingStatus(status: string): boolean {

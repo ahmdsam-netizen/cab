@@ -20,6 +20,7 @@ import { SubscriptionPromptModalComponent } from '../../shared/subscription-prom
 import {
   buildReusableCarMarkerElement,
   updateCarMarkerBearing,
+  updateCarMarkerImage,
   buildPassengerMarkerElement,
   buildStopMarkerElement,
 } from '../../core/car-marker.helper';
@@ -1194,6 +1195,12 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
     }>('/drivers/me').subscribe({
       next: (res) => {
         this.driver = res.driver;
+        const driverMarkerUrl = (res.driver as any)?.vehicle?.map_marker_url
+          || (res.driver as any)?.map_marker_url
+          || null;
+        if (this.selfMarker && driverMarkerUrl) {
+          updateCarMarkerImage(this.selfMarker, driverMarkerUrl);
+        }
         this.lastDocumentCheck = Date.now();
         this.applyDocumentRequirements(res.document_requirements ?? []);
         // Keep the route guard's cached state in step with reality so navigation
@@ -1495,7 +1502,7 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
         content: buildReusableCarMarkerElement({
           bearing: bearing ?? 0,
           label: 'You',
-          markerUrl: (this.driver as any)?.vehicle?.map_marker_url,
+          markerUrl: (this.driver as any)?.vehicle?.map_marker_url || (this.driver as any)?.map_marker_url || null,
         }),
         zIndex: 1000,
       });
@@ -1506,6 +1513,12 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
       }
       if (bearing != null) {
         updateCarMarkerBearing(this.selfMarker, bearing);
+      }
+      const expectedMarkerUrl = (this.driver as any)?.vehicle?.map_marker_url
+        || (this.driver as any)?.map_marker_url
+        || null;
+      if (expectedMarkerUrl) {
+        updateCarMarkerImage(this.selfMarker, expectedMarkerUrl);
       }
     }
 
@@ -1564,6 +1577,12 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
         this.api.post<{ driver: Record<string, unknown> }>('/drivers/go-online', {}).subscribe({
           next: (res) => {
             this.driver = res.driver;
+        const driverMarkerUrl = (res.driver as any)?.vehicle?.map_marker_url
+          || (res.driver as any)?.map_marker_url
+          || null;
+        if (this.selfMarker && driverMarkerUrl) {
+          updateCarMarkerImage(this.selfMarker, driverMarkerUrl);
+        }
             this.driveMode = (res.driver?.['active_service_mode'] as 'private' | 'fixed' | 'shuttle' | null) ?? null;
             this.driveScope = (res.driver?.['active_service_scope'] as 'local' | 'outstation' | 'both' | null) ?? null;
             resolve();

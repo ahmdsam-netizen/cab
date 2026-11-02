@@ -6,9 +6,11 @@ import { finalize } from 'rxjs/operators';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import {
+  buildPassengerMarkerElement,
   buildReusableCarMarkerElement,
   buildStopMarkerElement,
   updateCarMarkerBearing,
+  updateCarMarkerImage,
 } from '../../core/car-marker.helper';
 import { FixedCustomerLocationService } from '../../core/fixed-customer-location.service';
 import { GeoFix, GeolocationService } from '../../core/geolocation.service';
@@ -77,6 +79,17 @@ interface FixedBooking {
   rating_score?: number | null;
   rating_comment?: string | null;
   latest_driver_location?: { lat: number; lng: number; recorded_at?: string | null } | null;
+  map_marker_url?: string | null;
+  image_url?: string | null;
+  vehicle?: {
+    type?: string | null;
+    brand?: string | null;
+    model?: string | null;
+    color?: string | null;
+    reg_no?: string | null;
+    image_url?: string | null;
+    map_marker_url?: string | null;
+  } | null;
   stops?: StopItem[];
 }
 
@@ -113,6 +126,7 @@ export class FixedRideActivePage implements OnDestroy {
   private map: any | null = null;
   private pickupMarker: any | null = null;
   private dropMarker: any | null = null;
+  private userLiveMarker: any | null = null;
   private driverMarker: any | null = null;
   private stopMarkers: any[] = [];
   private routePolylines: any[] = [];
@@ -514,16 +528,39 @@ export class FixedRideActivePage implements OnDestroy {
     for (const m of this.stopMarkers) m.map = null;
     this.stopMarkers = [];
 
+    // 4. Passenger Device Actual Live Location (Person Avatar)
+    if (this.userPosition) {
+      if (!this.userLiveMarker) {
+        this.userLiveMarker = new google.maps.marker.AdvancedMarkerElement({
+          position: this.userPosition,
+          map: this.map,
+          title: 'Passenger',
+          content: buildPassengerMarkerElement({
+            kind: 'pickup',
+            name: '',
+            isLive: true,
+            avatarUrl: this.auth.resolveAvatarUrl(this.auth.getUser()),
+          }),
+          zIndex: 1100,
+        });
+      } else {
+        this.userLiveMarker.position = this.userPosition;
+        if (!this.userLiveMarker.map) this.userLiveMarker.map = this.map;
+      }
+    } else if (this.userLiveMarker) {
+      this.userLiveMarker.map = null;
+      this.userLiveMarker = null;
+    }
+
     // 5. Driver Vehicle Live Marker (active booking only)
     if (this.driverPosition && this.isActiveBooking(b)) {
       if (!this.driverMarker) {
         this.driverMarker = new google.maps.marker.AdvancedMarkerElement({
           position: this.driverPosition,
           map: this.map,
-          title: b.vehicle_name || 'Driver',
+          title: 'Driver',
           content: buildReusableCarMarkerElement({
             bearing: this.driverBearing,
-            label: b.vehicle_name || 'Driver',
             markerUrl: (b as any).map_marker_url || (b as any).vehicle?.map_marker_url || null,
           }),
           zIndex: 1000,
@@ -532,6 +569,10 @@ export class FixedRideActivePage implements OnDestroy {
         this.driverMarker.position = this.driverPosition;
         if (!this.driverMarker.map) this.driverMarker.map = this.map;
         updateCarMarkerBearing(this.driverMarker, this.driverBearing);
+        const markerUrl = (b as any).map_marker_url || (b as any).vehicle?.map_marker_url || null;
+        if (markerUrl) {
+          updateCarMarkerImage(this.driverMarker, markerUrl);
+        }
       }
     } else if (this.driverMarker) {
       this.driverMarker.map = null;
@@ -587,6 +628,7 @@ export class FixedRideActivePage implements OnDestroy {
     addPoint(this.booking?.board_lat, this.booking?.board_lng);
     addPoint(this.booking?.drop_lat, this.booking?.drop_lng);
     addPoint(this.driverPosition?.lat, this.driverPosition?.lng);
+    addPoint(this.userPosition?.lat, this.userPosition?.lng);
 
     if (this.booking?.stops) {
       for (const s of this.booking.stops) {
@@ -608,6 +650,7 @@ export class FixedRideActivePage implements OnDestroy {
   private clearMap(): void {
     if (this.pickupMarker) { this.pickupMarker.map = null; this.pickupMarker = null; }
     if (this.dropMarker) { this.dropMarker.map = null; this.dropMarker = null; }
+    if (this.userLiveMarker) { this.userLiveMarker.map = null; this.userLiveMarker = null; }
     if (this.driverMarker) { this.driverMarker.map = null; this.driverMarker = null; }
     for (const m of this.stopMarkers) m.map = null;
     this.stopMarkers = [];
@@ -718,6 +761,10 @@ export class FixedRideActivePage implements OnDestroy {
           if (this.driverMarker) {
             this.driverMarker.map = null;
             this.driverMarker = null;
+          }
+          if (this.userLiveMarker) {
+            this.userLiveMarker.map = null;
+            this.userLiveMarker = null;
           }
           this.stopRealtimeTracking();
           void this.stopUserLocationWatch();
