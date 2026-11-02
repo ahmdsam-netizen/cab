@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Events\FixedRouteCatalogUpdated;
 use App\Models\City;
-use Illuminate\Validation\Rule;
+use App\Models\Driver;
 use App\Models\Route;
+use App\Models\RouteGroup;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use App\Services\FixedAvailabilityService;
 use App\Services\FixedRouteService;
 use App\Services\KmlRouteImportService;
@@ -153,10 +156,66 @@ class AdminFixedRoutesController
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120', Rule::unique('routes', 'name')->where(fn ($query) => $query->where('city_id', $city->id)->where('mode', 'fixed'))],
             'reverse' => ['required', 'boolean'],
+            'is_active' => ['nullable', 'boolean'],
+            'assigned_group_ids' => ['nullable', 'array'],
+            'assigned_group_ids.*' => ['integer'],
+            'assigned_group_id' => ['nullable'],
+            'new_group_name' => ['nullable', 'string', 'max:120'],
+            'driver_user_ids' => ['nullable', 'array'],
+            'driver_user_ids.*' => ['integer'],
         ]);
-        $copy = $this->routes->copyAdminRoute($city, $route, $data['name'], (bool) $data['reverse']);
+        $isActive = array_key_exists('is_active', $data) ? (bool) $data['is_active'] : false;
+
+        $copy = DB::transaction(function () use ($city, $route, $data, $isActive) {
+            $copy = $this->routes->copyAdminRoute($city, $route, $data['name'], (bool) $data['reverse'], $isActive);
+
+            $driverIds = isset($data['driver_user_ids']) && is_array($data['driver_user_ids'])
+                ? array_values(array_unique(array_map('intval', $data['driver_user_ids'])))
+                : [];
+
+            if ($driverIds) {
+                if (Driver::query()->forCity((int) $city->id)->whereIn('user_id', $driverIds)->count() !== count($driverIds)) {
+                    abort(422, 'Some drivers are not registered in this city.');
+                }
+            }
+
+            $groupIds = isset($data['assigned_group_ids']) && is_array($data['assigned_group_ids'])
+                ? array_values(array_unique(array_map('intval', $data['assigned_group_ids'])))
+                : [];
+
+            if (is_numeric($data['assigned_group_id'] ?? null)) {
+                $groupIds[] = (int) $data['assigned_group_id'];
+            }
+            $groupIds = array_values(array_unique($groupIds));
+
+            if ((($data['assigned_group_id'] ?? null) === 'new' || !empty($data['new_group_name'])) && !empty($data['new_group_name'])) {
+                $group = RouteGroup::query()->create([
+                    'city_id' => $city->id,
+                    'city_vehicle_type_id' => $copy->city_vehicle_type_id,
+                    'name' => trim($data['new_group_name']),
+                    'is_active' => true,
+                ]);
+                $group->routes()->sync([$copy->id]);
+                if ($driverIds) {
+                    $group->drivers()->sync($driverIds);
+                }
+            }
+
+            if ($groupIds) {
+                $groups = RouteGroup::query()->where('city_id', $city->id)->whereIn('id', $groupIds)->get();
+                foreach ($groups as $group) {
+                    $group->routes()->syncWithoutDetaching([$copy->id]);
+                    if (array_key_exists('driver_user_ids', $data) && $data['driver_user_ids'] !== null) {
+                        $group->drivers()->syncWithoutDetaching($driverIds);
+                    }
+                }
+            }
+
+            return $copy;
+        });
+
         broadcast(new FixedRouteCatalogUpdated($city->id, $copy->id, 'route_created'))->toOthers();
-        return response()->json(['route' => $this->routes->shapeAdminRoute($copy), 'message' => 'Route copied. Review and activate it when ready.'], 201);
+        return response()->json(['route' => $this->routes->shapeAdminRoute($copy), 'message' => $isActive ? 'Route copied and activated.' : 'Route copied. Review and activate it when ready.'], 201);
     }
 
     public function update(Request $request, City $city, Route $route)

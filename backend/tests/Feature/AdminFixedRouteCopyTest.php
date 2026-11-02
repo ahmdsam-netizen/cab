@@ -113,4 +113,64 @@ class AdminFixedRouteCopyTest extends TestCase
         $this->postJson($this->url(), ['name' => 'Copy', 'reverse' => true])->assertNotFound();
         $this->assertDatabaseCount('routes', 1);
     }
+
+    public function test_copy_with_is_active_and_stand_and_driver_allocation(): void
+    {
+        $group = RouteGroup::query()->create(['city_id' => $this->city, 'name' => 'Existing Stand', 'is_active' => true]);
+        $driverUser = User::factory()->create();
+        $driverUser->addRole('driver');
+        \App\Models\Driver::query()->create([
+            'user_id' => $driverUser->id,
+            'city_id' => $this->city,
+            'approval_status' => 'approved',
+            'is_online' => true,
+        ]);
+
+        $res1 = $this->postJson($this->url(), [
+            'name' => 'Active Copy with Existing Stand',
+            'reverse' => false,
+            'is_active' => true,
+            'assigned_group_id' => $group->id,
+            'driver_user_ids' => [$driverUser->id],
+        ])->assertCreated()->json('route');
+
+        $copy1 = Route::findOrFail($res1['id']);
+        $this->assertTrue($copy1->is_active);
+        $this->assertTrue($group->fresh()->routes->contains($copy1->id));
+        $this->assertTrue($group->fresh()->drivers->contains($driverUser->id));
+
+        $res2 = $this->postJson($this->url(), [
+            'name' => 'Active Copy with New Stand',
+            'reverse' => false,
+            'is_active' => true,
+            'assigned_group_id' => 'new',
+            'new_group_name' => 'Brand New Stand',
+            'driver_user_ids' => [$driverUser->id],
+        ])->assertCreated()->json('route');
+
+        $copy2 = Route::findOrFail($res2['id']);
+        $this->assertTrue($copy2->is_active);
+        $newGroup = RouteGroup::where('city_id', $this->city)->where('name', 'Brand New Stand')->first();
+        $this->assertNotNull($newGroup);
+        $this->assertTrue($newGroup->routes->contains($copy2->id));
+        $this->assertTrue($newGroup->drivers->contains($driverUser->id));
+
+        $groupA = RouteGroup::query()->create(['city_id' => $this->city, 'name' => 'Stand Alpha', 'is_active' => true]);
+        $groupB = RouteGroup::query()->create(['city_id' => $this->city, 'name' => 'Stand Beta', 'is_active' => true]);
+
+        $res3 = $this->postJson($this->url(), [
+            'name' => 'Active Copy with Multiple Stands',
+            'reverse' => false,
+            'is_active' => true,
+            'assigned_group_ids' => [$groupA->id, $groupB->id],
+            'driver_user_ids' => [$driverUser->id],
+        ])->assertCreated()->json('route');
+
+        $copy3 = Route::findOrFail($res3['id']);
+        $this->assertTrue($copy3->is_active);
+        $this->assertTrue($groupA->fresh()->routes->contains($copy3->id));
+        $this->assertTrue($groupB->fresh()->routes->contains($copy3->id));
+        $this->assertTrue($groupA->fresh()->drivers->contains($driverUser->id));
+        $this->assertTrue($groupB->fresh()->drivers->contains($driverUser->id));
+    }
 }

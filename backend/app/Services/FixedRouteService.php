@@ -150,16 +150,16 @@ class FixedRouteService
         return Route::query()->create($attrs);
     }
 
-    public function copyAdminRoute(City $city, Route $route, string $name, bool $reverse): Route
+    public function copyAdminRoute(City $city, Route $route, string $name, bool $reverse, bool $isActive = false): Route
     {
         $this->availability->assertCityOwnsRoute($city, $route);
 
-        return DB::transaction(function () use ($city, $route, $name, $reverse) {
+        return DB::transaction(function () use ($city, $route, $name, $reverse, $isActive) {
             $source = Route::query()->whereKey($route->id)->lockForUpdate()->firstOrFail();
             $this->availability->assertCityOwnsRoute($city, $source);
             $copy = $source->replicate()->unsetRelations();
             $copy->name = $name;
-            $copy->is_active = false;
+            $copy->is_active = $isActive;
             if ($reverse) {
                 foreach ([['origin_name', 'dest_name'], ['origin_lat', 'dest_lat'], ['origin_lng', 'dest_lng'], ['origin_city_id', 'dest_city_id']] as [$origin, $destination]) {
                     $copy->$origin = $source->$destination;

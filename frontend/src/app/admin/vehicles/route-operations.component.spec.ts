@@ -54,10 +54,12 @@ describe('Routes operations workspace', () => {
     root.querySelector<HTMLButtonElement>('[aria-label="Copy as reverse Market route"]')!.click(); fixture.detectChanges();
     await fixture.whenStable(); fixture.detectChanges(); expect(component.copyReverse).toBeTrue();
     const refresh = jasmine.createSpy(); component.refresh.subscribe(refresh);
-    Array.from(root.querySelectorAll<HTMLButtonElement>('app-route-copy button')).find(button => button.textContent?.trim() === 'Create copy')!.click();
-    response.next({ route: { id: 22, name: 'Market → Town' } }); fixture.detectChanges();
+    expect(root.querySelector('.copy-review')).not.toBeNull();
+    Array.from(root.querySelectorAll<HTMLButtonElement>('app-route-copy button')).find(button => button.textContent?.includes('Save') || button.textContent?.includes('copy'))!.click();
+    response.next({ route: { id: 22, name: 'Market → Town', is_active: true } }); fixture.detectChanges();
     expect(component.search).toBe('Market → Town'); expect(component.routeGroupId).toBeNull();
-    expect(component.routeDetailTab).toBe('browse'); expect(component.copyRoute).toBeNull(); expect(refresh).toHaveBeenCalledTimes(1);
+    expect(component.routeDetailTab).toBe('copied'); expect(component.copyRoute).toBeNull(); expect(refresh).toHaveBeenCalledTimes(1);
+    expect(component.copiedRouteIds.has(22)).toBeTrue();
     expect(component.routes[0].name).toBe('Market route'); fixture.destroy();
   });
   it('finds routes through shared groups for another vehicle without copying them', () => {
@@ -455,6 +457,28 @@ describe('Routes operations workspace', () => {
     fixture.componentInstance.loadError = 'Network unavailable'; fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[role="alert"]').textContent).toContain('Network unavailable');
     expect(fixture.nativeElement.querySelector('.route-detail-panel')).toBeNull(); fixture.destroy();
+  });
+  it('renders the copied routes tab with dedicated search and empty states', () => {
+    TestBed.configureTestingModule({ imports: [RouteOperationsComponent] });
+    const fixture = TestBed.createComponent(RouteOperationsComponent); Object.assign(fixture.componentInstance, page);
+    fixture.componentInstance.routes = [
+      ...page.routes,
+      { id: 30, name: 'Market route (copy)', origin_name: 'Town', dest_name: 'Market', city_vehicle_type_id: 1, scope: 'local', flat_fare: 20, booking_window_hours: 2, is_active: false },
+    ];
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    const copiedTab = root.querySelector<HTMLButtonElement>('#route-tab-copied')!;
+    expect(copiedTab).not.toBeNull();
+    expect(copiedTab.textContent).toContain('Copied routes');
+    expect(fixture.componentInstance.routeTabCount('copied')).toBe(1);
+    copiedTab.click(); fixture.detectChanges();
+    expect(fixture.componentInstance.routeDetailTab).toBe('copied');
+    expect(root.querySelector('#route-panel-copied')).not.toBeNull();
+    expect(root.querySelector('.copied-route-item')?.textContent).toContain('Market route (copy)');
+    fixture.componentInstance.copiedSearch = 'nomatch'; fixture.detectChanges();
+    expect(root.querySelector('.copied-route-item')).toBeNull();
+    expect(root.querySelector('#route-panel-copied .section-empty')?.textContent).toContain('No matching copied routes');
+    fixture.destroy();
   });
 });
 

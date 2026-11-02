@@ -29,6 +29,7 @@ import {
   ModalComponent,
 } from '../../ui';
 import { DriversInsightsComponent, InsightMode } from './drivers-insights.component';
+import { acquireDocumentScrollLock } from '../../ui/document-scroll-lock';
 
 type DriversView = 'table' | 'graph';
 
@@ -1968,6 +1969,7 @@ export class DriversListComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private searchDebounce: any = null;
   private insightsCloseTimer: ReturnType<typeof setTimeout> | null = null;
+  private releaseInsightsScrollLock?: () => void;
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private refreshInFlight = false;
   allocationCityId: number | null = null;
@@ -2041,7 +2043,8 @@ export class DriversListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.destroyDateRangePicker();
     if (this.refreshTimer) clearInterval(this.refreshTimer);
     if (this.insightsCloseTimer) clearTimeout(this.insightsCloseTimer);
-    if (this.insightsOpen) document.body.style.overflow = '';
+    this.releaseInsightsScrollLock?.();
+    this.releaseInsightsScrollLock = undefined;
   }
 
   get rangeLabel(): string {
@@ -2701,19 +2704,20 @@ export class DriversListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.insightsMounted = true;
     this.insightsClosing = false;
     this.insightsOpen = true;
-    document.body.style.overflow = 'hidden';
+    if (!this.releaseInsightsScrollLock) this.releaseInsightsScrollLock = acquireDocumentScrollLock();
   }
 
   closeInsights(): void {
     if (!this.insightsMounted) return;
     this.insightsClosing = true;
     this.insightsOpen = false;
-    document.body.style.overflow = '';
     // Allow the slide-out animation to finish before unmounting.
     this.insightsCloseTimer = setTimeout(() => {
       this.insightsMounted = false;
       this.insightsClosing = false;
       this.insightsCloseTimer = null;
+      this.releaseInsightsScrollLock?.();
+      this.releaseInsightsScrollLock = undefined;
     }, 200);
     // Strip the query param so reopening from a button doesn't re-trigger
     // openInsights via the queryParamMap subscription.

@@ -12,7 +12,7 @@ import { RouteCopyComponent } from './route-copy.component';
 
 export type OperationsAction = MasterAction | { kind: 'add-vehicle' | 'vehicle-types' | 'vehicle-sets' | 'edit-vehicle' | 'toggle-vehicle' | 'vehicle-layouts' | 'vehicle-fare' | 'vehicle-assets' | 'vehicle-drivers' | 'copy-vehicles' | 'bulk-enable' | 'bulk-disable' | 'export-vehicles'; id?: number; vehicleId?: number | null; rideTypeId?: number; ids?: number[] };
 type View = 'routes' | 'vehicles' | 'drivers';
-type RouteDetailTab = 'overview' | 'browse' | 'groups' | 'tools';
+type RouteDetailTab = 'overview' | 'browse' | 'ungrouped' | 'copied' | 'groups' | 'tools';
 interface DirectoryRow { key: string; depth: number; name: string; kind: string; id?: number; ids: number[]; route?: MasterRoute; }
 @Component({
   selector: 'app-route-operations', standalone: true,
@@ -45,6 +45,8 @@ export class RouteOperationsComponent implements OnChanges {
   readonly routeTabs = [
     { id: 'overview', label: 'Overview', icon: 'eye' },
     { id: 'browse', label: 'Browse routes', icon: 'road' },
+    { id: 'ungrouped', label: 'Ungrouped routes', icon: 'folder' },
+    { id: 'copied', label: 'Copied routes', icon: 'copy' },
     { id: 'groups', label: 'Stands', icon: 'share-alt' },
     { id: 'tools', label: 'Manage & import', icon: 'cog' },
   ] as const;
@@ -66,8 +68,9 @@ export class RouteOperationsComponent implements OnChanges {
   copyReverse = false;
   startRouteCopy(route: MasterRoute, reverse = false): void { this.copyRoute = route; this.copyReverse = reverse; }
   routeCopied(result: { id: number; name: string }): void {
+    this.trackCopiedRoute(result.id);
     this.clearFilters(); this.search = result.name; this.grouping = 'routes';
-    this.selectedRouteId = null; this.routeDetailTab = 'browse'; this.refresh.emit();
+    this.selectedRouteId = result.id; this.routeDetailTab = 'copied'; this.refresh.emit();
   }
   standRenamed(result: { id: number; name: string }): void {
     const group = this.groups.find(item => item.id === result.id);
@@ -130,6 +133,7 @@ export class RouteOperationsComponent implements OnChanges {
       this.batchVehicleOpen = false;
       this.pageNumber = 1; this.paginationFilterKey = '';
       this.explorer.expanded.clear(); this.restorePreferences();
+      this.copiedSearch = ''; this.restoreCopiedRouteIds();
     }
     if (this.vehicleId !== null && !this.loading && this.vehicles.length && !this.vehicles.some(vehicle => vehicle.id === this.vehicleId)) this.vehicleId = null;
     if (this.selectedRouteId !== null && !this.routes.some(route => route.id === this.selectedRouteId)) this.selectedRouteId = null;
@@ -198,6 +202,9 @@ export class RouteOperationsComponent implements OnChanges {
   selectGroup(group: MasterGroup): void { this.openGroupManagement(); this.selectedGroupId = group.id; }
   openGroupManagement(): void { this.changeView('routes'); this.routeDetailTab = 'groups'; this.resetGroupFilters(); }
   groupSearch = '';
+  ungroupedSearch = '';
+  copiedSearch = '';
+  copiedRouteIds = new Set<number>();
   groupStatus: 'all' | 'active' | 'inactive' | 'attention' = 'all';
   groupVehicleId: number | null = null;
   resetGroupFilters(): void { this.groupSearch = ''; this.groupStatus = 'all'; this.groupVehicleId = null; }
@@ -205,13 +212,34 @@ export class RouteOperationsComponent implements OnChanges {
   routeTabCount(tab: RouteDetailTab): number | null {
     if (tab === 'groups') return this.groups.length;
     if (tab === 'browse') return this.filteredRoutes.length;
+    if (tab === 'ungrouped') return this.ungroupedRoutes.length;
+    if (tab === 'copied') return this.copiedRoutes.length;
     return null;
+  }
+  showUngroupedRoutes(): void {
+    this.closeRoutePicker();
+    this.closeGroupPicker();
+    this.routeGroupId = null;
+    this.selectedRouteId = null;
+    this.routeDetailTab = 'ungrouped';
+  }
+  showCopiedRoutes(): void {
+    this.closeRoutePicker();
+    this.closeGroupPicker();
+    this.routeGroupId = null;
+    this.selectedRouteId = null;
+    this.routeDetailTab = 'copied';
+  }
+  selectRouteDetailTab(tab: RouteDetailTab): void {
+    if (tab === 'ungrouped') this.showUngroupedRoutes();
+    else if (tab === 'copied') this.showCopiedRoutes();
+    else this.routeDetailTab = tab;
   }
   onRouteTabKeydown(event: KeyboardEvent, tab: RouteDetailTab): void {
     const index = this.routeTabs.findIndex(item => item.id === tab);
     const target = event.key === 'ArrowRight' ? (index + 1) % this.routeTabs.length : event.key === 'ArrowLeft' ? (index + this.routeTabs.length - 1) % this.routeTabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? this.routeTabs.length - 1 : -1;
     if (target < 0) return;
-    event.preventDefault(); this.routeDetailTab = this.routeTabs[target].id;
+    event.preventDefault(); this.selectRouteDetailTab(this.routeTabs[target].id);
     (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[target]?.focus();
   }
   clearFilters(): void { this.search = ''; this.status = 'all'; this.scope = 'all'; this.routeGroupId = null; this.vehicleId = null; this.vehicleTypeId = null; this.savePreferences(); }
@@ -274,7 +302,7 @@ export class RouteOperationsComponent implements OnChanges {
       event.preventDefault(); const route = this.routePickerResults[this.routePickerIndex]; if (route) this.pickRoute(route.id);
     }
   }
-  selectRoute(id: number): void { if (this.filteredRoutes.some(route => route.id === id)) { this.selectedRouteId = id; this.detailDriverId = null; this.routeDetailTab = 'overview'; } }
+  selectRoute(id: number): void { if (this.routes.some(route => route.id === id)) { this.selectedRouteId = id; this.detailDriverId = null; this.routeDetailTab = 'overview'; } }
   showDriverRoute(id: number): void { this.changeView('routes'); this.clearFilters(); this.selectRoute(id); }
   get assignedDriverCount(): number { return this.drivers.filter(driver => this.groupsForDriver(driver.user_id).length > 0).length; }
   routeScopeCount(scope: string): number { return this.routes.filter(route => route.scope === scope).length; }
@@ -313,6 +341,42 @@ export class RouteOperationsComponent implements OnChanges {
         && this.statusMatches(route.is_active, this.needsAttention(route))
         && (this.vehicleId === null || (this.vehicles.find(vehicle => vehicle.id === this.vehicleId)?.mode_row_ids ?? [this.vehicleId]).includes(route.city_vehicle_type_id ?? -1) || groups.some(group => this.groupVehicles(group).some(vehicle => vehicle.id === this.vehicleId)));
     });
+  }
+  get ungroupedRoutes(): MasterRoute[] {
+    const query = this.ungroupedSearch.trim().toLowerCase();
+    return this.routes.filter(route => this.groupsForRoute(route.id).length === 0
+      && (!query || `${route.name} ${route.origin_name} ${route.dest_name}`.toLowerCase().includes(query)));
+  }
+  private restoreCopiedRouteIds(): void {
+    this.copiedRouteIds.clear();
+    if (!this.cityId) return;
+    try {
+      const raw = localStorage.getItem(`admin-copied-routes:v1:${this.cityId}`);
+      if (raw) {
+        const ids = JSON.parse(raw);
+        if (Array.isArray(ids)) {
+          ids.forEach((id: unknown) => { if (typeof id === 'number' && Number.isInteger(id)) this.copiedRouteIds.add(id); });
+        }
+      }
+    } catch { /* Storage is optional. */ }
+  }
+  private saveCopiedRouteIds(): void {
+    if (!this.cityId) return;
+    try { localStorage.setItem(`admin-copied-routes:v1:${this.cityId}`, JSON.stringify([...this.copiedRouteIds])); } catch { /* Storage is optional. */ }
+  }
+  trackCopiedRoute(id: number): void {
+    this.copiedRouteIds.add(id);
+    this.saveCopiedRouteIds();
+  }
+  isCopiedRoute(route: MasterRoute): boolean {
+    if (this.copiedRouteIds.has(route.id)) return true;
+    const name = (route.name || '').trim().toLowerCase();
+    return name.includes('(copy') || name.includes('copy)') || name.includes('copy of') || /\bcopy\b/i.test(name);
+  }
+  get copiedRoutes(): MasterRoute[] {
+    const query = this.copiedSearch.trim().toLowerCase();
+    return this.routes.filter(route => this.isCopiedRoute(route)
+      && (!query || `${route.name} ${route.origin_name} ${route.dest_name}`.toLowerCase().includes(query)));
   }
   private statusMatches(active: boolean, attention: boolean): boolean { return this.status === 'all' || (this.status === 'attention' ? attention : active === (this.status === 'active')); }
   get filteredGroups(): MasterGroup[] { return this.groups.filter(group => (group.name + ' ' + this.vehicleLabel(group)).toLowerCase().includes(this.groupSearch.toLowerCase().trim()) && (this.groupStatus === 'all' || (this.groupStatus === 'attention' ? !group.route_ids.length || !group.driver_user_ids.length : group.is_active === (this.groupStatus === 'active'))) && (this.groupVehicleId === null || this.groupVehicles(group).some(vehicle => vehicle.id === this.groupVehicleId))); }
