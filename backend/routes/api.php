@@ -88,6 +88,7 @@ Route::get('/', function () {
 
 Route::get('/health', HealthController::class);
 Route::get('/app-banners', [AppBannerController::class, 'index']);
+Route::get('/app-assets/customer-marker', [\App\Http\Controllers\Admin\AdminAppAssetsController::class, 'customerMarker']);
 
 // Admin auth (email + password)
 Route::post('/admin/login', [AdminAuthController::class, 'login']);
