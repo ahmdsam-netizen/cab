@@ -267,6 +267,8 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::post('/admin/app-assets', [\App\Http\Controllers\Admin\AdminAppAssetsController::class, 'store'])->middleware(['manager.city', 'permission:app_assets']);
     Route::delete('/admin/app-assets/{asset}', [\App\Http\Controllers\Admin\AdminAppAssetsController::class, 'destroy'])->middleware(['manager.city', 'permission:app_assets']);
     Route::get('/admin/me', [AdminAuthController::class, 'me']);
+    Route::match(['post', 'put', 'patch'], '/admin/me/profile', [AdminAuthController::class, 'updateProfile']);
+    Route::match(['post', 'put', 'patch'], '/admin/me/password', [AdminAuthController::class, 'updatePassword']);
     Route::get('/admin/drivers', [AdminDriversController::class, 'index'])->middleware('permission:drivers');
     Route::get('/admin/drivers/export', [AdminDriversController::class, 'exportCsv'])->middleware('permission:drivers');
     Route::get('/admin/drivers/leaderboard', [AdminDriversController::class, 'leaderboard'])->middleware('permission:drivers');

@@ -37,6 +37,11 @@ export const routes: Routes = [
   { path: '', redirectTo: 'signin', pathMatch: 'full' },
   { path: 'signin', component: SigninComponent },
   { path: 'dashboard', component: AdminDashboardComponent, canActivate: [adminAuthGuard], data: { permission: 'dashboard' } },
+  {
+    path: 'profile',
+    loadComponent: () => import('./admin/profile/profile.component').then((m) => m.ProfileComponent),
+    canActivate: [adminAuthGuard],
+  },
   { path: 'setup', component: SetupWizardComponent, canActivate: [adminAuthGuard], data: { permission: 'city_settings' } },
   // Fleet Setup and the standalone fare page are now tabs of the vehicle
   // workspace. Both legacy URLs land on the same page.
@@ -176,6 +181,7 @@ export const routes: Routes = [
   { path: 'settings/cities', component: CityWorkspaceComponent, canActivate: [adminAuthGuard], data: { permission: 'city_settings' } },
   { path: 'settings/city', component: SettingsComponent, canActivate: [adminAuthGuard], data: { permission: 'city_settings' } },
   { path: 'settings/operator', component: OperatorSettingsComponent, canActivate: [adminAuthGuard], data: { permission: 'operator_settings' } },
+  { path: 'settings/profile', redirectTo: 'profile', pathMatch: 'full' },
   // App Assets temporarily hidden (not part of the first release). Re-enable by uncommenting (and the import above).
   { path: 'settings/app-assets', component: AppAssetsComponent, canActivate: [adminAuthGuard], data: { permission: 'app_assets' } },
   { path: 'settings/general', redirectTo: 'settings/city', pathMatch: 'full' },

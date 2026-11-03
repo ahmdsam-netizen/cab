@@ -24,6 +24,7 @@ export class AppComponent implements OnInit {
   // Route → page title mapping. Keep in sync with app.routes.ts.
   private static readonly TITLES: Array<[RegExp, string]> = [
     [/^\/dashboard/,                'Dashboard'],
+    [/^\/profile/,                  'Profile Settings'],
     [/^\/maps/,                     'Live Operations'],
     [/^\/customers\/[^/]+$/,        'Customer Details'],
     [/^\/customers/,                'Customers'],
@@ -96,6 +97,12 @@ export class AppComponent implements OnInit {
   constructor(public router: Router, public auth: AuthService) {}
 
   ngOnInit(): void {
+    if (typeof window !== 'undefined') {
+      const theme = localStorage.getItem('dreamcabs_theme');
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    }
     if (this.isAuthorized) {
       this.auth.ensureLoaded().subscribe(() =>
         this.profileTick.update((n) => n + 1),
@@ -235,13 +242,14 @@ export class AppComponent implements OnInit {
   }
 
   /** Topbar user card — name + initials from auth profile. */
-  get topbarUser(): { name: string; role?: string; initials: string } | undefined {
+  get topbarUser(): { name: string; role?: string; initials: string; photo?: string | null } | undefined {
     const p = this.auth.profile;
     if (!p) return undefined;
     return {
       name: p.name,
       role: p.manager_role?.name,
       initials: this.initials(p.name),
+      photo: p.avatar_url ?? null,
     };
   }
 
