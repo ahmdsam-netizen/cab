@@ -29,7 +29,7 @@ class AdminProfileTest extends TestCase
             'name' => 'Admin User',
             'email' => 'admin@dreamcabs.local',
             'phone' => '+919900112233',
-            'password' => Hash::make('password123'),
+            'password' => Hash::make('dummy-sample-password'),
             'manager_role_id' => $role->id,
             'manager_all_cities' => true,
         ], $overrides));
@@ -108,37 +108,43 @@ class AdminProfileTest extends TestCase
 
     public function test_admin_can_change_password_with_valid_current_password(): void
     {
-        $admin = $this->createAdmin(['password' => Hash::make('oldSecret123')]);
+        $currentPass = 'dummy-sample-password';
+        $newPass = 'dummy-new-password';
+
+        $admin = $this->createAdmin(['password' => Hash::make($currentPass)]);
         Sanctum::actingAs($admin, ['act-as:admin']);
 
         $res = $this->postJson('/api/admin/me/password', [
-            'current_password' => 'oldSecret123',
-            'password' => 'newSecret456',
-            'password_confirmation' => 'newSecret456',
+            'current_password' => $currentPass,
+            'password' => $newPass,
+            'password_confirmation' => $newPass,
         ]);
 
         $res->assertStatus(200)
             ->assertJsonPath('message', 'Password updated successfully.');
 
         $admin->refresh();
-        $this->assertTrue(Hash::check('newSecret456', $admin->password));
+        $this->assertTrue(Hash::check($newPass, $admin->password));
     }
 
     public function test_admin_password_change_fails_if_current_password_is_incorrect(): void
     {
-        $admin = $this->createAdmin(['password' => Hash::make('oldSecret123')]);
+        $currentPass = 'dummy-sample-password';
+        $newPass = 'dummy-new-password';
+
+        $admin = $this->createAdmin(['password' => Hash::make($currentPass)]);
         Sanctum::actingAs($admin, ['act-as:admin']);
 
         $res = $this->postJson('/api/admin/me/password', [
-            'current_password' => 'wrongPassword',
-            'password' => 'newSecret456',
-            'password_confirmation' => 'newSecret456',
+            'current_password' => 'dummy-wrong-password',
+            'password' => $newPass,
+            'password_confirmation' => $newPass,
         ]);
 
         $res->assertStatus(422)
             ->assertJsonValidationErrors(['current_password']);
 
         $admin->refresh();
-        $this->assertTrue(Hash::check('oldSecret123', $admin->password));
+        $this->assertTrue(Hash::check($currentPass, $admin->password));
     }
 }

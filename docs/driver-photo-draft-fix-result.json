@@ -1,0 +1,8 @@
+{
+    "database": "cab_photo_browser",
+    "dummy_user_created": true,
+    "driver_created": true,
+    "approval_status": "pending",
+    "photo_stored": true,
+    "stored_photo_matches_fixture": true
+}
