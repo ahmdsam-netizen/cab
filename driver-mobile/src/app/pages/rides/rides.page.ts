@@ -22,6 +22,7 @@ import {
   buildPassengerMarkerElement,
 } from '../../core/car-marker.helper';
 import { AudioRingtoneService } from '../../core/audio-ringtone.service';
+import { NavigationRouteRenderer } from '../../core/navigation-route.helper';
 
 declare const google: any;
 
@@ -194,6 +195,8 @@ export class RidesPage implements OnInit, OnDestroy {
   private dropMarker: any | null = null;
   private customerMarker: any | null = null;
   private selfMarker: any | null = null;
+  private navRoute = new NavigationRouteRenderer();
+  private selfPosition: { lat: number; lng: number } | null = null;
   customerPosition: { lat: number; lng: number } | null = null;
   mapReady = false;
   private selfWatchId: string | null = null;
@@ -382,6 +385,7 @@ export class RidesPage implements OnInit, OnDestroy {
       this.availablePoll = null;
     }
     this.stopSelfPositionWatch();
+    this.navRoute.clear();
   }
 
   refreshAvailable(): void {
@@ -725,6 +729,7 @@ export class RidesPage implements OnInit, OnDestroy {
     this.negotiation = null;
     this.completionBreakdown = null;
     this.message = null;
+    this.navRoute.clear();
     this.refreshAvailable();
   }
 
@@ -933,9 +938,11 @@ export class RidesPage implements OnInit, OnDestroy {
       tripId,
       (payload) => {
         if (this.lastTrip) this.lastTrip['status'] = payload.status;
+        this.refreshTripMarkers();
         if (payload.status === 'COMPLETED' || payload.status === 'CANCELLED') {
           void this.bgLocation.stop();
           this.stopSelfPositionWatch();
+          this.navRoute.clear();
         }
       },
       (payload) => this.onCustomerLocation(payload),
@@ -1011,6 +1018,25 @@ export class RidesPage implements OnInit, OnDestroy {
         this.dropMarker.position = drop;
       }
     }
+
+    // Directional navigation polyline corridor with repeating chevrons
+    const status = String(this.lastTrip?.['status'] || '').toUpperCase();
+    const isHeadingDrop = status === 'EN_ROUTE_DROP' || status === 'ARRIVED_DROP';
+    const isPickupActive = status === 'ASSIGNED' || status === 'EN_ROUTE_PICKUP' || status === 'ARRIVED_PICKUP';
+
+    if (isHeadingDrop && drop) {
+      const origin = this.selfPosition || pickup;
+      if (origin) {
+        void this.navRoute.render(this.map, origin, drop, 'drop');
+      }
+    } else if (isPickupActive && pickup) {
+      if (this.selfPosition) {
+        void this.navRoute.render(this.map, this.selfPosition, pickup, 'pickup');
+      }
+    } else {
+      this.navRoute.clear();
+    }
+
     this.fitMap();
   }
 
@@ -1076,6 +1102,12 @@ export class RidesPage implements OnInit, OnDestroy {
   private onSelfPosition(fix: GeoFix): void {
     if (!this.map) return;
     const p = { lat: fix.lat, lng: fix.lng };
+    const hadNoSelfPosition = !this.selfPosition;
+    this.selfPosition = p;
+    this.navRoute.updateDriverProgress(p);
+    if (hadNoSelfPosition && this.lastTrip) {
+      this.refreshTripMarkers();
+    }
     const markerUrl = (this.lastTrip as any)?.driver?.vehicle?.map_marker_url
       || (this.lastTrip as any)?.driver?.map_marker_url
       || (this.lastTrip as any)?.map_marker_url

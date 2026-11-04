@@ -1,5 +1,17 @@
 # Android release handoff
 
+## 2026-11-04 — Customer navigation readiness check
+
+- Local evidence: the customer production web build passed from the working
+  tree (hash `4ae0e234d7bcbcba`). The staged snapshot omitted some latest
+  customer fixes and included Driver changes, including a manifest setting
+  enabling cleartext traffic and a manifest backup.
+- Repository evidence: pushes to master, main or opeartor-payments trigger
+  the VPS workflow. That workflow does not publish the customer Android app.
+- Pending verification: customer signed build, Android GPS and boarding
+  walkthrough, Private and Shuttle live navigation, and route search against
+  the production API. No Play Console or production state was checked.
+
 ## 2026-10-17 — Driver APK for client review
 
 This is a dated local build record, not proof of Play Console or production status.

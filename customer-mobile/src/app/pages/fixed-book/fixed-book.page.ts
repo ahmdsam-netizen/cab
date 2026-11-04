@@ -1,3 +1,4 @@
+import { CUSTOMER_MAP_STYLE, fitCustomerMap } from '../../core/customer-map';
 import { Component, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AlertController, ToastController } from '@ionic/angular';
@@ -495,6 +496,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
 
       const start = (await this.geo.getCurrentPosition()) ?? { lat: 28.6139, lng: 77.209 };
       this.fixedMap = new google.maps.Map(el, {
+        ...CUSTOMER_MAP_STYLE,
         center: start,
         zoom: 15,
         disableDefaultUI: true,
@@ -528,7 +530,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
     // Route line eliminated as requested: customer sees only pickup/drop pins and stops
     const bounds = new google.maps.LatLngBounds();
     path.forEach((point) => bounds.extend(point));
-    this.fixedMap.fitBounds(bounds, this.routeFitPadding());
+    fitCustomerMap(this.fixedMap, bounds, this.routeFitPadding());
     if (this.step === 'details') this.renderStopsOnMap();
     this.ensureVehicleMarker();
   }

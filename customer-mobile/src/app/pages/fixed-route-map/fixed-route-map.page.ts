@@ -1,3 +1,4 @@
+import { CUSTOMER_MAP_STYLE, fitCustomerMap } from '../../core/customer-map';
 import { Component, NgZone } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../core/api.service';
@@ -112,6 +113,10 @@ export class FixedRouteMapPage {
           this.error = 'Booking not found.';
           return;
         }
+        if (['BOOKED', 'CONFIRMED', 'BOARDED'].includes(booking.status?.toUpperCase() ?? '')) {
+          void this.router.navigateByUrl('/customer-tabs/fixed-rides/' + id, { replaceUrl: true });
+          return;
+        }
         if (!this.hasRouteCoords(booking)) {
           this.error = 'Map coordinates are not available for this booking.';
           return;
@@ -139,6 +144,7 @@ export class FixedRouteMapPage {
       const drop = { lat: Number(booking.drop_lat), lng: Number(booking.drop_lng) };
 
       this.map = new google.maps.Map(div, {
+        ...CUSTOMER_MAP_STYLE,
         center: pickup,
         zoom: 13,
         disableDefaultUI: true,
@@ -185,7 +191,7 @@ export class FixedRouteMapPage {
     bounds.extend(a);
     bounds.extend(b);
     if (this.driverMarker?.position) bounds.extend(this.driverMarker.position as any);
-    this.map.fitBounds(bounds, { top: 110, right: 42, bottom: 190, left: 42 });
+    fitCustomerMap(this.map, bounds, { top: 110, right: 42, bottom: 190, left: 42 });
   }
 
   private buildPin(letter: string, color: string): HTMLElement {

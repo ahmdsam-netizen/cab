@@ -211,7 +211,7 @@
       <div class="details-actions">
         <button class="action-btn action-btn--track dc-press" type="button" *ngIf="isActiveBooking(b)" (click)="openRide($event, b)">
           <ion-icon name="navigate-outline"></ion-icon>
-          <span>Open Live Ride Map</span>
+          <span>Open ride</span>
         </button>
         <button class="action-btn action-btn--cancel dc-press" type="button" *ngIf="canCancel(b)" (click)="cancelBooking($event, b)" [disabled]="cancellingId === b.id">
           <ion-spinner *ngIf="cancellingId === b.id" name="crescent"></ion-spinner>

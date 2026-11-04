@@ -13,6 +13,7 @@ import {
 import { GeoFix, GeolocationService } from '../../core/geolocation.service';
 import { PlacesService } from '../../core/places.service';
 import { haversineDistanceMeters } from './fixed-driver.page';
+import { NavigationRouteRenderer } from '../../core/navigation-route.helper';
 
 declare const google: any;
 
@@ -108,6 +109,7 @@ export class FixedDriverMapPage implements OnDestroy {
 
   private map: any = null;
   private routeLine: any = null;
+  private navRoute = new NavigationRouteRenderer();
   private stopMarkers: any[] = [];
   private passengerMarkers: any[] = [];
   private selfMarker: any = null;
@@ -365,7 +367,12 @@ export class FixedDriverMapPage implements OnDestroy {
       return;
     }
 
-    // Route line eliminated as requested: driver sees stop points and passenger markers only
+    // Route line with directional chevrons to the next upcoming stop
+    const nextStop = routeStops.find((s) => Number(s.seq || 0) > this.completedStopSeq) || routeStops[routeStops.length - 1];
+    const origin = this.driverPosition || (routeStops[0] ? this.stopPosition(routeStops[0]) : null);
+    if (origin && nextStop) {
+      void this.navRoute.render(this.map, origin, this.stopPosition(nextStop), 'drop');
+    }
 
     this.stopMarkers = routeStops.map((stop) => {
       const marker = new google.maps.marker.AdvancedMarkerElement({
@@ -473,7 +480,16 @@ export class FixedDriverMapPage implements OnDestroy {
   private onDriverPosition(fix: GeoFix): void {
     if (!this.map) return;
     const position = { lat: fix.lat, lng: fix.lng };
+    const hadNoPosition = !this.driverPosition;
     this.driverPosition = position;
+    this.navRoute.updateDriverProgress(position);
+    if (hadNoPosition && this.stops.length) {
+      const routeStops = this.stops.filter((stop) => this.hasStopCoords(stop));
+      const nextStop = routeStops.find((s) => Number(s.seq || 0) > this.completedStopSeq) || routeStops[routeStops.length - 1];
+      if (nextStop) {
+        void this.navRoute.render(this.map, position, this.stopPosition(nextStop), 'drop');
+      }
+    }
     if (!this.selfMarker) {
       this.selfMarker = new google.maps.marker.AdvancedMarkerElement({
         position,
@@ -524,6 +540,7 @@ export class FixedDriverMapPage implements OnDestroy {
       this.routeLine.setMap(null);
       this.routeLine = null;
     }
+    this.navRoute.clear();
     for (const marker of this.stopMarkers) marker.map = null;
     for (const marker of this.passengerMarkers) marker.map = null;
     this.stopMarkers = [];

@@ -1,3 +1,5 @@
+import { buildFixedRidePin, fixedRideNavigationTarget } from '../../core/fixed-ride-map';
+import { CUSTOMER_MAP_STYLE, CUSTOMER_NAVIGATION_ZOOM, fitCustomerMap, focusCustomerNavigation } from '../../core/customer-map';
 import { Component, ElementRef, NgZone, OnDestroy, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AlertController, Platform, ToastController } from '@ionic/angular';
@@ -12,6 +14,7 @@ import {
   updateCarMarkerBearing,
   updateCarMarkerImage,
 } from '../../core/car-marker.helper';
+import { NavigationRouteRenderer, separateNavigationMarkers } from '../../core/navigation-route.helper';
 import { FixedCustomerLocationService } from '../../core/fixed-customer-location.service';
 import { GeoFix, GeolocationService } from '../../core/geolocation.service';
 import { PlacesService } from '../../core/places.service';
@@ -129,7 +132,7 @@ export class FixedRideActivePage implements OnDestroy {
   private userLiveMarker: any | null = null;
   private driverMarker: any | null = null;
   private stopMarkers: any[] = [];
-  private routePolylines: any[] = [];
+  private navRoute = new NavigationRouteRenderer();
   private driverPosition: { lat: number; lng: number } | null = null;
   private driverBearing = 0;
   private userPosition: { lat: number; lng: number } | null = null;
@@ -137,6 +140,7 @@ export class FixedRideActivePage implements OnDestroy {
   private pollSub?: Subscription;
   private backButtonSub?: Subscription;
   private watchId: string | null = null;
+  private locationVisit = 0;
   private trackingTripId: number | null = null;
   private unsubscribeTracking: (() => void) | null = null;
   private readonly inactiveStatuses = new Set(['DROPPED', 'COMPLETED', 'CANCELLED', 'NO_SHOW']);
@@ -158,6 +162,9 @@ export class FixedRideActivePage implements OnDestroy {
 
   ionViewWillEnter(): void {
     this.walkingLeftPage = false;
+    this.locationVisit++;
+    this.userPosition = this.geo.recentPosition();
+    this.walkingMessage = 'Waiting for your current location…';
     this.load();
     this.pollSub ??= interval(5000).subscribe(() => this.silentReload());
     this.backButtonSub = this.platform.backButton.subscribeWithPriority(10, () => {
@@ -168,6 +175,8 @@ export class FixedRideActivePage implements OnDestroy {
 
   ionViewWillLeave(): void {
     this.walkingLeftPage = true;
+    this.locationVisit++;
+    this.navRoute.clear();
     this.walkingRequest++;
     this.walkingLoading = false;
     this.pollSub?.unsubscribe();
@@ -453,12 +462,13 @@ export class FixedRideActivePage implements OnDestroy {
     try {
       this.mapError = null;
       await this.places.ensureLoaded();
-      if (!this.mapElRef?.nativeElement || typeof google === 'undefined') return;
+      if (this.walkingLeftPage || this.map || !this.mapElRef?.nativeElement || typeof google === 'undefined') return;
 
       const center = this.resolveCenter();
       this.map = new google.maps.Map(this.mapElRef.nativeElement, {
+        ...CUSTOMER_MAP_STYLE,
         center,
-        zoom: 14,
+        zoom: this.booking && this.isActiveBooking(this.booking) ? CUSTOMER_NAVIGATION_ZOOM : 14,
         disableDefaultUI: true,
         zoomControl: false,
         mapTypeControl: false,
@@ -477,6 +487,12 @@ export class FixedRideActivePage implements OnDestroy {
   }
 
   private resolveCenter(): { lat: number; lng: number } {
+    if (this.booking && this.isActiveBooking(this.booking)) {
+      const boarded = this.booking.status?.toUpperCase() === 'BOARDED';
+      const center = (boarded ? this.driverPosition : this.userPosition)
+        ?? fixedRideNavigationTarget(this.booking);
+      if (center) return center;
+    }
     if (this.driverPosition) return this.driverPosition;
     if (this.booking?.board_lat != null && this.booking?.board_lng != null) {
       return { lat: Number(this.booking.board_lat), lng: Number(this.booking.board_lng) };
@@ -485,7 +501,7 @@ export class FixedRideActivePage implements OnDestroy {
   }
 
   private updateMarkers(): void {
-    if (!this.map || typeof google === 'undefined') return;
+    if (this.walkingLeftPage || !this.map || typeof google === 'undefined') return;
 
     const b = this.booking;
     if (!b) return;
@@ -499,7 +515,7 @@ export class FixedRideActivePage implements OnDestroy {
           position: pos,
           map: this.map,
           title: label,
-          content: this.buildPinMarkerElement('pickup', label),
+          content: buildFixedRidePin('pickup', label),
           zIndex: 900,
         });
       } else {
@@ -516,7 +532,7 @@ export class FixedRideActivePage implements OnDestroy {
           position: pos,
           map: this.map,
           title: label,
-          content: this.buildPinMarkerElement('drop', label),
+          content: buildFixedRidePin('drop', label),
           zIndex: 900,
         });
       } else {
@@ -528,8 +544,9 @@ export class FixedRideActivePage implements OnDestroy {
     for (const m of this.stopMarkers) m.map = null;
     this.stopMarkers = [];
 
-    // 4. Passenger Device Actual Live Location (Person Avatar)
-    if (this.userPosition) {
+    // 4. Passenger Device Actual Live Location (Person Avatar) - only shown before boarding
+    const isBoarded = (b.status || '').toUpperCase() === 'BOARDED';
+    if (this.userPosition && !isBoarded && this.isActiveBooking(b)) {
       if (!this.userLiveMarker) {
         this.userLiveMarker = new google.maps.marker.AdvancedMarkerElement({
           position: this.userPosition,
@@ -538,13 +555,11 @@ export class FixedRideActivePage implements OnDestroy {
           content: buildPassengerMarkerElement({
             kind: 'pickup',
             name: '',
-            isLive: true,
             avatarUrl: this.auth.resolveAvatarUrl(this.auth.getUser()),
           }),
           zIndex: 1100,
         });
       } else {
-        this.userLiveMarker.position = this.userPosition;
         if (!this.userLiveMarker.map) this.userLiveMarker.map = this.map;
       }
     } else if (this.userLiveMarker) {
@@ -566,7 +581,7 @@ export class FixedRideActivePage implements OnDestroy {
           zIndex: 1000,
         });
       } else {
-        this.driverMarker.position = this.driverPosition;
+        if (!isBoarded) this.driverMarker.position = this.driverPosition;
         if (!this.driverMarker.map) this.driverMarker.map = this.map;
         updateCarMarkerBearing(this.driverMarker, this.driverBearing);
         const markerUrl = (b as any).map_marker_url || (b as any).vehicle?.map_marker_url || null;
@@ -579,33 +594,27 @@ export class FixedRideActivePage implements OnDestroy {
       this.driverMarker = null;
     }
 
-    // 6. Draw Route Polyline Corridor
+    separateNavigationMarkers(this.driverMarker, this.userLiveMarker);
     this.renderRoutePolyline();
   }
 
   private renderRoutePolyline(): void {
-    if (!this.map || typeof google === 'undefined') return;
-
-    for (const poly of this.routePolylines) {
-      poly.setMap(null);
+    const booking = this.booking;
+    if (!this.map || !booking || !this.isActiveBooking(booking)) {
+      this.navRoute.clear();
+      return;
     }
-    this.routePolylines = [];
-    // Route polylines eliminated: customer sees only pickup/drop pins and driver live vehicle marker
-  }
 
-  private buildPinMarkerElement(kind: 'pickup' | 'drop', label: string): HTMLElement {
-    const el = document.createElement('div');
-    el.className = `dc-fixed-pin-marker dc-fixed-pin-marker--${kind}`;
-    const isPickup = kind === 'pickup';
-    const bg = isPickup ? '#2563EB' : '#EF4444';
-    const dotBg = isPickup ? '#3B82F6' : '#F87171';
-    el.innerHTML = `
-      <div style="background: ${bg}; color: #ffffff; font-size: 11px; font-weight: 850; padding: 3px 9px; border-radius: 99px; box-shadow: 0 3px 10px rgba(0,0,0,0.3); border: 1.5px solid #ffffff; white-space: nowrap; text-align: center; line-height: 1.2;">
-        ${label}
-      </div>
-      <div style="width: 10px; height: 10px; border-radius: 50%; background: ${dotBg}; border: 2.5px solid #ffffff; margin: 3px auto 0; box-shadow: 0 2px 6px rgba(0,0,0,0.35);"></div>
-    `;
-    return el;
+    const boarded = booking.status?.toUpperCase() === 'BOARDED';
+    const target = fixedRideNavigationTarget(booking);
+    const origin = boarded ? this.driverPosition : this.userPosition;
+    if (!origin || !target) {
+      this.navRoute.clear();
+      return;
+    }
+
+    void this.navRoute.render(this.map, origin, target, boarded ? 'drop' : 'pickup');
+    this.navRoute.follow(this.map, origin, target, boarded ? this.driverMarker : this.userLiveMarker);
   }
 
   recenterMap(): void {
@@ -613,7 +622,12 @@ export class FixedRideActivePage implements OnDestroy {
   }
 
   private fitMapBounds(): void {
+    if (this.navRoute.following) return;
     if (!this.map || typeof google === 'undefined') return;
+    if (this.booking && this.isActiveBooking(this.booking)) {
+      focusCustomerNavigation(this.map, this.resolveCenter());
+      return;
+    }
 
     const bounds = new google.maps.LatLngBounds();
     let count = 0;
@@ -641,7 +655,7 @@ export class FixedRideActivePage implements OnDestroy {
       const mapHeight = this.mapElRef?.nativeElement.clientHeight || 600;
       const mapWidth = this.mapElRef?.nativeElement.clientWidth || 400;
       const sheetHeight = sheet?.getBoundingClientRect().height || mapHeight * .56;
-      this.map.fitBounds(bounds, mapWidth >= 900
+      fitCustomerMap(this.map, bounds, mapWidth >= 900
         ? { top: 90, bottom: 40, left: 440, right: 40 }
         : { top: 95, bottom: Math.min(sheetHeight + 20, mapHeight - 160), left: 30, right: 30 });
     }
@@ -654,8 +668,7 @@ export class FixedRideActivePage implements OnDestroy {
     if (this.driverMarker) { this.driverMarker.map = null; this.driverMarker = null; }
     for (const m of this.stopMarkers) m.map = null;
     this.stopMarkers = [];
-    for (const p of this.routePolylines) p.setMap(null);
-    this.routePolylines = [];
+    this.navRoute.clear();
     this.map = null;
   }
 
@@ -700,21 +713,13 @@ export class FixedRideActivePage implements OnDestroy {
   // ── Customer Geolocation ──────────────────────────────────────────────────
   private async startUserLocationWatch(): Promise<void> {
     if (this.watchId) return;
+    const visit = this.locationVisit;
+    void this.refreshUserPosition();
     try {
-      const initialFix = await this.geo.getCurrentPosition();
-      if (this.walkingLeftPage) return;
-      if (initialFix) {
-        this.zone.run(() => {
-          this.userPosition = { lat: initialFix.lat, lng: initialFix.lng };
-          void this.refreshWalkingDistance();
-          if (this.map) this.updateMarkers();
-        });
-      }
-
-      this.watchId = await this.geo.watchPosition(
+      const watchId = await this.geo.watchPosition(
         { enableHighAccuracy: true, maximumAge: 3000 },
         (fix: GeoFix | null) => {
-          if (fix) {
+          if (fix && visit === this.locationVisit) {
             this.zone.run(() => {
               this.userPosition = { lat: fix.lat, lng: fix.lng };
               void this.refreshWalkingDistance();
@@ -723,17 +728,39 @@ export class FixedRideActivePage implements OnDestroy {
           }
         },
       );
-      if (this.walkingLeftPage) await this.stopUserLocationWatch();
+      if (visit === this.locationVisit) this.watchId = watchId;
+      else await this.geo.clearWatch(watchId);
     } catch {
       this.walkingMessage = 'Current location unavailable. Enable location to see walking distance.';
     }
   }
 
-  private async stopUserLocationWatch(): Promise<void> {
-    if (this.watchId) {
-      await this.geo.clearWatch(this.watchId);
-      this.watchId = null;
+  refreshRide(): void {
+    this.load();
+    void this.refreshUserPosition();
+  }
+
+  private async refreshUserPosition(): Promise<void> {
+    const visit = this.locationVisit;
+    const initialPosition = this.userPosition;
+    const position = await this.geo.getCurrentPosition() ?? await this.geo.getCurrentFix();
+    if (visit !== this.locationVisit || this.userPosition !== initialPosition) return;
+    if (!position) {
+      if (!this.userPosition) this.walkingMessage = 'Current location unavailable. Enable location and refresh to see directions to pickup.';
+      return;
     }
+    this.zone.run(() => {
+      this.userPosition = position;
+      void this.refreshWalkingDistance();
+      this.updateMarkers();
+    });
+  }
+
+
+  private async stopUserLocationWatch(): Promise<void> {
+    const watchId = this.watchId;
+    this.watchId = null;
+    if (watchId) await this.geo.clearWatch(watchId);
   }
 
   // ── Ride Lifecycle Actions ────────────────────────────────────────────────

@@ -1,8 +1,126 @@
 # Customer and Driver UI Redesign — Task Tracker
 
-Last updated: 2026-10-22 (Asia/Calcutta)
+Last updated: 2026-11-04 (Asia/Calcutta)
 
 ## Start here
+
+- Task 1 customer map audit (2026-11-04): checked all nine customer map
+  constructors for the shared light vector style and tilt. Home's active
+  Fixed ride and the shared Private/Shuttle live screen now stay close to
+  the relevant stop while GPS is unavailable. Private/Shuttle keeps watching
+  through GPS errors. Old Fixed map links for active bookings redirect to
+  the live ride screen. Browser verified the redirect and blue walking route
+  on booking #44. Development build and TypeScript passed. Next, verify
+  Private/Shuttle navigation, movement and boarding on a device.
+
+- Task 1 Fixed map without GPS (2026-11-04): replaced the wide overview
+  during an active ride with the close, tilted camera centered on the
+  relevant stop while waiting for a location. Location guidance is in the
+  ride details. Live routing still starts when a location is available.
+  TypeScript passed. The browser preview could not be rechecked this turn.
+
+- Task 1 Fixed booking entry (2026-11-04): renamed the details action to
+  Open ride. The live map now starts with a recent GPS fix when available,
+  watches for updates while requesting a fresh fix, and retries GPS on
+  Refresh. The map explains when location is needed. Browser checked booking
+  #44 from the Fixed list and saw the tilted walking route after GPS returned.
+  TypeScript passed. Next, verify movement and boarding on a device.
+
+- Task 1 customer map rollout (2026-11-04): applied the light vector style
+  and tilt to all nine customer map views. Home's active Fixed ride uses the
+  same navigation renderer and pins as the live ride screen. Home keeps the
+  map clear of floating promotions during an active ride. Browser verified
+  booking #44 on Home with the tilted map, road-aligned blue route and
+  separate passenger and driver markers. Development build
+  `4246608105a6f204` passed. Next, verify Home during movement and boarding.
+
+- Task 1 walking camera (2026-11-04): the customer map points along the next
+  segment of the walking route and smoothly rotates as GPS progress moves
+  around a corner. A simulated east-to-north turn and TypeScript passed.
+  Next, verify rotation during a real walk and check the boarding transition.
+
+- Task 1 Fixed passenger marker (2026-11-04): removed the flashing blue ring
+  around the passenger icon. The icon still uses live GPS. TypeScript passed.
+  Live movement and boarding remain to be checked on a device.
+
+- Task 1 Fixed map palette (2026-11-04): restored the light map at the user's
+  request. Booking #44 showed the light map, tilted view and blue route from
+  the road to pickup. TypeScript passed. Next, verify live movement and
+  boarding on a device.
+
+- Task 1 customer map follow-up (2026-11-04): restored the original light
+  Fixed ride status bar, Back and Refresh controls. The customer navigation
+  line now starts on the nearest segment of the routed path as GPS updates.
+  Booking #44 showed the gap between the route start and passenger icon in
+  the browser. TypeScript and two off-road GPS projection checks passed.
+  Live movement and boarding still need device verification.
+
+- Task 1 customer navigation update (2026-11-04): Fixed and the shared
+  Private/Shuttle live screen now request walking directions to pickup before
+  boarding and driving directions from the vehicle to drop-off afterward.
+  Added dark vector maps, a tilted camera with smooth heading changes,
+  animated chevrons, and visual separation for overlapping live markers.
+  Browser verified Fixed booking #44 before boarding with the blue route
+  ending at Sopore-Kupwara Rd, moving arrows, a rotated map and distinct
+  passenger and vehicle markers. Development build and TypeScript check
+  passed. Next: verify live movement and boarding on a device, then review
+  driver navigation separately.
+
+- Task 1 customer visual review (2026-11-04): Fixed booking #44 was confirmed
+  before boarding. Browser showed the green directional route, the blue
+  Sopore-Kupwara Rd pickup pin and an approximately three-minute walk. Both
+  live markers were present but visually overlapped. The default map view cut
+  off the route at the details sheet; panning revealed the red PWD RND Stop
+  drop-off pin. The details sheet expanded and collapsed. Next: verify the
+  map during vehicle movement and after boarding. Review only.
+
+- Task 1 live ride attempt (2026-11-04): opened the ₹10 Model To Adda Sopore
+  Fixed departure from the driver app. The live driver map showed seven stops,
+  Sopore-Kupwara Rd as the next stop, a Navigate action, and 0 of 9 seats booked.
+  Customer route selection stalled, then showed no active fixed routes on reload.
+  The alternate Fixed booking page also showed no matching routes. No seat was
+  booked. The departure was left open for review. Next: diagnose the customer
+  catalog response, then book on the matching departure and compare both maps.
+
+- Task 1 browser check (2026-11-04): Customer My Trips loaded with only past
+  rides, and Upcoming showed no rides. The live map review needs an active
+  test ride. No new booking was created during this check.
+
+- Task 1 review setup (2026-11-04): started both local development previews and
+  opened Customer Home (`127.0.0.1:8100/customer-tabs/go`) and Driver Choose Route
+  (`127.0.0.1:8200/tabs/fixed`) in the browser. Customer Home rendered after the
+  location gate. The driver route list was still loading when checked. Next:
+  open an active test ride and verify the passenger icon, pickup marker, and
+  navigation before and after boarding. Task 1 remains pending visual review.
+
+- Driver vehicle icon consistency (2026-11-04): checked the shared
+  `car-marker.helper.ts` use in Dashboard, Fixed Driver, Fixed Driver Map, and
+  Rides. These live map views update the same car marker, bearing, and configured
+  image/fallback. Marked done based on source audit; no separate browser pass was
+  performed.
+
+- Live navigation route with directional chevrons (2026-11-03): user requested
+  in-app navigation route showing directional arrows/chevrons on the map as the
+  driver or vehicle moves towards pickup or drop. Implemented customer-first,
+  then driver:
+  - Created `NavigationRouteRenderer` in `customer-mobile/src/app/core/navigation-route.helper.ts`
+    and `driver-mobile/src/app/core/navigation-route.helper.ts` supporting dual-layer
+    polylines (white casing underlay + vibrant green/blue route), repeated directional
+    chevrons (`FORWARD_CLOSED_ARROW` every 65px), DirectionsService road pathing with
+    geometric fallback, and dynamic real-time path trimming (`updateDriverProgress`).
+  - Customer app: updated route origin & marker visibility per user direction.
+    Before boarding (CONFIRMED / ASSIGNED / EN_ROUTE_PICKUP / ARRIVED_PICKUP):
+    both driver car and customer icons are visible; directional navigation line
+    originates from the Customer to the Drop-off Destination (showing the full ride path).
+    After boarding (OTP verified / EN_ROUTE_DROP / ARRIVED_DROP): customer icon is
+    hidden (passenger is inside the car); driver car icon is visible; navigation line
+    originates from the Driver's car to the drop-off destination and dynamically trims as
+    the car advances.
+  - Driver app: wired into `rides.page.ts` (private rides) and `fixed-driver-map.page.ts`
+    (fixed-route driver map) with live GPS watch progress trimming.
+  - Both development builds succeeded with code 0 (`customer-mobile` hash ad2c214af3c19caf,
+    `driver-mobile` hash 99b5b8b5f6ecdb32). Next step: user visual check of navigation
+    corridors on active rides.
 
 - Driver route-loading fix (2026-10-22): user approved correcting error recovery.
   Both refresh requests now use finalize to settle loading on success/error;

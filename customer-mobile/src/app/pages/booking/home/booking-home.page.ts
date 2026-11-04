@@ -1,3 +1,6 @@
+import { buildFixedRidePin, fixedRideNavigationTarget } from '../../../core/fixed-ride-map';
+import { NavigationRouteRenderer, separateNavigationMarkers } from '../../../core/navigation-route.helper';
+import { CUSTOMER_MAP_STYLE, focusCustomerNavigation } from '../../../core/customer-map';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -158,7 +161,6 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
   fullScreenBanner: AppBanner | null = null;
   halfBanner: AppBanner | null = null;
   isFullScreenDismissed = false;
-  isHalfBannerCollapsed = false;
 
   // Active Live Fixed Ride
   activeFixedRide: ActiveFixedRide | null = null;
@@ -168,7 +170,10 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
   private fixedPickupMarker: any = null;
   private fixedDropMarker: any = null;
   private fixedDriverMarker: any = null;
-  private fixedRoutePolylines: any[] = [];
+  private activeNavigation = new NavigationRouteRenderer();
+  private activeRideRequest = 0;
+  private overviewBookingId: number | null = null;
+  private overviewBoarded = false;
   private driverPosition: { lat: number; lng: number } | null = null;
   private driverBearing = 0;
 
@@ -239,6 +244,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     this.activeRidePollSub?.unsubscribe();
     this.activeRidePollSub = undefined;
     this.stopActiveRideTracking();
+    this.clearActiveRideMap();
     this.bannerPollSub?.unsubscribe();
     this.bannerPollSub = undefined;
   }
@@ -308,19 +314,6 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
           this.isFullScreenDismissed = false;
         }
 
-        // If a half banner was added or changed by admin, make it visible live!
-        if (newHalf) {
-          const changed = !this.halfBanner ||
-            this.halfBanner.id !== newHalf.id ||
-            this.halfBanner.title !== newHalf.title ||
-            this.halfBanner.image_url !== newHalf.image_url;
-          if (changed) {
-            this.isHalfBannerCollapsed = false;
-          }
-        } else {
-          this.isHalfBannerCollapsed = false;
-        }
-
         this.fullScreenBanner = newFullScreen;
         this.halfBanner = newHalf;
         this.cdr.markForCheck();
@@ -331,16 +324,6 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
 
   dismissFullScreenBanner(): void {
     this.isFullScreenDismissed = true;
-    this.cdr.markForCheck();
-  }
-
-  collapseHalfBanner(): void {
-    this.isHalfBannerCollapsed = true;
-    this.cdr.markForCheck();
-  }
-
-  expandHalfBanner(): void {
-    this.isHalfBannerCollapsed = false;
     this.cdr.markForCheck();
   }
 
@@ -458,6 +441,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
       const el = this.mapElRef.nativeElement;
 
       this.map = new google.maps.Map(el, {
+        ...CUSTOMER_MAP_STYLE,
         center: { lat: 34.2985, lng: 74.4712 }, // Centered on Jammu & Kashmir region
         zoom: 14,
         disableDefaultUI: true,
@@ -474,6 +458,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
       if (this.currentCoords) {
         await this.updateMapPosition(this.currentCoords.lat, this.currentCoords.lng, 40, !this.activeFixedRide);
       }
+      this.syncActiveRideMap();
     } catch {
       // Maps unavailable (offline / key missing)
       this.cdr.markForCheck();
@@ -481,12 +466,11 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
   }
 
   currentCoords: { lat: number; lng: number } | null = null;
-  private hasFittedActiveBounds = false;
 
   recenterMap(): void {
     if (!this.map) return;
     if (this.activeFixedRide) {
-      this.fitActiveRideBounds(true);
+      this.syncActiveRideMap(true);
     } else if (this.currentCoords) {
       this.centerUserOnMap(this.currentCoords);
       this.map.setZoom(16);
@@ -544,21 +528,26 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     if (!this.userMarker) {
       const { AdvancedMarkerElement } = await (google.maps as any).importLibrary('marker');
 
-      this.userMarker = new AdvancedMarkerElement({
+      if (!this.pageActive || !this.map) return;
+      this.userMarker ??= new AdvancedMarkerElement({
         map: this.map,
         position: latlng,
         content: buildPassengerMarkerElement({
           kind: 'pickup',
-          isLive: true,
           avatarUrl: this.auth.resolveAvatarUrl(this.auth.getUser()),
         }),
         zIndex: 1100,
         title: 'Your exact location',
       });
     } else {
-      this.userMarker.position = latlng;
-      if (!this.userMarker.map) this.userMarker.map = this.map;
+      if (!this.activeNavigation.following) this.userMarker.position = latlng;
     }
+
+    if (this.activeFixedRide) {
+      this.syncActiveRideMap();
+      return;
+    }
+    this.userMarker.map = this.map;
 
     if (pan) {
       this.centerUserOnMap(latlng);
@@ -845,8 +834,11 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
 
   // ── Active Live Fixed Ride Tracking & Map ────────────────────────────────
   checkActiveFixedRide(): void {
+    if (!this.pageActive) return;
+    const request = ++this.activeRideRequest;
     this.api.get<{ data: ActiveFixedRide[] }>('/fixed/bookings?per_page=5').subscribe({
       next: (res) => {
+        if (!this.pageActive || request !== this.activeRideRequest) return;
         const list = res?.data || [];
         const active = list.find((b) =>
           ['BOOKED', 'CONFIRMED', 'BOARDED'].includes((b.status || '').toUpperCase()) &&
@@ -857,6 +849,11 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
           this.api.get<{ booking: ActiveFixedRide }>('/fixed/bookings/' + active.id).subscribe({
             next: (bRes) => {
               const full = bRes?.booking || active;
+              if (!this.pageActive || request !== this.activeRideRequest) return;
+              if (this.activeFixedRide?.id !== full.id) {
+                this.clearActiveRideMap();
+                this.driverPosition = null;
+              }
               this.activeFixedRide = full;
               if (full.latest_driver_location?.lat != null && full.latest_driver_location?.lng != null) {
                 this.driverPosition = {
@@ -871,6 +868,9 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
               this.cdr.markForCheck();
             },
             error: () => {
+              if (!this.pageActive || request !== this.activeRideRequest || this.activeFixedRide?.id === active.id) return;
+              this.clearActiveRideMap();
+              this.driverPosition = null;
               this.activeFixedRide = active;
               if (this.map) {
                 this.syncActiveRideMap();
@@ -883,8 +883,12 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
           if (this.activeFixedRide) {
             this.activeFixedRide = null;
             this.driverPosition = null;
-            this.hasFittedActiveBounds = false;
             this.clearActiveRideMap();
+            if (this.userMarker && this.map) this.userMarker.map = this.map;
+            if (this.map && this.currentCoords) {
+              this.map.setHeading(0);
+              this.centerUserOnMap(this.currentCoords);
+            }
             this.stopActiveRideTracking();
             this.cdr.markForCheck();
           }
@@ -894,9 +898,11 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     });
   }
 
-  private syncActiveRideMap(): void {
+  private syncActiveRideMap(recenter = false): void {
     if (!this.map || typeof google === 'undefined' || !this.activeFixedRide) return;
     const b = this.activeFixedRide;
+    const boarded = b.status?.toUpperCase() === 'BOARDED';
+    if (this.userMarker) this.userMarker.map = boarded ? null : this.map;
 
     // 1. Pickup Pin Marker
     if (b.board_lat != null && b.board_lng != null) {
@@ -907,7 +913,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
           position: pos,
           map: this.map,
           title: label,
-          content: this.buildDashboardPin('pickup', label),
+          content: buildFixedRidePin('pickup', label),
           zIndex: 900,
         });
       } else {
@@ -925,7 +931,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
           position: pos,
           map: this.map,
           title: label,
-          content: this.buildDashboardPin('drop', label),
+          content: buildFixedRidePin('drop', label),
           zIndex: 900,
         });
       } else {
@@ -948,7 +954,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
           zIndex: 1000,
         });
       } else {
-        this.fixedDriverMarker.position = this.driverPosition;
+        if (!boarded) this.fixedDriverMarker.position = this.driverPosition;
         if (!this.fixedDriverMarker.map) this.fixedDriverMarker.map = this.map;
         updateCarMarkerBearing(this.fixedDriverMarker, this.driverBearing);
         const markerUrl = b.map_marker_url || (b as any).vehicle?.map_marker_url || null;
@@ -961,53 +967,21 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
       this.fixedDriverMarker = null;
     }
 
-    // 4. Draw Route Polyline
-    this.renderActiveRidePolyline();
-
-    // 5. Fit Map Bounds (Only once on initial load, prevents screen jumping)
-    this.fitActiveRideBounds(false);
-  }
-
-  private renderActiveRidePolyline(): void {
-    if (!this.map || typeof google === 'undefined') return;
-
-    for (const poly of this.fixedRoutePolylines) {
-      poly.setMap(null);
-    }
-    this.fixedRoutePolylines = [];
-    // Route polylines eliminated: customer sees only pickup/drop pins and driver live vehicle marker
-  }
-
-  private fitActiveRideBounds(force = false): void {
-    if (!this.map || typeof google === 'undefined' || !this.activeFixedRide) return;
-    if (this.hasFittedActiveBounds && !force) return;
-
-    try {
-      const bounds = new google.maps.LatLngBounds();
-      let count = 0;
-      if (this.currentCoords) {
-        bounds.extend(this.currentCoords);
-        count++;
+    separateNavigationMarkers(this.fixedDriverMarker, this.userMarker);
+    const origin = boarded ? this.driverPosition : this.currentCoords;
+    const marker = boarded ? this.fixedDriverMarker : this.userMarker;
+    const target = fixedRideNavigationTarget(b);
+    if (origin && target && marker) {
+      this.overviewBookingId = null;
+      void this.activeNavigation.render(this.map, origin, target, boarded ? 'drop' : 'pickup');
+      this.activeNavigation.follow(this.map, origin, target, marker, recenter);
+    } else {
+      this.activeNavigation.clear();
+      if (target && (recenter || this.overviewBookingId !== b.id || this.overviewBoarded !== boarded)) {
+        focusCustomerNavigation(this.map, target);
+        this.overviewBookingId = b.id;
+        this.overviewBoarded = boarded;
       }
-      if (this.driverPosition) {
-        bounds.extend(this.driverPosition);
-        count++;
-      }
-      if (this.activeFixedRide.board_lat != null && this.activeFixedRide.board_lng != null) {
-        bounds.extend({ lat: Number(this.activeFixedRide.board_lat), lng: Number(this.activeFixedRide.board_lng) });
-        count++;
-      }
-      if (this.activeFixedRide.drop_lat != null && this.activeFixedRide.drop_lng != null) {
-        bounds.extend({ lat: Number(this.activeFixedRide.drop_lat), lng: Number(this.activeFixedRide.drop_lng) });
-        count++;
-      }
-
-      if (count >= 2) {
-        this.map.fitBounds(bounds, { top: 80, bottom: 280, left: 40, right: 40 });
-        this.hasFittedActiveBounds = true;
-      }
-    } catch {
-      /* ignore */
     }
   }
 
@@ -1024,7 +998,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     this.activeRideTrackingUnsub = this.realtime.subscribeTracking(
       tripId,
       (payload: TripLocationPayload) => {
-        if (payload?.location) {
+        if (this.pageActive && this.activeRideTrackingTripId === tripId && payload?.location) {
           const loc = payload.location;
           this.zone.run(() => {
             this.driverPosition = { lat: loc.lat, lng: loc.lng };
@@ -1061,22 +1035,8 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
       this.fixedDriverMarker.map = null;
       this.fixedDriverMarker = null;
     }
-    for (const poly of this.fixedRoutePolylines) {
-      poly.setMap(null);
-    }
-    this.fixedRoutePolylines = [];
-  }
-
-  private buildDashboardPin(kind: 'pickup' | 'drop', label: string): HTMLElement {
-    const el = document.createElement('div');
-    el.className = `dc-dash-pin dc-dash-pin--${kind}`;
-    const bg = kind === 'pickup' ? '#10B981' : '#0F172A';
-    el.innerHTML = `
-      <div style="background: ${bg}; color: #ffffff; font-size: 10.5px; font-weight: 850; padding: 2.5px 8px; border-radius: 99px; box-shadow: 0 3px 8px rgba(15, 23, 42, 0.3); border: 1.5px solid #ffffff; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
-        <span>${label}</span>
-      </div>
-    `;
-    return el;
+    this.activeNavigation.clear();
+    this.overviewBookingId = null;
   }
 
   openActiveFixedRide(): void {

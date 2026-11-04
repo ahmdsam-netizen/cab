@@ -38,46 +38,10 @@
     </a>
   </header>
 
-  <!-- ── Half Screen Floating Banner Card ── -->
-  <aside
-    class="dc-banner-half-card dc-anim-pop"
-    *ngIf="activeFixedRide && halfBanner && !isHalfBannerCollapsed"
-    role="complementary"
-    aria-label="Promotional banner"
-  >
-    <button
-      class="dc-banner-close-btn"
-      type="button"
-      (click)="collapseHalfBanner()"
-      aria-label="Collapse banner"
-    >
-      <ion-icon name="close"></ion-icon>
-    </button>
-    <div class="dc-banner-half-img-wrap" (click)="onBannerClick(halfBanner)">
-      <img
-        [src]="resolveBannerImageUrl(halfBanner.image_url)"
-        [alt]="halfBanner.title"
-        class="dc-banner-half-img"
-      />
-    </div>
-    <div class="dc-banner-half-body">
-      <h3 class="dc-banner-half-title" (click)="onBannerClick(halfBanner)">{{ halfBanner.title }}</h3>
-      <button
-        *ngIf="halfBanner.url_link"
-        class="dc-banner-cta-btn dc-press"
-        type="button"
-        (click)="onBannerClick(halfBanner)"
-      >
-        <span>Learn More</span>
-        <ion-icon name="open-outline"></ion-icon>
-      </button>
-    </div>
-  </aside>
-
   <!-- ── Full-Screen App Banner Overlay Modal (True Mobile Full Screen) ── -->
   <div
     class="dc-banner-fullscreen-modal dc-anim-fade"
-    *ngIf="fullScreenBanner && !isFullScreenDismissed"
+    *ngIf="!activeFixedRide && fullScreenBanner && !isFullScreenDismissed"
     role="dialog"
     aria-modal="true"
     [attr.aria-label]="fullScreenBanner.title"

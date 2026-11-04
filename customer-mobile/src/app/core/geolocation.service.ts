@@ -28,6 +28,7 @@ interface WatchOptions {
  */
 @Injectable({ providedIn: 'root' })
 export class GeolocationService {
+  private lastFix: (LatLng & { timestamp: number }) | null = null;
   private lastLocationPingAt = 0;
   private active = document.visibilityState !== 'hidden';
   private watchSequence = 0;
@@ -40,8 +41,18 @@ export class GeolocationService {
     document.addEventListener('visibilitychange', () => this.setActive(document.visibilityState !== 'hidden'));
     void App.addListener('appStateChange', state => this.setActive(state.isActive));
     auth.registerSessionCleanup(async () => {
+      this.lastFix = null;
       await Promise.all([...this.watches.keys()].map(id => this.clearWatch(id)));
     });
+  }
+
+  recentPosition(): LatLng | null {
+    return this.lastFix && Date.now() - this.lastFix.timestamp <= 30_000 ? this.lastFix : null;
+  }
+
+  private rememberPosition(position: LatLng, timestamp: number): void {
+    if (!Number.isFinite(position.lat) || !Number.isFinite(position.lng)) return;
+    if (!this.lastFix || timestamp >= this.lastFix.timestamp) this.lastFix = { ...position, timestamp };
   }
 
   private setActive(active: boolean): void {
@@ -91,6 +102,7 @@ export class GeolocationService {
         timeout: 8000,
       });
       const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      this.rememberPosition(coords, pos.timestamp);
       this.syncUserLocation(coords.lat, coords.lng);
       return coords;
     } catch {
@@ -114,6 +126,7 @@ export class GeolocationService {
         bearing: pos.coords.heading ?? null,
         timestamp: pos.timestamp,
       };
+      this.rememberPosition(fix, fix.timestamp);
       this.syncUserLocation(fix.lat, fix.lng);
       return fix;
     } catch {
@@ -155,6 +168,7 @@ export class GeolocationService {
             bearing: pos.coords.heading ?? null,
             timestamp: pos.timestamp,
           };
+            this.rememberPosition(fix, fix.timestamp);
           this.syncUserLocation(fix.lat, fix.lng);
           callback(fix, null);
         }
@@ -181,7 +195,11 @@ export class GeolocationService {
     return new Promise((resolve) => {
       if (!('geolocation' in navigator)) return resolve(null);
       navigator.geolocation.getCurrentPosition(
-        (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+        (p) => {
+          const coords = { lat: p.coords.latitude, lng: p.coords.longitude };
+          this.rememberPosition(coords, p.timestamp);
+          resolve(coords);
+        },
         () => resolve(null),
         { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 }
       );

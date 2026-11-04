@@ -3,7 +3,7 @@
   <header class="live-topbar">
     <button type="button" class="round-button" (click)="back()" aria-label="Back"><ion-icon name="arrow-back-outline" aria-hidden="true"></ion-icon></button>
     <div class="live-status"><span *ngIf="booking as ride" class="status-pill" [ngClass]="statusClass(ride)">{{ bookingStatusLabel(ride) }}</span></div>
-    <button type="button" class="round-button" (click)="load()" [disabled]="loading" aria-label="Refresh ride"><ion-icon name="refresh-outline" aria-hidden="true"></ion-icon></button>
+    <button type="button" class="round-button" (click)="refreshRide()" [disabled]="loading" aria-label="Refresh ride"><ion-icon name="refresh-outline" aria-hidden="true"></ion-icon></button>
   </header>
   <div class="live-loading" *ngIf="loading && !booking" role="status"><ion-spinner name="crescent"></ion-spinner><span>Loading your ride…</span></div>
   <div class="live-error" *ngIf="error" role="alert">{{ error }}</div>

@@ -1,3 +1,4 @@
+import { CUSTOMER_MAP_STYLE, fitCustomerMap } from '../../core/customer-map';
 import { Component, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import { AlertController, ModalController, ToastController } from '@ionic/angular';
@@ -735,6 +736,7 @@ export class CustomerBookPage implements OnDestroy {
 
       const start = (await this.geo.getCurrentPosition()) ?? { lat: 28.6139, lng: 77.209 };
       this.map = new google.maps.Map(div, {
+        ...CUSTOMER_MAP_STYLE,
         center: start,
         zoom: 15,
         disableDefaultUI: true,
@@ -1742,7 +1744,7 @@ export class CustomerBookPage implements OnDestroy {
     const bounds = new google.maps.LatLngBounds();
     bounds.extend(a);
     bounds.extend(b);
-    this.map.fitBounds(bounds, 90);
+    fitCustomerMap(this.map, bounds, 90);
   }
 
   /**
@@ -2438,7 +2440,7 @@ export class CustomerBookPage implements OnDestroy {
     try {
       // Keep the ring visible by zooming out a touch as it grows.
       const bounds = this.searchCircle.getBounds?.();
-      if (bounds && this.map.fitBounds) this.map.fitBounds(bounds, 80);
+      if (bounds && this.map.fitBounds) fitCustomerMap(this.map, bounds, 80);
     } catch {}
   }
 

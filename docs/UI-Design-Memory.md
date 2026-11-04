@@ -32,6 +32,32 @@ Customer-Route-Seat-Payment-Verification-2026-10-21.md.
 
 ## User decisions and constraints
 
+- 2026-11-04: keep the close, tilted Fixed ride map visible while GPS is
+  unavailable. Keep location guidance in the ride details.
+
+- 2026-11-04: use the same light, tilted map throughout the customer app.
+  Home's active Fixed ride uses the live ride navigation, including the
+  walking route to pickup, vehicle route after boarding and animated arrows.
+
+- 2026-11-04: keep the original light map, status bar, Back and Refresh controls
+  on the customer Fixed ride screen. Start the navigation line on the nearest
+  point of the routed road or path. The passenger icon shows live GPS
+  without a flashing ring. While walking, keep the next stretch of the
+  route at the top of the map and rotate the view as the passenger turns.
+
+- 2026-11-04: customer navigation now takes the passenger from live GPS to
+  pickup on foot until boarding is confirmed. After boarding, hide the
+  passenger marker and follow the driver vehicle to drop-off. Separate
+  overlapping marker artwork before boarding. Use a dark map, animated
+  directional arrows and a tilted camera that follows the direction of travel.
+  The user requested the customer app first. Driver changes are deferred.
+
+- 2026-11-03: user clarified navigation line & icon boarding states for customer app:
+  before boarding (including CONFIRMED state), both driver vehicle and customer icons are visible,
+  and the directional polyline originates from the customer to the drop-off destination;
+  after boarding (OTP verified), the customer icon hides because they are in the vehicle,
+  and the directional polyline originates from the driver's car to the drop-off destination.
+
 - 2026-10-22: user approved driver Choose Route loading-error fix. Use finalization
   for both refresh requests; show actual error without no-assignment empty card,
   end spinner and re-enable Reload. Online/registered-service restrictions retained.

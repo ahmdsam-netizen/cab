@@ -1,3 +1,4 @@
+import { CUSTOMER_MAP_STYLE, fitCustomerMap, focusCustomerNavigation } from '../../core/customer-map';
 import { Component, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -17,6 +18,7 @@ import {
   updateCarMarkerImage,
   buildPassengerMarkerElement,
 } from '../../core/car-marker.helper';
+import { NavigationRouteRenderer, separateNavigationMarkers } from '../../core/navigation-route.helper';
 import { PaymentChoice } from '../../shared/payment-method-modal.component';
 
 declare const google: any;
@@ -206,10 +208,7 @@ export class TripActivePage implements OnInit, OnDestroy {
   private driverMarker: any | null = null;
   private pickupMarker: any | null = null;
   private dropMarker: any | null = null;
-  // Pickup → drop road route. Only shown once the ride is in progress
-  // (EN_ROUTE_DROP / ARRIVED_DROP); faded in via routeFadeHandle.
-  private routePolylines: any[] = [];
-  private routeFadeHandle: any = null;
+  private navRoute = new NavigationRouteRenderer();
   private etaDebounceHandle: any = null;
   private etaInflight = false;
   private readonly etaDebounceMs = 10_000;
@@ -217,6 +216,8 @@ export class TripActivePage implements OnInit, OnDestroy {
 
   // Customer's own location stream (so the driver app can render us moving).
   private geoWatchId: string | null = null;
+  private geoWatchStarting = false;
+  private geoWatchRevision = 0;
   private lastCustomerPostAt = 0;
   private readonly customerPostMinIntervalMs = 5_000;
   private selfMarker: any | null = null;
@@ -386,9 +387,7 @@ export class TripActivePage implements OnInit, OnDestroy {
     if (this.shuttleCodePoll) clearInterval(this.shuttleCodePoll);
     if (this.unsubscribeRealtime) this.unsubscribeRealtime();
     if (this.etaDebounceHandle) clearTimeout(this.etaDebounceHandle);
-    if (this.routeFadeHandle) clearInterval(this.routeFadeHandle);
-    for (const pl of this.routePolylines) pl.setMap?.(null);
-    this.routePolylines = [];
+    this.navRoute.clear();
     this.stopCustomerLocationStream();
   }
 
@@ -417,6 +416,7 @@ export class TripActivePage implements OnInit, OnDestroy {
       if (!div || this.map) return;
 
       this.map = new google.maps.Map(div, {
+        ...CUSTOMER_MAP_STYLE,
         center: { lat: 28.6139, lng: 77.209 },
         zoom: 14,
         disableDefaultUI: true,
@@ -431,7 +431,7 @@ export class TripActivePage implements OnInit, OnDestroy {
       else this.fitMap();
       // A live fix / seed may have landed before the map was ready.
       this.ensureDriverMarker();
-      this.ensurePassengerMarker();
+      this.syncRoute();
     } catch {
       /* maps not available — page still works without it */
     }
@@ -606,82 +606,54 @@ export class TripActivePage implements OnInit, OnDestroy {
       }
     }
 
-    // The trip path is only drawn once the customer is in the car.
     this.syncRoute();
-    this.ensurePassengerMarker();
 
     this.fitMap();
   }
 
-  /**
-   * The pickup → drop line is only meaningful once the customer has been
-   * picked up. Show it from EN_ROUTE_DROP until the trip completes; hide it in
-   * every other state (heading to pickup, arrived at pickup, completed,
-   * cancelled). Idempotent — safe to call on every status update / poll.
-   */
   private shouldShowRoute(): boolean {
     const s = this.trip?.status;
-    return s === 'EN_ROUTE_DROP' || s === 'ARRIVED_DROP';
+    return (
+      s === 'CONFIRMED' ||
+      s === 'ASSIGNED' ||
+      s === 'EN_ROUTE_PICKUP' ||
+      s === 'ARRIVED_PICKUP' ||
+      s === 'EN_ROUTE_DROP' ||
+      s === 'ARRIVED_DROP'
+    );
   }
 
   private syncRoute(): void {
-    if (!this.map || !this.trip) return;
-    const t = this.trip;
-    const haveEnds =
-      t.pickup_lat != null && t.pickup_lng != null &&
-      t.drop_lat != null && t.drop_lng != null;
-
-    if (this.shouldShowRoute() && haveEnds) {
-      if (!this.routePolylines.length) {
-        void this.drawRoute(
-          { lat: Number(t.pickup_lat), lng: Number(t.pickup_lng) },
-          { lat: Number(t.drop_lat), lng: Number(t.drop_lng) },
-        );
-      }
-    } else {
-      this.clearRoute();
+    const trip = this.trip;
+    if (!this.map || !trip) return;
+    this.ensurePassengerMarker();
+    const boarded = trip.status === 'EN_ROUTE_DROP' || trip.status === 'ARRIVED_DROP';
+    const origin = boarded ? this.driverPosition : this.selfPosition;
+    const lat = boarded ? trip.drop_lat : trip.pickup_lat;
+    const lng = boarded ? trip.drop_lng : trip.pickup_lng;
+    separateNavigationMarkers(this.driverMarker, this.selfMarker);
+    if (!this.shouldShowRoute() || !origin || lat == null || lng == null) {
+      this.navRoute.clear();
+      return;
     }
-  }
 
-  private clearRoute(): void {
-    if (this.routeFadeHandle) { clearInterval(this.routeFadeHandle); this.routeFadeHandle = null; }
-    for (const pl of this.routePolylines) pl.setMap?.(null);
-    this.routePolylines = [];
-  }
-
-  /** Ramp the freshly-drawn route from invisible to full opacity so it eases
-   *  in when the ride starts instead of popping onto the map. */
-  private fadeInRoute(): void {
-    if (this.routeFadeHandle) { clearInterval(this.routeFadeHandle); this.routeFadeHandle = null; }
-    const lines = this.routePolylines;
-    if (!lines.length) return;
-    const target = 0.95;
-    const steps = 14;
-    let i = 0;
-    for (const pl of lines) pl.setOptions?.({ strokeOpacity: 0 });
-    this.routeFadeHandle = setInterval(() => {
-      i++;
-      const op = Math.min(target, (i / steps) * target);
-      for (const pl of lines) pl.setOptions?.({ strokeOpacity: op });
-      if (i >= steps) { clearInterval(this.routeFadeHandle); this.routeFadeHandle = null; }
-    }, 22);
-  }
-
-  /**
-   * Route polylines eliminated: customer sees only pickup/drop pins, driver vehicle, and self location.
-   */
-  private async drawRoute(
-    origin: { lat: number; lng: number },
-    destination: { lat: number; lng: number },
-  ): Promise<void> {
-    if (!this.map) return;
-    for (const pl of this.routePolylines) pl.setMap?.(null);
-    this.routePolylines = [];
-    this.fitMap();
+    const target = { lat: Number(lat), lng: Number(lng) };
+    void this.navRoute.render(this.map, origin, target, boarded ? 'drop' : 'pickup');
+    this.navRoute.follow(this.map, origin, target, boarded ? this.driverMarker : this.selfMarker);
   }
 
   private fitMap(): void {
+    if (this.navRoute.following) return;
     if (!this.map) return;
+    if (this.trip && this.shouldShowRoute()) {
+      const boarded = this.trip.status === 'EN_ROUTE_DROP' || this.trip.status === 'ARRIVED_DROP';
+      const lat = boarded ? this.trip.drop_lat : this.trip.pickup_lat;
+      const lng = boarded ? this.trip.drop_lng : this.trip.pickup_lng;
+      if (lat != null && lng != null) {
+        focusCustomerNavigation(this.map, { lat: Number(lat), lng: Number(lng) });
+        return;
+      }
+    }
     const bounds = new google.maps.LatLngBounds();
     let any = false;
     for (const m of [this.pickupMarker, this.dropMarker, this.driverMarker, this.selfMarker]) {
@@ -700,7 +672,7 @@ export class TripActivePage implements OnInit, OnDestroy {
         : this.sheetCollapsed
           ? 130
           : Math.round(window.innerHeight * 0.4);
-      this.map.fitBounds(bounds, { top: 96, right: 56, bottom: bottomPad, left: 56 });
+      fitCustomerMap(this.map, bounds, { top: 96, right: 56, bottom: bottomPad, left: 56 });
     }
   }
 
@@ -718,6 +690,7 @@ export class TripActivePage implements OnInit, OnDestroy {
     });
     this.scheduleEtaUpdate();
     this.ensureDriverMarker();
+    this.syncRoute();
     if (loc.bearing_deg != null && this.driverMarker) {
       updateCarMarkerBearing(this.driverMarker, loc.bearing_deg);
     }
@@ -743,7 +716,9 @@ export class TripActivePage implements OnInit, OnDestroy {
       this.driverMarker.addListener('click', () => this.openDriverDetails());
       this.fitMap();
     } else {
-      this.driverMarker.position = this.driverPosition;
+      if (this.trip?.status !== 'EN_ROUTE_DROP' && this.trip?.status !== 'ARRIVED_DROP') {
+        this.driverMarker.position = this.driverPosition;
+      }
       const markerUrl = (this.trip?.driver as any)?.vehicle?.map_marker_url
         || (this.trip?.driver as any)?.map_marker_url
         || (this.trip as any)?.map_marker_url
@@ -760,9 +735,19 @@ export class TripActivePage implements OnInit, OnDestroy {
    */
   private ensurePassengerMarker(): void {
     if (!this.map || !this.trip) return;
-    const pos = this.selfPosition || (this.trip.pickup_lat != null && this.trip.pickup_lng != null
-      ? { lat: Number(this.trip.pickup_lat), lng: Number(this.trip.pickup_lng) }
-      : null);
+
+    // Once boarded (OTP verified, en route to drop), hide customer icon because they are inside driver's car
+    const s = this.trip.status;
+    const isBoarded = s === 'EN_ROUTE_DROP' || s === 'ARRIVED_DROP';
+    if (isBoarded || !this.shouldShowRoute()) {
+      if (this.selfMarker) {
+        this.selfMarker.map = null;
+        this.selfMarker = null;
+      }
+      return;
+    }
+
+    const pos = this.selfPosition;
     if (!pos) return;
 
     if (!this.selfMarker) {
@@ -773,14 +758,12 @@ export class TripActivePage implements OnInit, OnDestroy {
         content: buildPassengerMarkerElement({
           kind: 'pickup',
           name: '',
-          isLive: !!this.selfPosition,
           avatarUrl: this.auth.resolveAvatarUrl(this.auth.getUser()),
         }),
         zIndex: 4,
       });
       this.fitMap();
     } else {
-      this.selfMarker.position = pos;
       if (!this.selfMarker.map) this.selfMarker.map = this.map;
     }
   }
@@ -986,8 +969,6 @@ export class TripActivePage implements OnInit, OnDestroy {
 
     this.syncCustomerLocationStream();
     this.syncStartOtp();
-    // Show the trip path the instant the driver starts the ride, hide it on
-    // completion/cancel — without waiting for the next status poll.
     this.syncRoute();
   }
 
@@ -1079,24 +1060,37 @@ export class TripActivePage implements OnInit, OnDestroy {
   }
 
   private async startCustomerLocationStream(): Promise<void> {
-    if (this.geoWatchId !== null) return;
-    this.geoWatchId = await this.geo.watchPosition(
-      { enableHighAccuracy: true, maximumAge: 5_000, timeout: 10_000 },
-      (fix, err) => {
-        if (err) {
-          void this.stopCustomerLocationStream();
-          return;
-        }
-        if (fix) this.onOwnPosition(fix);
-      },
-    );
+    if (this.geoWatchId !== null || this.geoWatchStarting) return;
+    this.geoWatchStarting = true;
+    const revision = ++this.geoWatchRevision;
+    this.selfPosition ??= this.geo.recentPosition();
+    this.syncRoute();
+    const initialPosition = this.selfPosition;
+    void this.geo.getCurrentFix().then(fix => {
+      if (fix && revision === this.geoWatchRevision && this.selfPosition === initialPosition) {
+        this.onOwnPosition(fix);
+      }
+    });
+    try {
+      const watchId = await this.geo.watchPosition(
+        { enableHighAccuracy: true, maximumAge: 5_000, timeout: 10_000 },
+        fix => {
+          if (fix && revision === this.geoWatchRevision) this.onOwnPosition(fix);
+        },
+      );
+      if (revision === this.geoWatchRevision) this.geoWatchId = watchId;
+      else await this.geo.clearWatch(watchId);
+    } finally {
+      if (revision === this.geoWatchRevision) this.geoWatchStarting = false;
+    }
   }
 
   private async stopCustomerLocationStream(): Promise<void> {
-    if (this.geoWatchId !== null) {
-      await this.geo.clearWatch(this.geoWatchId);
-    }
+    ++this.geoWatchRevision;
+    this.geoWatchStarting = false;
+    const watchId = this.geoWatchId;
     this.geoWatchId = null;
+    if (watchId !== null) await this.geo.clearWatch(watchId);
   }
 
   private onOwnPosition(fix: GeoFix): void {
@@ -1106,7 +1100,7 @@ export class TripActivePage implements OnInit, OnDestroy {
     // Render/move our own marker every tick so the customer can visually
     // confirm where they are relative to the driver.
     if (this.map) {
-      this.ensurePassengerMarker();
+      this.syncRoute();
     }
 
     // Throttle the network POST to one per 5s, independent of the marker render.
