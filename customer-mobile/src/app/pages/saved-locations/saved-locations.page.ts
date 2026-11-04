@@ -147,7 +147,6 @@ export class SavedLocationsPage implements OnInit {
     this.map = new google.maps.Map(div, {
       ...CUSTOMER_MAP_STYLE,
       center,
-      zoom: 16,
       disableDefaultUI: true,
       clickableIcons: false,
       mapId: 'DEMO_MAP_ID',

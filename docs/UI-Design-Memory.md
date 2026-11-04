@@ -32,6 +32,31 @@ Customer-Route-Seat-Payment-Verification-2026-10-21.md.
 
 ## User decisions and constraints
 
+- 2026-11-04: center Customer Home on the device location by default.
+  Add a visible GPS and overview switch. Keep Private and Fixed in the
+  collapsed sheet and put the remaining content within scroll reach.
+
+- 2026-11-04: keep light 3D styling, GPS camera movement and vehicle
+  markers consistent across both apps. Show directional guidance on live
+  rides. Start route previews in overview and allow GPS follow where the
+  map shows the current vehicle. The user runs both development apps.
+  Label the driver Fixed preview camera action in both layouts.
+
+- 2026-11-04: match the customer live map in the driver's Fixed Active
+  Route panel and full-screen live map. Use the light 3D camera, animated car
+  movement, and blue directional guidance to the next stop. Keep nearby
+  car and passenger icons visually separate without moving their GPS points.
+  Hide the flashing blue ring around the passenger on both Fixed live maps.
+  Follow the car automatically when opening an active Fixed booking.
+
+- 2026-11-04: match the live map's light 3D view across both apps. Follow
+  GPS on the main location maps and reserve moving route guidance for active
+  rides. Keep previews framed around the stops and retain the same map style
+  when GPS is unavailable.
+
+- 2026-11-04: use the light, tilted map across both apps, including route
+  previews and cancelled rides. Map style applies independently of GPS.
+
 - 2026-11-04: keep the close, tilted Fixed ride map visible while GPS is
   unavailable. Keep location guidance in the ride details.
 

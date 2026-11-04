@@ -252,6 +252,20 @@ app-driver-notifications .pg-body {
   cursor: pointer;
   filter: drop-shadow(0 4px 10px rgba(13, 27, 42, 0.22));
 
+  &.is-near-driver {
+    transform: translateY(-72px);
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 16px;
+      left: -1px;
+      height: 56px;
+      border-left: 2px dotted #64748b;
+      pointer-events: none;
+    }
+  }
+
   .person-avatar-wrap {
     position: absolute;
     left: 0;

@@ -352,7 +352,6 @@ export class LoginPage implements ViewWillEnter, ViewDidEnter, ViewWillLeave, On
       this.addressMap = new google.maps.Map(el, {
         ...CUSTOMER_MAP_STYLE,
         center,
-        zoom: 15,
         disableDefaultUI: true,
         zoomControl: true,
         gestureHandling: 'greedy',

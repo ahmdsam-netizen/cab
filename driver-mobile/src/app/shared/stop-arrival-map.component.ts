@@ -1,7 +1,8 @@
+import { DriverMapCamera, DRIVER_MAP_STYLE } from '../core/driver-map';
 import { AfterViewInit, Component, ElementRef, Input, OnChanges, OnDestroy, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MapsLoaderService } from '../core/maps-loader.service';
-import { buildReusableCarMarkerElement, buildStopMarkerElement } from '../core/car-marker.helper';
+import { buildReusableCarMarkerElement, buildStopMarkerElement, updateCarMarkerImage } from '../core/car-marker.helper';
 
 declare const google: any;
 type Position = { lat: number; lng: number };
@@ -28,7 +29,9 @@ export class StopArrivalMapComponent implements AfterViewInit, OnChanges, OnDest
   private ready = false;
   private generation = 0;
   private map: any;
-  private markers: any[] = [];
+  private stopMarker: any;
+  private driverMarker: any;
+  private camera = new DriverMapCamera();
   constructor(private loader: MapsLoaderService) {}
   ngAfterViewInit(): void {
     this.ready = true;
@@ -37,7 +40,10 @@ export class StopArrivalMapComponent implements AfterViewInit, OnChanges, OnDest
   ngOnChanges(): void { if (this.ready) void this.render(); }
   ngOnDestroy(): void {
     this.ready = false; this.generation++;
-    this.markers.forEach(marker => marker.map = null); this.markers = [];
+    this.camera.reset();
+    this.removeDriverMarker();
+    if (this.stopMarker) this.stopMarker.map = null;
+    this.stopMarker = null;
     this.map = null;
   }
   private valid(position: { lat?: number | null; lng?: number | null } | null): position is Position {
@@ -53,33 +59,37 @@ export class StopArrivalMapComponent implements AfterViewInit, OnChanges, OnDest
       if (!this.ready || generation !== this.generation || !this.host) return;
       const stop = { lat: Number(this.stop!.lat), lng: Number(this.stop!.lng) };
       this.map ??= new google.maps.Map(this.host.nativeElement, {
-        center: stop, zoom: 15, maxZoom: 18, mapId: 'DEMO_MAP_ID', disableDefaultUI: true,
+        ...DRIVER_MAP_STYLE,
+        center: stop, maxZoom: 18, mapId: 'DEMO_MAP_ID', disableDefaultUI: true,
         gestureHandling: 'cooperative', clickableIcons: false,
       });
-      this.markers.forEach(marker => marker.map = null); this.markers = [];
+      if (this.stopMarker) this.stopMarker.map = null;
       const pin = buildStopMarkerElement({
         seq: this.stop!.seq ?? 1, name: this.stop!.name, isNext: true, isReached: this.reached,
       });
-      this.markers.push(new google.maps.marker.AdvancedMarkerElement({
+      this.stopMarker = new google.maps.marker.AdvancedMarkerElement({
         map: this.map, position: stop, content: pin, title: this.stop!.name,
-      }));
-      const bounds = new google.maps.LatLngBounds(); bounds.extend(stop);
+      });
       if (this.valid(this.driver)) {
-        const driver = buildReusableCarMarkerElement({
-          label: 'You (Car)', markerUrl: this.markerUrl,
-        });
-        this.markers.push(new google.maps.marker.AdvancedMarkerElement({
-          map: this.map, position: this.driver, content: driver,
+        this.driverMarker ??= new google.maps.marker.AdvancedMarkerElement({
+          map: this.map, position: this.driver,
+          content: buildReusableCarMarkerElement({ label: 'You (Car)', markerUrl: this.markerUrl }),
           title: 'Your current location', zIndex: 2,
-        }));
-        bounds.extend(this.driver); this.map.fitBounds(bounds, 52);
-        // A compact arrival map needs surrounding streets as well as the two nearby markers.
-        google.maps.event.addListenerOnce(this.map, 'idle', () => {
-          if (this.ready && generation === this.generation && this.map.getZoom() > 15) this.map.setZoom(15);
         });
-      } else { this.map.setCenter(stop); this.map.setZoom(16); }
+        if (this.markerUrl) updateCarMarkerImage(this.driverMarker, this.markerUrl);
+        this.camera.follow(this.map, this.driver, null, this.driverMarker);
+      } else {
+        this.camera.reset();
+        this.removeDriverMarker();
+        this.map.moveCamera({ center: stop, tilt: DRIVER_MAP_STYLE.tilt, zoom: DRIVER_MAP_STYLE.zoom });
+      }
     } catch {
       if (this.ready && generation === this.generation) this.error = 'Map unavailable. You can still view passengers below.';
     }
+  }
+
+  private removeDriverMarker(): void {
+    if (this.driverMarker) this.driverMarker.map = null;
+    this.driverMarker = null;
   }
 }

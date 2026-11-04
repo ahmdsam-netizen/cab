@@ -1,6 +1,6 @@
 import { buildFixedRidePin, fixedRideNavigationTarget } from '../../../core/fixed-ride-map';
 import { NavigationRouteRenderer, separateNavigationMarkers } from '../../../core/navigation-route.helper';
-import { CUSTOMER_MAP_STYLE, focusCustomerNavigation } from '../../../core/customer-map';
+import { CUSTOMER_MAP_STYLE, fitCustomerMap, focusCustomerNavigation } from '../../../core/customer-map';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -442,8 +442,8 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
 
       this.map = new google.maps.Map(el, {
         ...CUSTOMER_MAP_STYLE,
-        center: { lat: 34.2985, lng: 74.4712 }, // Centered on Jammu & Kashmir region
-        zoom: 14,
+        center: this.currentCoords ?? { lat: 34.2985, lng: 74.4712 },
+        zoom: this.currentCoords ? CUSTOMER_MAP_STYLE.zoom : 9,
         disableDefaultUI: true,
         mapId: 'DEMO_MAP_ID',         // needed for AdvancedMarkerElement
         gestureHandling: 'greedy',    // single-finger pan on mobile
@@ -466,16 +466,57 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
   }
 
   currentCoords: { lat: number; lng: number } | null = null;
+  gpsFollow = true;
+  refreshingMapLocation = false;
+  mapLocationMessage = '';
+  private positionRevision = 0;
 
-  recenterMap(): void {
+  async recenterMap(): Promise<void> {
+    if (this.refreshingMapLocation) return;
+    this.gpsFollow = true;
+    this.refreshingMapLocation = true;
+    this.mapLocationMessage = '';
+    const revision = this.positionRevision;
+    try {
+      const fix = await this.geo.getCurrentPosition(0);
+      if (!this.pageActive) return;
+      if (revision !== this.positionRevision && this.currentCoords) {
+        await this.updateMapPosition(this.currentCoords.lat, this.currentCoords.lng, 40, true);
+      } else if (this.validCoords(fix)) {
+        await this.onLocationFix(fix, true);
+      } else {
+        this.mapLocationMessage = 'Couldn’t refresh your location';
+      }
+    } catch {
+      if (this.pageActive) this.mapLocationMessage = 'Couldn’t refresh your location';
+    } finally {
+      this.refreshingMapLocation = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  toggleMapMode(): void {
+    if (!this.gpsFollow) {
+      void this.recenterMap();
+      return;
+    }
     if (!this.map) return;
+    this.gpsFollow = false;
+    this.activeNavigation.stopFollowing();
+    const points = [this.currentCoords];
     if (this.activeFixedRide) {
-      this.syncActiveRideMap(true);
-    } else if (this.currentCoords) {
-      this.centerUserOnMap(this.currentCoords);
-      this.map.setZoom(16);
-    } else {
-      void this.requestLocation();
+      for (const marker of [this.fixedPickupMarker, this.fixedDropMarker, this.fixedDriverMarker]) {
+        if (marker?.position) points.push(new google.maps.LatLng(marker.position).toJSON());
+      }
+    } else if (this.city?.center_lat != null && this.city.center_lng != null) {
+      points.push({ lat: Number(this.city.center_lat), lng: Number(this.city.center_lng) });
+    }
+    const bounds = new google.maps.LatLngBounds();
+    for (const point of points) if (this.validCoords(point)) bounds.extend(point);
+    if (!bounds.isEmpty() && !bounds.getSouthWest().equals(bounds.getNorthEast())) {
+      fitCustomerMap(this.map, bounds, { top: 78, bottom: 36, left: 36, right: 36 });
+    } else if (!bounds.isEmpty()) {
+      this.map.moveCamera({ center: bounds.getCenter(), zoom: 14, heading: 0, tilt: CUSTOMER_MAP_STYLE.tilt });
     }
   }
 
@@ -485,7 +526,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     this.watchStarting = true;
     try {
       const id = await this.geo.watchPosition(
-        { enableHighAccuracy: true, maximumAge: 2000 },
+        { enableHighAccuracy: true, maximumAge: 0 },
         (pos, err) => {
           if (!this.pageActive || watchRequest !== this.watchRevision) return;
           if (err) {
@@ -506,9 +547,10 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     }
   }
 
-  private async onLocationFix(fix: { lat: number; lng: number; accuracy?: number | null; bearing?: number | null }): Promise<void> {
+  private async onLocationFix(fix: { lat: number; lng: number; accuracy?: number | null; bearing?: number | null }, recenter = false): Promise<void> {
     if (!this.pageActive || !this.validCoords(fix)) return;
-    void this.updateMapPosition(fix.lat, fix.lng, fix.accuracy ?? 40, false, fix.bearing).catch(() => {});
+    this.mapLocationMessage = '';
+    void this.updateMapPosition(fix.lat, fix.lng, fix.accuracy ?? 40, recenter, fix.bearing).catch(() => {});
     if (Date.now() < this.catalogRetryAfter) return;
     const reference = this.resolvingFix || this.catalogFix;
     // GPS jitter must not continuously restart catalog loading. Re-evaluate
@@ -522,13 +564,14 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     lat: number, lng: number, accuracy: number, pan: boolean, bearing?: number | null,
   ): Promise<void> {
     const latlng = { lat, lng };
+    const revision = ++this.positionRevision;
     this.currentCoords = latlng;
     if (!this.map) return;
 
     if (!this.userMarker) {
       const { AdvancedMarkerElement } = await (google.maps as any).importLibrary('marker');
 
-      if (!this.pageActive || !this.map) return;
+      if (!this.pageActive || !this.map || revision !== this.positionRevision) return;
       this.userMarker ??= new AdvancedMarkerElement({
         map: this.map,
         position: latlng,
@@ -544,23 +587,12 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     }
 
     if (this.activeFixedRide) {
-      this.syncActiveRideMap();
+      this.syncActiveRideMap(pan);
       return;
     }
     this.userMarker.map = this.map;
 
-    if (pan) {
-      this.centerUserOnMap(latlng);
-      this.map.setZoom(16);
-    }
-  }
-
-  private centerUserOnMap(coords: { lat: number; lng: number }): void {
-    this.map.setCenter(coords);
-    // Keep the location pin in the visible map above the mobile booking panel.
-    if (window.innerWidth < 768) {
-      this.map.panBy(0, Math.round(this.mapElRef.nativeElement.clientHeight * 0.22));
-    }
+    if (this.gpsFollow) this.activeNavigation.follow(this.map, latlng, null, this.userMarker, pan);
   }
 
   // ── City / catalogue loading ─────────────────────────────────────────────
@@ -613,15 +645,18 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
   }
 
   private async loadLocationAndCatalog(request = this.beginLocationRequest()): Promise<void> {
+    const positionRevision = this.positionRevision;
     try {
-      let fix = await this.geo.getCurrentPosition();
+      let fix = await this.geo.getCurrentPosition(0);
       if (!this.isCurrentLocationRequest(request)) return;
       if (!fix) {
         const longFix = await this.geo.getCurrentFix();
         if (longFix) fix = { lat: longFix.lat, lng: longFix.lng };
       }
       if (!this.isCurrentLocationRequest(request)) return;
+      if (positionRevision !== this.positionRevision && this.currentCoords) fix = this.currentCoords;
       if (!this.validCoords(fix)) { this.failLocation(request); return; }
+      void this.updateMapPosition(fix.lat, fix.lng, 40, true).catch(() => {});
       await this.resolveLocationCatalog(fix, request);
     } catch {
       this.failLocation(request);
@@ -680,7 +715,6 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
       if (!this.isCurrentLocationRequest(request)) return;
 
       this.zone.run(() => {
-        this.currentCoords = fix;
         this.located = true;
         this.catalogFix = fix;
         this.resolvingFix = null;
@@ -699,9 +733,6 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
         this.cdr.markForCheck();
       });
 
-      if (this.map) {
-        await this.updateMapPosition(fix.lat, fix.lng, 40, true).catch(() => {});
-      }
     } catch {
       this.failLocation(request, 'Your location is available, but we couldn’t load rides for this area. Please retry.');
       if (this.isCurrentLocationRequest(request)) this.catalogRetryAfter = Date.now() + 15000;
@@ -885,9 +916,9 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
             this.driverPosition = null;
             this.clearActiveRideMap();
             if (this.userMarker && this.map) this.userMarker.map = this.map;
-            if (this.map && this.currentCoords) {
+            if (this.gpsFollow && this.map && this.currentCoords) {
               this.map.setHeading(0);
-              this.centerUserOnMap(this.currentCoords);
+              this.activeNavigation.follow(this.map, this.currentCoords, null, this.userMarker, true);
             }
             this.stopActiveRideTracking();
             this.cdr.markForCheck();
@@ -956,7 +987,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
       } else {
         if (!boarded) this.fixedDriverMarker.position = this.driverPosition;
         if (!this.fixedDriverMarker.map) this.fixedDriverMarker.map = this.map;
-        updateCarMarkerBearing(this.fixedDriverMarker, this.driverBearing);
+        updateCarMarkerBearing(this.fixedDriverMarker, boarded ? 0 : this.driverBearing);
         const markerUrl = b.map_marker_url || (b as any).vehicle?.map_marker_url || null;
         if (markerUrl) {
           updateCarMarkerImage(this.fixedDriverMarker, markerUrl);
@@ -974,10 +1005,14 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     if (origin && target && marker) {
       this.overviewBookingId = null;
       void this.activeNavigation.render(this.map, origin, target, boarded ? 'drop' : 'pickup');
-      this.activeNavigation.follow(this.map, origin, target, marker, recenter);
+      if (this.gpsFollow) {
+        this.activeNavigation.follow(this.map, origin, target, marker, recenter);
+      } else {
+        marker.position = origin;
+      }
     } else {
       this.activeNavigation.clear();
-      if (target && (recenter || this.overviewBookingId !== b.id || this.overviewBoarded !== boarded)) {
+      if (this.gpsFollow && target && (recenter || this.overviewBookingId !== b.id || this.overviewBoarded !== boarded)) {
         focusCustomerNavigation(this.map, target);
         this.overviewBookingId = b.id;
         this.overviewBoarded = boarded;

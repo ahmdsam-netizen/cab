@@ -151,6 +151,7 @@ export interface PassengerMarkerOptions {
   name?: string;
   count?: number;
   isLive?: boolean;
+  showLivePulse?: boolean;
   distanceText?: string | null;
   label?: string;
   avatarUrl?: string | null;
@@ -219,7 +220,7 @@ export function buildPassengerMarkerElement(options: PassengerMarkerOptions = {}
 
   el.appendChild(wrap);
 
-  if (isLive) {
+  if (isLive && options.showLivePulse !== false) {
     const pulse = document.createElement('div');
     pulse.className = 'person-walking-pulse';
     el.appendChild(pulse);

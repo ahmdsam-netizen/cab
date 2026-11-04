@@ -418,7 +418,6 @@ export class TripActivePage implements OnInit, OnDestroy {
       this.map = new google.maps.Map(div, {
         ...CUSTOMER_MAP_STYLE,
         center: { lat: 28.6139, lng: 77.209 },
-        zoom: 14,
         disableDefaultUI: true,
         // Required for AdvancedMarkerElement to render. DEMO_MAP_ID is
         // Google's public test id; replace with a styled mapId when going to
@@ -692,7 +691,8 @@ export class TripActivePage implements OnInit, OnDestroy {
     this.ensureDriverMarker();
     this.syncRoute();
     if (loc.bearing_deg != null && this.driverMarker) {
-      updateCarMarkerBearing(this.driverMarker, loc.bearing_deg);
+      const boarded = this.trip?.status === 'EN_ROUTE_DROP' || this.trip?.status === 'ARRIVED_DROP';
+      updateCarMarkerBearing(this.driverMarker, boarded ? 0 : loc.bearing_deg);
     }
   }
 

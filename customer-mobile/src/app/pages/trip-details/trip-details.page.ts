@@ -303,7 +303,6 @@ export class TripDetailsPage {
       this.map = new google.maps.Map(div, {
         ...CUSTOMER_MAP_STYLE,
         center: pickup,
-        zoom: 13,
         disableDefaultUI: true,
         clickableIcons: false,
         // Two-finger pan so the page still scrolls with one finger.

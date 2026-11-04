@@ -89,24 +89,25 @@ export class GeolocationService {
   }
 
   /** Convenience used widely by the customer-book and trip-active screens. */
-  async getCurrentPosition(): Promise<LatLng | null> {
+  async getCurrentPosition(maximumAge?: number): Promise<LatLng | null> {
     if (!this.active) return null;
     try {
       const perm = await Geolocation.checkPermissions();
       if (perm.location !== 'granted') {
         const req = await Geolocation.requestPermissions();
-        if (req.location !== 'granted') return this.browserFallback();
+        if (req.location !== 'granted') return this.browserFallback(maximumAge);
       }
       const pos = await Geolocation.getCurrentPosition({
         enableHighAccuracy: true,
         timeout: 8000,
+        maximumAge: maximumAge ?? 0,
       });
       const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       this.rememberPosition(coords, pos.timestamp);
       this.syncUserLocation(coords.lat, coords.lng);
       return coords;
     } catch {
-      return this.browserFallback();
+      return this.browserFallback(maximumAge);
     }
   }
 
@@ -191,7 +192,7 @@ export class GeolocationService {
     await locationWatchers.remove('foreground', watch.nativeId);
   }
 
-  private browserFallback(): Promise<LatLng | null> {
+  private browserFallback(maximumAge = 60_000): Promise<LatLng | null> {
     return new Promise((resolve) => {
       if (!('geolocation' in navigator)) return resolve(null);
       navigator.geolocation.getCurrentPosition(
@@ -201,7 +202,7 @@ export class GeolocationService {
           resolve(coords);
         },
         () => resolve(null),
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 }
+        { enableHighAccuracy: true, timeout: 8000, maximumAge }
       );
     });
   }

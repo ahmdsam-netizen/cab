@@ -1,3 +1,5 @@
+import { DriverMapCamera, DRIVER_MAP_STYLE, fitDriverMap, offsetPassengerMarker } from '../../core/driver-map';
+import { LIVE_NAVIGATION_STYLE, NavigationRouteRenderer } from '../../core/navigation-route.helper';
 import { ChangeDetectorRef, Component, OnDestroy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AlertController, ToastController } from '@ionic/angular';
@@ -440,8 +442,11 @@ export class FixedDriverPage implements OnDestroy {
     this.detailsModalOpen = false;
   }
 
+  private gpsCamera = new DriverMapCamera();
+  private previewCamera = new DriverMapCamera();
+  previewFollowsDriver = false;
   private map: any = null;
-  private routeLine: any = null;
+  private navRoute = new NavigationRouteRenderer(LIVE_NAVIGATION_STYLE);
   private stopMarkers: any[] = [];
   private passengerMarkers: any[] = [];
   private selfMarker: any = null;
@@ -536,11 +541,7 @@ export class FixedDriverPage implements OnDestroy {
 
     void this.geo.getCurrentPosition({ timeout: 8000, maximumAge: 15000 }).then((fix) => {
       if (fix) {
-        this.driverPosition = { lat: fix.lat, lng: fix.lng };
-        this.driverBearing = fix.bearing ?? 0;
-        this.updatePreviewDriverMarker();
-        this.updatePassengerMarkerDistances();
-        this.cd.markForCheck();
+        this.applyDriverFix(fix);
       }
     }).catch(() => {});
 
@@ -2157,6 +2158,7 @@ export class FixedDriverPage implements OnDestroy {
         google.maps.event.trigger(this.map, 'resize');
       }
       this.refreshEmbeddedMap(forceRefit);
+      void this.startDriverWatch();
       return;
     }
     requestAnimationFrame(() => void this.initEmbeddedMap());
@@ -2170,16 +2172,18 @@ export class FixedDriverPage implements OnDestroy {
     if (this.map) return;
     try {
       await this.places.ensureLoaded();
+      if (this.map) return;
       const div = document.getElementById('fixed-driver-embedded-map');
       if (!div) return;
       const firstStop = this.stops.find((stop) => this.hasStopCoords(stop));
       this.map = new google.maps.Map(div, {
-        center: firstStop ? this.stopPosition(firstStop) : { lat: 28.6139, lng: 77.209 },
-        zoom: 13,
+        ...DRIVER_MAP_STYLE,
+        center: this.driverPosition ?? (firstStop ? this.stopPosition(firstStop) : { lat: 28.6139, lng: 77.209 }),
         disableDefaultUI: true,
         zoomControl: false,
         mapId: 'DEMO_MAP_ID',
       });
+      this.followEmbeddedDriver(this.driverBearing);
       this.refreshEmbeddedMap();
       void this.startDriverWatch();
     } catch {
@@ -2191,9 +2195,8 @@ export class FixedDriverPage implements OnDestroy {
     if (!this.map) return;
     this.clearRouteObjects();
     const routeStops = this.stops.filter((stop) => this.hasStopCoords(stop));
+    this.updateEmbeddedNavigation();
     if (!routeStops.length) return;
-
-    // Route line eliminated as requested: driver sees stop points and passenger markers only
 
     this.stopMarkers = routeStops.map((stop) => {
       const marker = new google.maps.marker.AdvancedMarkerElement({
@@ -2220,10 +2223,14 @@ export class FixedDriverPage implements OnDestroy {
         zIndex: point.kind === 'pickup' ? (point.isLive ? 960 : 920) : 850,
       });
       (marker as any).__passenger = point.passenger;
+      if (this.driverPosition) offsetPassengerMarker(marker, this.driverPosition);
       return marker;
     });
     if (refit) {
-      this.fitEmbeddedMap();
+      const stop = this.nextStopGuide ?? routeStops[0];
+      if (!this.driverPosition && this.hasStopCoords(stop)) {
+        this.map.moveCamera({ center: this.stopPosition(stop), zoom: DRIVER_MAP_STYLE.zoom, tilt: DRIVER_MAP_STYLE.tilt });
+      }
     }
   }
 
@@ -2291,63 +2298,72 @@ export class FixedDriverPage implements OnDestroy {
     return group.stop;
   }
 
+  private driverWatchVersion = 0;
+  private driverWatchStarting = false;
+  private latestDriverFixAt = -Infinity;
+
   private async startDriverWatch(): Promise<void> {
-    if (this.selfWatchId !== null) return;
+    if (this.selfWatchId !== null || this.driverWatchStarting) return;
+    const version = ++this.driverWatchVersion;
+    this.driverWatchStarting = true;
     try {
-      this.selfWatchId = await this.geo.watchPosition(
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
-        (fix, err) => {
-          if (err) {
-            void this.stopDriverWatch();
-            return;
-          }
-          if (fix) this.onDriverPosition(fix);
+      const id = await this.geo.watchPosition(
+        { enableHighAccuracy: true, maximumAge: 15000, timeout: 10000 },
+        (fix) => {
+          if (fix && version === this.driverWatchVersion) this.onDriverPosition(fix);
         },
       );
+      if (version === this.driverWatchVersion) this.selfWatchId = id;
+      else await this.geo.clearWatch(id);
     } catch {
-      this.selfWatchId = null;
+      // A later map entry can retry registration.
+    } finally {
+      if (version === this.driverWatchVersion) this.driverWatchStarting = false;
     }
   }
 
   private async stopDriverWatch(): Promise<void> {
-    if (this.selfWatchId !== null) {
-      await this.geo.clearWatch(this.selfWatchId);
-      this.selfWatchId = null;
-    }
+    this.driverWatchVersion++;
+    this.driverWatchStarting = false;
+    const id = this.selfWatchId;
+    this.selfWatchId = null;
+    if (id !== null) await this.geo.clearWatch(id);
   }
 
   private lastDriverLocationSentAt = 0;
 
-  private onDriverPosition(fix: GeoFix): void {
-    const position = { lat: fix.lat, lng: fix.lng };
-    this.driverPosition = position;
+  private applyDriverFix(fix: GeoFix): boolean {
+    if (fix.timestamp < this.latestDriverFixAt) return false;
+    this.latestDriverFixAt = fix.timestamp;
+    this.driverPosition = { lat: fix.lat, lng: fix.lng };
     if (fix.bearing != null) {
       this.driverBearing = fix.bearing;
     }
     this.updatePreviewDriverMarker();
-    if (this.map) {
-      if (!this.selfMarker) {
-        this.selfMarker = new google.maps.marker.AdvancedMarkerElement({
-          position,
-          map: this.map,
-          title: 'You (Driver)',
-          content: this.buildDriverMarker(fix.bearing ?? 0),
-          zIndex: 1000,
-        });
-        this.fitEmbeddedMap();
-      } else {
-        this.selfMarker.position = position;
-        if (fix.bearing != null) {
-          updateCarMarkerBearing(this.selfMarker, fix.bearing);
-        }
-        if (this.driverMapMarkerUrl) {
-          updateCarMarkerImage(this.selfMarker, this.driverMapMarkerUrl);
-        }
-      }
-    }
-
+    this.followEmbeddedDriver(fix.bearing);
+    this.updateEmbeddedNavigation();
     this.updatePassengerMarkerDistances();
     this.cd.markForCheck();
+    return true;
+  }
+
+  private followEmbeddedDriver(bearing: number | null): void {
+    const position = this.driverPosition;
+    if (!this.map || !position) return;
+    this.selfMarker ??= new google.maps.marker.AdvancedMarkerElement({
+      position,
+      map: this.map,
+      title: 'You (Driver)',
+      content: this.buildDriverMarker(0),
+      zIndex: 1000,
+    });
+    if (this.driverMapMarkerUrl) updateCarMarkerImage(this.selfMarker, this.driverMapMarkerUrl);
+    this.navRoute.updateDriverProgress(position);
+    this.gpsCamera.follow(this.map, position, bearing, this.selfMarker, this.navRoute.headingAhead());
+  }
+
+  private onDriverPosition(fix: GeoFix): void {
+    if (!this.applyDriverFix(fix)) return;
 
     // Proactively post GPS location to server (throttled to 4s)
     const now = Date.now();
@@ -2374,20 +2390,27 @@ export class FixedDriverPage implements OnDestroy {
     }
   }
 
-  private fitEmbeddedMap(): void {
-    if (!this.map) return;
-    const bounds = new google.maps.LatLngBounds();
-    let any = false;
-    for (const marker of [...this.stopMarkers, ...this.passengerMarkers, this.selfMarker]) {
-      if (marker?.position) {
-        bounds.extend(marker.position as any);
-        any = true;
-      }
+  private updateEmbeddedNavigation(): void {
+    const nextStop = this.nextStopGuide;
+    const map = this.map;
+    const origin = this.driverPosition;
+    if (map && origin && nextStop && this.hasStopCoords(nextStop)) {
+      const previousHeading = this.navRoute.headingAhead();
+      void this.navRoute.render(map, origin, this.stopPosition(nextStop), 'drop').then(() => {
+        const heading = this.navRoute.headingAhead();
+        if (map === this.map && this.driverPosition && this.selfMarker && heading !== previousHeading) {
+          this.navRoute.updateDriverProgress(this.driverPosition);
+          this.gpsCamera.follow(map, this.driverPosition, this.driverBearing, this.selfMarker, this.navRoute.headingAhead());
+        }
+      });
+    } else {
+      this.navRoute.clear();
     }
-    if (any) this.map.fitBounds(bounds, 40);
   }
 
   private resetEmbeddedMap(): void {
+    this.gpsCamera.reset();
+    this.navRoute.clear();
     this.clearRouteObjects();
     if (this.selfMarker) {
       this.selfMarker.map = null;
@@ -2397,10 +2420,6 @@ export class FixedDriverPage implements OnDestroy {
   }
 
   private clearRouteObjects(): void {
-    if (this.routeLine) {
-      this.routeLine.setMap(null);
-      this.routeLine = null;
-    }
     for (const marker of this.stopMarkers) marker.map = null;
     for (const marker of this.passengerMarkers) marker.map = null;
     this.stopMarkers = [];
@@ -2474,6 +2493,7 @@ export class FixedDriverPage implements OnDestroy {
   private updatePassengerMarkerDistances(): void {
     if (!this.passengerMarkers?.length || !this.driverPosition) return;
     for (const marker of this.passengerMarkers) {
+      offsetPassengerMarker(marker, this.driverPosition);
       const p = (marker as any).__passenger as FixedPassenger | undefined;
       if (!p) continue;
       const dist = this.passengerDistanceText(p);
@@ -2594,7 +2614,7 @@ export class FixedDriverPage implements OnDestroy {
   }
 
   private buildPassengerMarker(kind: 'pickup' | 'drop', count: number, name = 'Passenger', isLive = false, avatarUrl?: string | null, distanceText?: string | null): HTMLElement {
-    return buildPassengerMarkerElement({ kind, count, name, isLive, avatarUrl, distanceText });
+    return buildPassengerMarkerElement({ kind, count, name, isLive, avatarUrl, distanceText, showLivePulse: false });
   }
 
   private buildStopMarker(stop: FixedStop): HTMLElement {
@@ -2672,14 +2692,15 @@ export class FixedDriverPage implements OnDestroy {
       const defaultCenter = originCoord || { lat: 28.6139, lng: 77.209 };
 
       this.previewMap = new google.maps.Map(div, {
+        ...DRIVER_MAP_STYLE,
         center: defaultCenter,
-        zoom: 13,
         disableDefaultUI: true,
         zoomControl: false,
         clickableIcons: false,
         gestureHandling: 'greedy',
         mapId: 'DEMO_MAP_ID',
       });
+      this.previewMap.addListener('dragstart', () => this.stopPreviewFollow());
 
       this.renderRoutePreviewElements(route);
       this.previewMapLoading = false;
@@ -2750,10 +2771,7 @@ export class FixedDriverPage implements OnDestroy {
     if (!this.driverPosition) {
       void this.geo.getCurrentPosition({ timeout: 8000, maximumAge: 15000 }).then((fix) => {
         if (fix) {
-          this.driverPosition = { lat: fix.lat, lng: fix.lng };
-          this.driverBearing = fix.bearing ?? 0;
-          this.updatePreviewDriverMarker();
-          this.cd.markForCheck();
+          this.applyDriverFix(fix);
         }
       }).catch(() => {});
     }
@@ -2795,6 +2813,7 @@ export class FixedDriverPage implements OnDestroy {
   }
 
   onPreviewStopTap(stop: FixedStop): void {
+    this.stopPreviewFollow();
     if (this.selectedPreviewStop?.id === stop.id) {
       this.clearSelectedPreviewStop();
       return;
@@ -2829,15 +2848,31 @@ export class FixedDriverPage implements OnDestroy {
     }
   }
 
+  get previewCameraAction(): string {
+    if (this.previewFollowsDriver) return 'Route overview';
+    return this.driverPosition && this.previewDriverMarker?.content ? 'Follow GPS' : 'Waiting for GPS';
+  }
+
   recenterPreviewMap(): void {
     this.clearSelectedPreviewStop();
+    if (!this.previewFollowsDriver && this.driverPosition && this.previewDriverMarker?.content) {
+      this.previewFollowsDriver = true;
+      this.updatePreviewDriverMarker();
+      return;
+    }
+    this.stopPreviewFollow();
     if (this.selectedRoute) {
       this.fitRoutePreviewMap(this.selectedRoute);
     }
   }
 
+  private stopPreviewFollow(): void {
+    this.previewFollowsDriver = false;
+    this.previewCamera.reset();
+  }
+
   private fitRoutePreviewMap(route: FixedRoute): void {
-    if (!this.previewMap) return;
+    if (!this.previewMap || this.previewFollowsDriver) return;
     const bounds = new google.maps.LatLngBounds();
     let hasCoords = false;
 
@@ -2867,7 +2902,7 @@ export class FixedDriverPage implements OnDestroy {
       const padding = this.previewMapFullscreen
         ? { top: 80, right: 45, bottom: 80, left: 45 }
         : { top: 40, right: 30, bottom: 40, left: 30 };
-      this.previewMap.fitBounds(bounds, padding);
+      fitDriverMap(this.previewMap, bounds, padding);
     }
   }
 
@@ -2922,12 +2957,14 @@ export class FixedDriverPage implements OnDestroy {
         title: 'Your vehicle location',
       });
     } else {
-      this.previewDriverMarker.position = this.driverPosition;
+      if (this.previewFollowsDriver && this.previewDriverMarker.content) {
+        this.previewCamera.follow(this.previewMap, this.driverPosition, this.driverBearing, this.previewDriverMarker);
+      } else {
+        this.previewDriverMarker.position = this.driverPosition;
+        updateCarMarkerBearing(this.previewDriverMarker, this.driverBearing);
+      }
       if (this.previewDriverMarker.map !== this.previewMap) {
         this.previewDriverMarker.map = this.previewMap;
-      }
-      if (this.driverBearing != null) {
-        updateCarMarkerBearing(this.previewDriverMarker, this.driverBearing);
       }
       if (this.driverMapMarkerUrl) {
         updateCarMarkerImage(this.previewDriverMarker, this.driverMapMarkerUrl);
@@ -2936,6 +2973,7 @@ export class FixedDriverPage implements OnDestroy {
   }
 
   private destroyRoutePreviewMap(resetFullscreen = true): void {
+    this.stopPreviewFollow();
     if (resetFullscreen) {
       this.previewMapFullscreen = false;
     }

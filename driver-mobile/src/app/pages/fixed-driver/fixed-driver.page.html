@@ -236,9 +236,10 @@
               class="preview-fs-fab preview-fs-fab--recenter dc-press"
               *ngIf="previewMapFullscreen"
               (click)="recenterPreviewMap()"
-              aria-label="Re-center route"
+              [disabled]="previewCameraAction === 'Waiting for GPS'"
             >
-              <ion-icon name="locate-outline"></ion-icon>
+              <ion-icon [name]="previewFollowsDriver ? 'map-outline' : 'locate-outline'" aria-hidden="true"></ion-icon>
+              <span>{{ previewCameraAction }}</span>
             </button>
 
             <!-- Google Map Canvas -->
@@ -263,12 +264,12 @@
               </button>
               <button
                 type="button"
-                class="preview-map-float-btn dc-press"
+                class="preview-map-float-btn preview-map-float-btn--camera dc-press"
                 (click)="recenterPreviewMap()"
-                aria-label="Re-center route"
-                title="Re-center"
+                [disabled]="previewCameraAction === 'Waiting for GPS'"
               >
-                <ion-icon name="locate-outline"></ion-icon>
+                <ion-icon [name]="previewFollowsDriver ? 'map-outline' : 'locate-outline'" aria-hidden="true"></ion-icon>
+                <span>{{ previewCameraAction }}</span>
               </button>
             </div>
           </div>

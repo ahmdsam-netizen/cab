@@ -1,3 +1,4 @@
+import { DriverMapCamera, DRIVER_MAP_STYLE, fitDriverMap, offsetPassengerMarker } from '../../core/driver-map';
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { AlertController, ModalController, ToastController } from '@ionic/angular';
 import { Router } from '@angular/router';
@@ -17,12 +18,11 @@ import {
 } from '../../core/maps-navigation';
 import {
   buildReusableCarMarkerElement,
-  updateCarMarkerBearing,
   updateCarMarkerImage,
   buildPassengerMarkerElement,
 } from '../../core/car-marker.helper';
 import { AudioRingtoneService } from '../../core/audio-ringtone.service';
-import { NavigationRouteRenderer } from '../../core/navigation-route.helper';
+import { LIVE_NAVIGATION_STYLE, NavigationRouteRenderer } from '../../core/navigation-route.helper';
 
 declare const google: any;
 
@@ -190,16 +190,20 @@ export class RidesPage implements OnInit, OnDestroy {
 
   // Live map for the active trip — shows pickup pin + the customer's GPS as
   // they walk to the curb, plus this driver's own position for context.
+  private gpsCamera = new DriverMapCamera();
   private map: any | null = null;
   private pickupMarker: any | null = null;
   private dropMarker: any | null = null;
   private customerMarker: any | null = null;
   private selfMarker: any | null = null;
-  private navRoute = new NavigationRouteRenderer();
+  private navRoute = new NavigationRouteRenderer(LIVE_NAVIGATION_STYLE);
   private selfPosition: { lat: number; lng: number } | null = null;
   customerPosition: { lat: number; lng: number } | null = null;
   mapReady = false;
   private selfWatchId: string | null = null;
+  private selfWatchRevision = 0;
+  private selfWatchStarting = false;
+  private latestSelfFix: GeoFix | null = null;
 
   constructor(
     private api: ApiService,
@@ -385,6 +389,7 @@ export class RidesPage implements OnInit, OnDestroy {
       this.availablePoll = null;
     }
     this.stopSelfPositionWatch();
+    this.gpsCamera.reset();
     this.navRoute.clear();
   }
 
@@ -729,6 +734,7 @@ export class RidesPage implements OnInit, OnDestroy {
     this.negotiation = null;
     this.completionBreakdown = null;
     this.message = null;
+    this.gpsCamera.reset();
     this.navRoute.clear();
     this.refreshAvailable();
   }
@@ -942,6 +948,7 @@ export class RidesPage implements OnInit, OnDestroy {
         if (payload.status === 'COMPLETED' || payload.status === 'CANCELLED') {
           void this.bgLocation.stop();
           this.stopSelfPositionWatch();
+          this.gpsCamera.reset();
           this.navRoute.clear();
         }
       },
@@ -959,17 +966,26 @@ export class RidesPage implements OnInit, OnDestroy {
   // ─────────────────────────────────────────────────────────────────
 
   private async initLiveMap(): Promise<void> {
-    if (this.mapReady) {
-      this.refreshTripMarkers();
-      return;
-    }
     try {
       await this.mapsLoader.ensureLoaded();
+      if (!document.getElementById('driver-trip-map')) {
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      }
       const div = document.getElementById('driver-trip-map');
       if (!div) return;
+      if (this.map?.getDiv() === div) {
+        this.refreshTripMarkers();
+        return;
+      }
+      this.gpsCamera.reset();
+      this.navRoute.clear();
+      for (const marker of [this.pickupMarker, this.dropMarker, this.customerMarker, this.selfMarker]) {
+        if (marker) marker.map = null;
+      }
+      this.pickupMarker = this.dropMarker = this.customerMarker = this.selfMarker = null;
       this.map = new google.maps.Map(div, {
-        center: { lat: 28.6139, lng: 77.209 },
-        zoom: 14,
+        ...DRIVER_MAP_STYLE,
+        center: this.selfPosition ?? this.pickupCoords ?? this.dropCoords ?? { lat: 28.6139, lng: 77.209 },
         disableDefaultUI: true,
         // Required for AdvancedMarkerElement (the replacement for the
         // deprecated google.maps.Marker class). Use a real Cloud Map ID in
@@ -977,6 +993,7 @@ export class RidesPage implements OnInit, OnDestroy {
         mapId: 'DEMO_MAP_ID',
       });
       this.mapReady = true;
+      if (this.latestSelfFix) this.onSelfPosition(this.latestSelfFix);
       this.refreshTripMarkers();
     } catch {
       // Maps may be unavailable (no key, offline) — page still works without it.
@@ -1019,29 +1036,36 @@ export class RidesPage implements OnInit, OnDestroy {
       }
     }
 
-    // Directional navigation polyline corridor with repeating chevrons
-    const status = String(this.lastTrip?.['status'] || '').toUpperCase();
-    const isHeadingDrop = status === 'EN_ROUTE_DROP' || status === 'ARRIVED_DROP';
-    const isPickupActive = status === 'ASSIGNED' || status === 'EN_ROUTE_PICKUP' || status === 'ARRIVED_PICKUP';
-
-    if (isHeadingDrop && drop) {
-      const origin = this.selfPosition || pickup;
-      if (origin) {
-        void this.navRoute.render(this.map, origin, drop, 'drop');
-      }
-    } else if (isPickupActive && pickup) {
-      if (this.selfPosition) {
-        void this.navRoute.render(this.map, this.selfPosition, pickup, 'pickup');
-      }
-    } else {
-      this.navRoute.clear();
-    }
-
+    this.updateNavigation();
     this.fitMap();
   }
 
+  private updateNavigation(): void {
+    const map = this.map;
+    const origin = this.selfPosition;
+    const trip = this.lastTrip;
+    const status = String(trip?.['status'] || '').toUpperCase();
+    const isHeadingDrop = status === 'EN_ROUTE_DROP' || status === 'ARRIVED_DROP';
+    const isPickupActive = status === 'ASSIGNED' || status === 'EN_ROUTE_PICKUP' || status === 'ARRIVED_PICKUP';
+    const target = trip && (isHeadingDrop
+      ? coordsFromTrip(trip, 'drop_lat', 'drop_lng')
+      : isPickupActive && coordsFromTrip(trip, 'pickup_lat', 'pickup_lng'));
+    if (!map || !origin || !target) {
+      this.navRoute.clear();
+      return;
+    }
+    const previousHeading = this.navRoute.headingAhead();
+    void this.navRoute.render(map, origin, target, isHeadingDrop ? 'drop' : 'pickup').then(() => {
+      const heading = this.navRoute.headingAhead();
+      if (map === this.map && this.selfPosition && this.selfMarker && heading !== previousHeading && heading !== null) {
+        this.navRoute.updateDriverProgress(this.selfPosition);
+        this.gpsCamera.follow(map, this.selfPosition, null, this.selfMarker, this.navRoute.headingAhead());
+      }
+    });
+  }
+
   private fitMap(): void {
-    if (!this.map) return;
+    if (!this.map || this.gpsCamera.isFollowing(this.map)) return;
     const bounds = new google.maps.LatLngBounds();
     let any = false;
     for (const m of [this.pickupMarker, this.dropMarker, this.customerMarker, this.selfMarker]) {
@@ -1050,7 +1074,7 @@ export class RidesPage implements OnInit, OnDestroy {
         any = true;
       }
     }
-    if (any) this.map.fitBounds(bounds, 80);
+    if (any) fitDriverMap(this.map, bounds, 80);
   }
 
   private onCustomerLocation(p: TripCustomerLocationPayload): void {
@@ -1068,6 +1092,7 @@ export class RidesPage implements OnInit, OnDestroy {
           kind: 'pickup',
           name: this.customerName || 'Passenger',
           isLive: true,
+          showLivePulse: false,
           avatarUrl: this.customerAvatarUrl,
         }),
         zIndex: 950,
@@ -1076,34 +1101,47 @@ export class RidesPage implements OnInit, OnDestroy {
     } else {
       this.customerMarker.position = pos;
     }
+    if (this.selfPosition) offsetPassengerMarker(this.customerMarker, this.selfPosition);
   }
 
   private async startSelfPositionWatch(): Promise<void> {
-    if (this.selfWatchId !== null) return;
-    this.selfWatchId = await this.geo.watchPosition(
-      { enableHighAccuracy: true, maximumAge: 5_000, timeout: 10_000 },
-      (fix, err) => {
-        if (err) {
-          void this.stopSelfPositionWatch();
-          return;
-        }
-        if (fix) this.onSelfPosition(fix);
-      },
-    );
+    if (this.selfWatchId !== null || this.selfWatchStarting) return;
+    const revision = ++this.selfWatchRevision;
+    this.selfWatchStarting = true;
+    void this.geo.getCurrentPosition({ timeout: 8000, maximumAge: 5000 }).then(fix => {
+      if (fix && revision === this.selfWatchRevision) this.onSelfPosition(fix);
+    }).catch(() => {});
+    try {
+      const id = await this.geo.watchPosition(
+        { enableHighAccuracy: true, maximumAge: 5_000, timeout: 10_000 },
+        fix => {
+          if (fix && revision === this.selfWatchRevision) this.onSelfPosition(fix);
+        },
+      );
+      if (revision === this.selfWatchRevision) this.selfWatchId = id;
+      else await this.geo.clearWatch(id);
+    } catch {
+      // The initial GPS request can still provide a fix if the watch fails.
+    } finally {
+      if (revision === this.selfWatchRevision) this.selfWatchStarting = false;
+    }
   }
 
   private async stopSelfPositionWatch(): Promise<void> {
-    if (this.selfWatchId !== null) {
-      await this.geo.clearWatch(this.selfWatchId);
-    }
+    this.selfWatchRevision++;
+    this.selfWatchStarting = false;
+    const id = this.selfWatchId;
     this.selfWatchId = null;
+    if (id !== null) await this.geo.clearWatch(id);
   }
 
   private onSelfPosition(fix: GeoFix): void {
-    if (!this.map) return;
+    if (this.latestSelfFix && fix.timestamp < this.latestSelfFix.timestamp) return;
+    this.latestSelfFix = fix;
     const p = { lat: fix.lat, lng: fix.lng };
     const hadNoSelfPosition = !this.selfPosition;
     this.selfPosition = p;
+    if (!this.map) return;
     this.navRoute.updateDriverProgress(p);
     if (hadNoSelfPosition && this.lastTrip) {
       this.refreshTripMarkers();
@@ -1128,16 +1166,12 @@ export class RidesPage implements OnInit, OnDestroy {
         }),
         zIndex: 1000,
       });
-      this.fitMap();
-    } else {
-      this.selfMarker.position = p;
-      if (fix.bearing != null) {
-        updateCarMarkerBearing(this.selfMarker, fix.bearing);
-      }
-      if (markerUrl) {
-        updateCarMarkerImage(this.selfMarker, markerUrl);
-      }
+    } else if (markerUrl) {
+      updateCarMarkerImage(this.selfMarker, markerUrl);
     }
+    this.gpsCamera.follow(this.map, p, fix.bearing, this.selfMarker, this.navRoute.headingAhead());
+    if (this.customerMarker) offsetPassengerMarker(this.customerMarker, p);
+    this.updateNavigation();
   }
 
   // ─────────────────────────────────────────────────────────────────

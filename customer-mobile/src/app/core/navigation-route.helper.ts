@@ -9,6 +9,7 @@
 declare const google: any;
 
 import { CUSTOMER_MAP_STYLE, CUSTOMER_NAVIGATION_ZOOM } from './customer-map';
+import { updateCarMarkerBearing } from './car-marker.helper';
 
 export interface LatLngPoint {
   lat: number;
@@ -58,21 +59,21 @@ export class NavigationRouteRenderer {
     return this.followPosition !== null;
   }
 
-  follow(map: any, position: LatLngPoint, target: LatLngPoint, marker: any, recenter = false): void {
+  follow(map: any, position: LatLngPoint, target: LatLngPoint | null, marker: any, recenter = false): void {
     if (!map.moveCamera || !marker) return;
     const sameMarker = marker === this.followMarker;
     const samePosition = this.followPosition?.lat === position.lat && this.followPosition.lng === position.lng;
     const previous = sameMarker ? this.headingPosition : null;
     const moving = previous && this.haversineDistance(previous, position) >= 5;
     if (!previous || moving) this.headingPosition = position;
-    const walkingHeading = this.targetKind === 'pickup' ? this.routeHeading() : null;
+    const roadHeading = this.targetKind ? this.routeHeading() : null;
     const previousHeading = this.followHeading;
-    if (walkingHeading !== null) {
-      this.followHeading = walkingHeading;
+    if (roadHeading !== null) {
+      this.followHeading = roadHeading;
     } else if (!sameMarker || moving) {
       const from = moving ? previous : position;
       const to = moving ? position : target;
-      this.followHeading = this.bearing(from, to);
+      this.followHeading = to ? this.bearing(from, to) : null;
     }
     if (!recenter && sameMarker && samePosition && previousHeading === this.followHeading) return;
     this.followPosition = position;
@@ -104,6 +105,9 @@ export class NavigationRouteRenderer {
         tilt: tilt + (CUSTOMER_MAP_STYLE.tilt - tilt) * ease,
         zoom: zoom + (CUSTOMER_NAVIGATION_ZOOM - zoom) * ease,
       });
+      if (marker.content?.classList.contains('fixed-driver-car-marker')) {
+        updateCarMarkerBearing(marker, 0);
+      }
       if (t < 1) this.cameraFrame = requestAnimationFrame(animate);
     };
     this.cameraFrame = requestAnimationFrame(animate);
@@ -181,7 +185,7 @@ export class NavigationRouteRenderer {
       this.fullPath = roadPath;
       this.currentPath = [...roadPath];
       this.drawPolylines();
-      if (kind === 'pickup' && this.followPosition && this.followMarker) {
+      if (this.followPosition && this.followMarker) {
         this.updateDriverProgress(this.followPosition);
         this.follow(map, this.followPosition, destination, this.followMarker);
       }
@@ -235,11 +239,15 @@ export class NavigationRouteRenderer {
   /**
    * Completely clears and destroys active polylines.
    */
-  clear(): void {
+  stopFollowing(): void {
     cancelAnimationFrame(this.cameraFrame);
     this.followPosition = this.headingPosition = null;
     this.followHeading = null;
     this.followMarker = null;
+  }
+
+  clear(): void {
+    this.stopFollowing();
     this.clearRoute();
     this.targetKind = null;
     this.map = null;
@@ -267,8 +275,8 @@ export class NavigationRouteRenderer {
   private drawPolylines(): void {
     if (!this.map || !this.currentPath.length) return;
 
-    const strokeColor = this.config.strokeColor || (this.targetKind === 'pickup' ? '#2563EB' : '#16A34A');
-    const arrowFillColor = this.config.arrowFillColor || (this.targetKind === 'pickup' ? '#1D4ED8' : '#15803D');
+    const strokeColor = this.config.strokeColor || '#2563EB';
+    const arrowFillColor = this.config.arrowFillColor || '#1D4ED8';
     const casingColor = this.config.casingColor || '#FFFFFF';
     const casingWeight = this.config.casingWeight || 7.5;
     const strokeWeight = this.config.strokeWeight || 4.5;

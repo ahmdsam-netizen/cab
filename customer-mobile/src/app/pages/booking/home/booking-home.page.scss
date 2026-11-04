@@ -945,7 +945,7 @@
   left: 0;
   right: 0;
   bottom: var(--home-nav-height);
-  height: 56dvh;
+  height: var(--home-sheet-height, 274px);
   max-height: calc(100dvh - 100px - var(--home-nav-height));
   z-index: 10;
   background: var(--home-surface);
@@ -957,6 +957,38 @@
   transition: height .25s ease;
   overflow: hidden;
   &.is-expanded { height: 82dvh; }
+}
+
+.bh-home-content {
+  --home-sheet-height: 274px;
+  &.has-active-ride { --home-sheet-height: 56dvh; }
+  &.is-sheet-expanded { --home-sheet-height: 82dvh; }
+}
+
+.bh-map-controls {
+  position: fixed;
+  top: calc(68px + env(safe-area-inset-top, 0px));
+  right: 16px;
+  z-index: 12;
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  button, span {
+    background: #fff;
+    color: var(--home-ink);
+    border: 1px solid var(--home-line);
+    border-radius: 20px;
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+  button { display: flex; align-items: center; gap: 5px; font-weight: 650; }
+}
+
+@media (max-width: 767px) {
+  .bh-home-content .bh-map {
+    bottom: auto;
+    height: max(112px, calc(100dvh - var(--home-nav-height) - var(--home-sheet-height) + 14px));
+  }
 }
 .bh-sheet-toggle {
   border: 0;

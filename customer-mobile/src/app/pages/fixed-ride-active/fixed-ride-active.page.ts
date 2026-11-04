@@ -1,5 +1,5 @@
 import { buildFixedRidePin, fixedRideNavigationTarget } from '../../core/fixed-ride-map';
-import { CUSTOMER_MAP_STYLE, CUSTOMER_NAVIGATION_ZOOM, fitCustomerMap, focusCustomerNavigation } from '../../core/customer-map';
+import { CUSTOMER_MAP_STYLE, fitCustomerMap, focusCustomerNavigation } from '../../core/customer-map';
 import { Component, ElementRef, NgZone, OnDestroy, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AlertController, Platform, ToastController } from '@ionic/angular';
@@ -468,7 +468,6 @@ export class FixedRideActivePage implements OnDestroy {
       this.map = new google.maps.Map(this.mapElRef.nativeElement, {
         ...CUSTOMER_MAP_STYLE,
         center,
-        zoom: this.booking && this.isActiveBooking(this.booking) ? CUSTOMER_NAVIGATION_ZOOM : 14,
         disableDefaultUI: true,
         zoomControl: false,
         mapTypeControl: false,
@@ -583,7 +582,7 @@ export class FixedRideActivePage implements OnDestroy {
       } else {
         if (!isBoarded) this.driverMarker.position = this.driverPosition;
         if (!this.driverMarker.map) this.driverMarker.map = this.map;
-        updateCarMarkerBearing(this.driverMarker, this.driverBearing);
+        updateCarMarkerBearing(this.driverMarker, isBoarded ? 0 : this.driverBearing);
         const markerUrl = (b as any).map_marker_url || (b as any).vehicle?.map_marker_url || null;
         if (markerUrl) {
           updateCarMarkerImage(this.driverMarker, markerUrl);
@@ -624,7 +623,7 @@ export class FixedRideActivePage implements OnDestroy {
   private fitMapBounds(): void {
     if (this.navRoute.following) return;
     if (!this.map || typeof google === 'undefined') return;
-    if (this.booking && this.isActiveBooking(this.booking)) {
+    if (this.booking && (this.isActiveBooking(this.booking) || this.booking.status?.toUpperCase() === 'CANCELLED')) {
       focusCustomerNavigation(this.map, this.resolveCenter());
       return;
     }

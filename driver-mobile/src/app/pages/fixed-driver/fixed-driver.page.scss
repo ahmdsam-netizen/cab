@@ -863,7 +863,12 @@ ion-content.is-map-fullscreen {
 
       &--recenter {
         right: 16px;
-        color: var(--fixed-green);
+        width: auto;
+        padding: 0 12px;
+        gap: 6px;
+        border-radius: 22px;
+        font-size: 12px;
+        font-weight: 700;
       }
 
       &:active {
@@ -895,6 +900,14 @@ ion-content.is-map-fullscreen {
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
         cursor: pointer;
         transition: transform 0.15s ease, background 0.15s ease;
+
+        &--camera {
+          width: auto;
+          padding: 0 10px;
+          gap: 5px;
+          font-size: 12px;
+          font-weight: 700;
+        }
 
         ion-icon {
           font-size: 18px;

@@ -4,6 +4,67 @@ Last updated: 2026-11-04 (Asia/Calcutta)
 
 ## Start here
 
+- Cross-app map recheck (2026-11-04): reviewed all 16 map constructors.
+  Driver Dashboard has a ride card and opens its map from the ride screen.
+  Matched customer pickup and drop guidance to the driver's blue route
+  style. Driver Private and Shuttle now retain the first GPS fix while
+  the map loads and can recover after a GPS timeout. Angular compilation
+  passed in both apps. Next, verify movement, boarding and overview
+  switching in the user's local walkthrough.
+
+- Customer Home map and sheet (2026-11-04): Home and the location button
+  request a fresh device fix. Ride catalog responses no longer move the map
+  back to earlier coordinates. Added GPS and overview switching and reduced
+  the collapsed mobile sheet to show the ride choices first. Next, verify
+  device location and scrolling in the user's local walkthrough.
+
+- Driver Fixed booking GPS (2026-11-04): both Active Route maps now
+  draw the car and begin following from the initial GPS fix or an existing
+  fix. A watch timeout no longer disables follow. Before the first fix,
+  the map opens close to the next stop. Driver Angular compilation passed.
+  Next, verify booking entry and recovery from a delayed fix locally.
+
+- Driver Fixed preview controls (2026-11-04): labeled the camera action
+  Follow GPS or Route overview in both inline and full-screen previews.
+  Waiting for GPS explains when follow is unavailable. Next, check both
+  states in the user's local walkthrough.
+
+- Map consistency across both apps (2026-11-04): checked all 16 map
+  constructors against the shared light 3D settings. Customer booking
+  follows GPS until manual map interaction or route selection. Customer
+  live maps face the routed road after boarding. Driver Private and Shuttle
+  use the same animated car, camera, and road guidance as Fixed. The Fixed
+  stop map follows GPS, and the Fixed route preview can switch between
+  GPS follow and the stop overview. Angular compilation passed in both
+  apps. Next, check movement, heading, and preview switching during the
+  user's local walkthrough.
+
+- Driver Fixed passenger marker (2026-11-04): disabled the flashing blue
+  ring in Active Route and its full-screen map. Verified both marker calls
+  in source. The user will check the live preview.
+
+- Driver Fixed live navigation (2026-11-04): matched the customer map's
+  animated camera and blue arrows in Active Route and its full-screen map.
+  The camera faces the road ahead, and the line starts on the routed road.
+  Both maps cancel animations and pending route results on exit. Nearby
+  passenger badges shift above the car and retain a dotted line to their
+  actual map position. Next, verify turns, stop changes, and marker
+  separation on a device.
+
+- Customer and driver map follow (2026-11-04): all 16 Google Maps views
+  use the shared light vector settings with a closer starting camera. Customer
+  Home and Driver Dashboard follow GPS outside rides. Driver Fixed now shows
+  next-stop guidance in the embedded live map and keeps the GPS camera during
+  marker refreshes. Preview and selection maps frame their content. Driver
+  History has no map. Source audit and TypeScript passed for both apps. Next,
+  verify walking and driving turns and GPS recovery on a device.
+
+- Customer and driver map style (2026-11-04): applied the light vector map
+  and tilt to all seven driver map views and verified the shared style in
+  all nine customer map views. Both apps restore tilt after fitting a
+  route. Cancelled Fixed rides open close to pickup. Both TypeScript checks
+  passed. Next, recheck the cancelled ride and driver route in the browser.
+
 - Task 1 customer map audit (2026-11-04): checked all nine customer map
   constructors for the shared light vector style and tilt. Home's active
   Fixed ride and the shared Private/Shuttle live screen now stay close to

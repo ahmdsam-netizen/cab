@@ -498,7 +498,6 @@ export class FixedBookPage implements OnInit, OnDestroy {
       this.fixedMap = new google.maps.Map(el, {
         ...CUSTOMER_MAP_STYLE,
         center: start,
-        zoom: 15,
         disableDefaultUI: true,
         clickableIcons: false,
         mapId: 'DEMO_MAP_ID',

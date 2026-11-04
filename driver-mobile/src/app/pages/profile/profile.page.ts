@@ -1,3 +1,4 @@
+import { DRIVER_MAP_STYLE } from '../../core/driver-map';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AlertController, Platform, ViewDidEnter, ViewWillLeave } from '@ionic/angular';
@@ -729,8 +730,8 @@ export class ProfilePage implements OnInit, OnDestroy {
     }
     const center = { lat, lng };
     this.addressMap = new google.maps.Map(this.addressMapEl.nativeElement, {
+      ...DRIVER_MAP_STYLE,
       center,
-      zoom: 16,
       disableDefaultUI: true,
       zoomControl: true,
     });

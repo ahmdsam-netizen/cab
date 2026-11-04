@@ -23,7 +23,16 @@ export interface NavigationRouteConfig {
   repeatDistance?: string;
   arrowScale?: number;
   zIndex?: number;
+  animateArrows?: boolean;
+  roadOnly?: boolean;
 }
+
+export const LIVE_NAVIGATION_STYLE: NavigationRouteConfig = {
+  strokeColor: '#2563EB',
+  arrowFillColor: '#1D4ED8',
+  animateArrows: true,
+  roadOnly: true,
+};
 
 export class NavigationRouteRenderer {
   private map: any = null;
@@ -33,8 +42,11 @@ export class NavigationRouteRenderer {
   private currentPath: any[] = [];
   private directionsService: any = null;
   private isFetching = false;
+  private routeGeneration = 0;
+  private arrowTimer?: ReturnType<typeof setInterval>;
   private lastOrigin: LatLngPoint | null = null;
   private lastDestination: LatLngPoint | null = null;
+  private lastRequestAt = 0;
   private targetKind: 'pickup' | 'drop' | null = null;
 
   constructor(private config: NavigationRouteConfig = {}) {}
@@ -52,12 +64,14 @@ export class NavigationRouteRenderer {
     if (!map || typeof google === 'undefined' || !origin || !destination) return;
     this.map = map;
 
-    // Check if target and origin have meaningfully shifted (within 25m) to avoid redundant Directions API calls
+    const sameTarget = this.targetKind === kind && this.lastDestination &&
+      this.haversineDistance(this.lastDestination, destination) < (this.config.roadOnly ? 1 : 25);
+    if (this.config.roadOnly && !force && sameTarget && !this.fullPath.length &&
+        Date.now() - this.lastRequestAt < 10_000) return;
+
     if (
       !force &&
-      this.targetKind === kind &&
-      this.lastDestination &&
-      this.haversineDistance(this.lastDestination, destination) < 25 &&
+      sameTarget &&
       this.lastOrigin &&
       this.haversineDistance(this.lastOrigin, origin) < 25 &&
       this.fullPath.length > 0
@@ -67,26 +81,32 @@ export class NavigationRouteRenderer {
       return;
     }
 
+    if (this.isFetching && (!this.config.roadOnly || sameTarget)) return;
+    if (this.config.roadOnly && !sameTarget) this.clear();
     this.targetKind = kind;
     this.lastOrigin = { ...origin };
     this.lastDestination = { ...destination };
-
-    if (this.isFetching) return;
+    this.lastRequestAt = Date.now();
     this.isFetching = true;
+    const generation = this.routeGeneration;
 
     try {
       const roadPath = await this.fetchDirectionsPath(origin, destination);
+      if (generation !== this.routeGeneration) return;
       this.fullPath = roadPath;
       this.currentPath = [...roadPath];
       this.drawPolylines();
+      if (this.config.roadOnly) this.updateDriverProgress(origin);
     } catch {
+      if (generation !== this.routeGeneration) return;
+      if (this.config.roadOnly) return;
       // Fallback: draw straight/interpolated directional path if Directions API is unavailable
       const fallbackPath = this.interpolatePath(origin, destination, 8);
       this.fullPath = fallbackPath;
       this.currentPath = [...fallbackPath];
       this.drawPolylines();
     } finally {
-      this.isFetching = false;
+      if (generation === this.routeGeneration) this.isFetching = false;
     }
   }
 
@@ -96,6 +116,10 @@ export class NavigationRouteRenderer {
    */
   updateDriverProgress(driverLoc: LatLngPoint): void {
     if (!driverLoc || !this.fullPath.length || !this.routePolyline) return;
+    if (this.config.roadOnly) {
+      this.trimToRoad(driverLoc);
+      return;
+    }
 
     // Find closest index in fullPath to driver
     let closestIdx = 0;
@@ -122,10 +146,57 @@ export class NavigationRouteRenderer {
     }
   }
 
+  private trimToRoad(position: LatLngPoint): void {
+    const longitudeScale = Math.cos(position.lat * Math.PI / 180);
+    let nearest: LatLngPoint | null = null;
+    let nearestDistance = Infinity;
+    let nextIndex = 0;
+    for (let i = 1; i < this.fullPath.length; i++) {
+      const from = new google.maps.LatLng(this.fullPath[i - 1]).toJSON();
+      const to = new google.maps.LatLng(this.fullPath[i]).toJSON();
+      const east = (to.lng - from.lng) * longitudeScale;
+      const north = to.lat - from.lat;
+      const lengthSquared = east ** 2 + north ** 2;
+      if (!lengthSquared) continue;
+      const progress = ((position.lng - from.lng) * longitudeScale * east +
+        (position.lat - from.lat) * north) / lengthSquared;
+      const fraction = Math.max(0, Math.min(1, progress));
+      const projected = {
+        lat: from.lat + fraction * (to.lat - from.lat),
+        lng: from.lng + fraction * (to.lng - from.lng),
+      };
+      const distance = this.haversineDistance(position, projected);
+      if (distance >= nearestDistance) continue;
+      nearest = projected;
+      nearestDistance = distance;
+      nextIndex = i;
+    }
+    if (!nearest || nearestDistance >= 250) return;
+    this.currentPath = [nearest, ...this.fullPath.slice(nextIndex)];
+    this.casingPolyline?.setPath(this.currentPath);
+    this.routePolyline.setPath(this.currentPath);
+  }
+
+  headingAhead(): number | null {
+    if (this.currentPath.length < 2) return null;
+    const from = new google.maps.LatLng(this.currentPath[0]).toJSON();
+    for (const point of this.currentPath.slice(1)) {
+      const to = new google.maps.LatLng(point).toJSON();
+      if (this.haversineDistance(from, to) < 1) continue;
+      const east = (to.lng - from.lng) * Math.cos(from.lat * Math.PI / 180);
+      return Math.atan2(east, to.lat - from.lat) * 180 / Math.PI;
+    }
+    return null;
+  }
+
   /**
    * Completely clears and destroys active polylines.
    */
   clear(): void {
+    clearInterval(this.arrowTimer);
+    this.arrowTimer = undefined;
+    this.routeGeneration++;
+    this.isFetching = false;
     if (this.casingPolyline) {
       this.casingPolyline.setMap(null);
       this.casingPolyline = null;
@@ -212,6 +283,15 @@ export class NavigationRouteRenderer {
         ],
         map: this.map,
       });
+    }
+    if (this.config.animateArrows && this.arrowTimer === undefined &&
+        !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      let offset = 0;
+      this.arrowTimer = setInterval(() => {
+        offset = (offset + 2) % (parseFloat(this.config.repeatDistance || '50px') || 50);
+        const icons = this.routePolyline?.get('icons');
+        if (icons?.length) this.routePolyline.set('icons', [{ ...icons[0], offset: `${offset}px` }]);
+      }, 50);
     }
   }
 

@@ -1,4 +1,5 @@
 import { CUSTOMER_MAP_STYLE, fitCustomerMap } from '../../core/customer-map';
+import { NavigationRouteRenderer } from '../../core/navigation-route.helper';
 import { Component, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import { AlertController, ModalController, ToastController } from '@ionic/angular';
@@ -321,6 +322,8 @@ export class CustomerBookPage implements OnDestroy {
 
   private map: any | null = null;
   private pickupMarker: any | null = null;
+  private bookingCamera = new NavigationRouteRenderer();
+  private followBookingLocation = true;
   private dropMarker: any | null = null;
   // Live "you" dot that follows the device as it moves (home-screen tracking).
   private selfMarker: any | null = null;
@@ -454,12 +457,14 @@ export class CustomerBookPage implements OnDestroy {
   }
 
   ionViewWillLeave(): void {
+    this.bookingCamera.clear();
     // Stop following the device while the page isn't visible (saves battery);
     // initMap() restarts the stream when the view re-enters.
     void this.stopSelfLocationStream();
   }
 
   ngOnDestroy(): void {
+    this.bookingCamera.clear();
     this.cleanupSearch();
     this.stopNearbyDriversPoll();
     this.stopDriverListPoll();
@@ -734,11 +739,13 @@ export class CustomerBookPage implements OnDestroy {
       const div = document.getElementById('ride-map');
       if (!div) return;
 
-      const start = (await this.geo.getCurrentPosition()) ?? { lat: 28.6139, lng: 77.209 };
+      const fix = await this.geo.getCurrentPosition();
+      const start = fix ?? { lat: 28.6139, lng: 77.209 };
+      this.bookingCamera.clear();
+      this.followBookingLocation = true;
       this.map = new google.maps.Map(div, {
         ...CUSTOMER_MAP_STYLE,
         center: start,
-        zoom: 15,
         disableDefaultUI: true,
         clickableIcons: false,
         // Required for AdvancedMarkerElement to render. DEMO_MAP_ID is
@@ -746,6 +753,7 @@ export class CustomerBookPage implements OnDestroy {
         // Cloud Console when going to production.
         mapId: 'DEMO_MAP_ID',
       });
+      this.map.addListener('dragstart', () => this.pauseBookingFollow());
 
       this.pickupMarker = new google.maps.marker.AdvancedMarkerElement({
         position: start,
@@ -778,21 +786,9 @@ export class CustomerBookPage implements OnDestroy {
       this.resolveCityForPickup();
       this.mapsReady = true;
 
-      // Live "you" dot — show it immediately at the current spot, then keep it
-      // following the device via the GPS watch. Detach any marker left over
-      // from a previous map (initMap re-runs each time the view re-enters).
       if (this.selfMarker) this.selfMarker.map = null;
-      this.selfMarker = new google.maps.marker.AdvancedMarkerElement({
-        position: this.selfPosition ?? start,
-        map: this.map,
-        title: 'You',
-        content: buildPassengerMarkerElement({
-          kind: 'pickup',
-          isLive: true,
-          avatarUrl: this.auth.resolveAvatarUrl(this.auth.getUser()),
-        }),
-        zIndex: 2,
-      });
+      this.selfMarker = null;
+      if (fix) this.onSelfPosition(fix);
       void this.startSelfLocationStream();
 
       this.startNearbyDriversPoll();
@@ -925,14 +921,22 @@ export class CustomerBookPage implements OnDestroy {
         title: 'You',
         content: buildPassengerMarkerElement({
           kind: 'pickup',
-          isLive: true,
           avatarUrl: this.auth.resolveAvatarUrl(this.auth.getUser()),
         }),
         zIndex: 2,
       });
+    }
+    if (this.followBookingLocation && this.state === 'idle' && !this.drop) {
+      this.bookingCamera.follow(this.map, p, null, this.selfMarker);
     } else {
+      this.bookingCamera.clear();
       this.selfMarker.position = p;
     }
+  }
+
+  private pauseBookingFollow(): void {
+    this.followBookingLocation = false;
+    this.bookingCamera.clear();
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -984,6 +988,7 @@ export class CustomerBookPage implements OnDestroy {
   }
 
   private async updatePickupTo(lat: number, lng: number): Promise<void> {
+    this.pauseBookingFollow();
     const address = (await this.places.reverseGeocode(lat, lng)) ?? 'Selected location';
     this.pickup = { lat, lng, address };
     this.resolveCityForPickup();

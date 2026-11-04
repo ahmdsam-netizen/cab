@@ -1,3 +1,4 @@
+import { DriverMapCamera, DRIVER_MAP_STYLE, fitDriverMap } from '../../core/driver-map';
 import { HomeSessionService } from '../../core/home-session.service';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor, PluginListenerHandle } from '@capacitor/core';
@@ -200,6 +201,7 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
   private bannerRealtimeUnsub: (() => void) | null = null;
   private bannerPollSub?: Subscription;
 
+  private gpsCamera = new DriverMapCamera();
   private map: any | null = null;
   private selfMarker: any | null = null;
   private accuracyCircle: any | null = null;
@@ -992,7 +994,7 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
     }
 
     if (count > 0) {
-      this.map.fitBounds(bounds, { top: 90, right: 36, bottom: 250, left: 36 } as any);
+      fitDriverMap(this.map, bounds, { top: 90, right: 36, bottom: 250, left: 36 } as any);
     }
   }
 
@@ -1330,8 +1332,8 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
   private initMap(): void {
     if (!this.mapDiv?.nativeElement || this.map) return;
     this.map = new google.maps.Map(this.mapDiv.nativeElement, {
+      ...DRIVER_MAP_STYLE,
       center: this.defaultCentre,
-      zoom: 13,
       // mapId is required for AdvancedMarkerElement. DEMO_MAP_ID is Google's
       // public test id; swap for a styled Cloud-console mapId in production.
       mapId: 'DEMO_MAP_ID',
@@ -1454,8 +1456,7 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
       return;
     }
     if (this.lastPos && this.map) {
-      this.map.panTo(this.lastPos);
-      if (this.map.getZoom() < 15) this.map.setZoom(16);
+      this.gpsCamera.follow(this.map, this.lastPos);
       return;
     }
     this.locating = true;
@@ -1523,8 +1524,7 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
     }
 
     if (recenter || this.followMe) {
-      this.map.panTo(pos);
-      if (this.map.getZoom() < 15) this.map.setZoom(16);
+      this.gpsCamera.follow(this.map, pos, bearing);
     }
   }
 

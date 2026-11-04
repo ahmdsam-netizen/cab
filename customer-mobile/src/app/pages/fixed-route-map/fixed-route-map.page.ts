@@ -146,7 +146,6 @@ export class FixedRouteMapPage {
       this.map = new google.maps.Map(div, {
         ...CUSTOMER_MAP_STYLE,
         center: pickup,
-        zoom: 13,
         disableDefaultUI: true,
         clickableIcons: false,
         gestureHandling: 'greedy',

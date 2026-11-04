@@ -10,7 +10,8 @@
       <small>Enable location permission and turn on your device’s location services to continue.</small>
     </div>
   </section>
-  <div class="bh-home-content" [attr.inert]="!located ? '' : null" [attr.aria-hidden]="!located ? true : null">
+  <div class="bh-home-content" [class.has-active-ride]="!!activeFixedRide" [class.is-sheet-expanded]="homeExpanded"
+    [attr.inert]="!located ? '' : null" [attr.aria-hidden]="!located ? true : null">
 
   <div class="bh-location-status" *ngIf="locationFetching" role="status">
     <ion-spinner name="crescent"></ion-spinner>
@@ -37,6 +38,14 @@
       <ion-icon name="notifications-outline" aria-hidden="true"></ion-icon>
     </a>
   </header>
+
+  <div class="bh-map-controls" *ngIf="mapReady && located">
+    <button type="button" (click)="toggleMapMode()" [disabled]="refreshingMapLocation">
+      <ion-icon [name]="gpsFollow ? 'map-outline' : 'locate-outline'" aria-hidden="true"></ion-icon>
+      {{ refreshingMapLocation ? 'Finding location…' : (gpsFollow ? 'Route overview' : 'Follow GPS') }}
+    </button>
+    <span *ngIf="mapLocationMessage" role="status">{{ mapLocationMessage }}</span>
+  </div>
 
   <!-- ── Full-Screen App Banner Overlay Modal (True Mobile Full Screen) ── -->
   <div
