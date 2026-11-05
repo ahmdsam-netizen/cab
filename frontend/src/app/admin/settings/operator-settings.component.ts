@@ -318,6 +318,17 @@ interface SectionMeta {
 
             <!-- ============= SERVICES (ride catalogue) ============= -->
             <ng-container *ngIf="activeSection === 'services'">
+              <section class="svc-scope svc-names" aria-labelledby="service-names-title">
+                <h3 id="service-names-title">Service names</h3>
+                <p class="chan-note__sub">These names apply to Local and Outstation in every city. Leave a field blank to use its default name. Use up to 40 characters per name.</p>
+                <div class="svc-names__fields">
+                  <tm-input label="Private display name" placeholder="Private" [(ngModel)]="settings.private_service_name" />
+                  <tm-input label="Fixed display name" placeholder="Fixed" [(ngModel)]="settings.fixed_service_name" />
+                  <tm-input label="Shuttle display name" placeholder="Shuttle" [(ngModel)]="settings.shuttle_service_name" />
+                </div>
+                <tm-button variant="ink" icon="check" [loading]="saving.serviceNames" (clicked)="save('serviceNames')">Save names</tm-button>
+              </section>
+
               <div class="chan-note">
                 <span class="chan-note__title">Switches apply to every city, in both apps, instantly</span>
                 <span class="chan-note__sub">These settings are global — turning a service off here hides it from the customer booking screen and from driver signup/profile in every city, not just the one selected above. Switching off Local or Outstation takes its three services with it. Every switch saves on its own — no Save button needed. At least one service must always stay on.</span>
@@ -349,15 +360,6 @@ interface SectionMeta {
                   </span>
                 </label>
               </div>
-            </ng-container>
-
-            <ng-container *ngIf="activeSection === 'serviceNames'">
-              <div class="chan-note">
-                <span class="chan-note__sub">These names apply to Local and Outstation in every city. Leave a field blank to use its default name. Use up to 40 characters per name.</span>
-              </div>
-              <tm-input label="Private display name" placeholder="Private" [(ngModel)]="settings.private_service_name" />
-              <tm-input label="Fixed display name" placeholder="Fixed" [(ngModel)]="settings.fixed_service_name" />
-              <tm-input label="Shuttle display name" placeholder="Shuttle" [(ngModel)]="settings.shuttle_service_name" />
             </ng-container>
 
             <!-- ============= NOTIFICATIONS ============= -->
@@ -579,6 +581,11 @@ interface SectionMeta {
     .chan-note__sub { font-size: 11.5px; color: var(--tm-text-soft); line-height: 1.45; }
     .chan-note--error { color: var(--tm-red, #B42318); border-color: var(--tm-red, #B42318); }
     .svc-scope { border: 1px solid var(--tm-border, #E5E9EF); border-radius: 12px; padding: 4px 14px; margin-bottom: 12px; }
+    .svc-names { display: grid; gap: 10px; padding: 14px; }
+    .svc-names h3, .svc-names p { margin: 0; }
+    .svc-names h3 { font-size: 14px; }
+    .svc-names__fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); gap: 10px; }
+    .svc-names > tm-button { justify-self: start; }
     .svc-scope__head { border-bottom: 1px solid var(--tm-border, #E5E9EF); }
     .svc-scope__mode { padding-left: 18px; }
     .svc-scope__mode--off { opacity: 0.45; }
@@ -670,7 +677,6 @@ export class OperatorSettingsComponent implements OnInit {
     { key: 'wallet',       label: 'Wallet',            icon: 'rupee',         desc: 'Cash-wallet limits and the terms shown to users.' },
     { key: 'subscription', label: 'Subscription',      icon: 'star',          desc: 'Copy for the driver subscription promo popup.' },
     { key: 'services',     label: 'Services',          icon: 'car',           desc: 'Which ride services the apps offer: Local & Outstation, each with Private, Fixed and Shuttle. Off = hidden in both the customer and driver apps.' },
-    { key: 'serviceNames', label: 'Service names',      icon: 'car',           desc: 'Choose the display names for Private, Fixed and Shuttle.' },
     { key: 'notifications', label: 'Notifications',     icon: 'bell',          desc: 'Email switches for fixed module messages. SMS is OTP-only; push is managed per user from their profile page.' },
     { key: 'templates',    label: 'Templates',         icon: 'envelope',      desc: 'Notification copy with dynamic placeholders.' },
   ];
@@ -843,6 +849,7 @@ export class OperatorSettingsComponent implements OnInit {
   }
 
   private titleFor(section: SectionKey): string {
+    if (section === 'serviceNames') return 'Service names';
     return this.sections.find((s) => s.key === section)?.label ?? 'Settings';
   }
 
