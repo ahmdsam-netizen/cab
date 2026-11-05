@@ -1,8 +1,142 @@
 # Customer and Driver UI Redesign — Task Tracker
 
-Last updated: 2026-11-04 (Asia/Calcutta)
+Last updated: 2026-11-05 (Asia/Calcutta)
 
 ## Start here
+
+- Operator service images (2026-11-05). Services now supports uploading,
+  replacing, and clearing the image for Private, Fixed, and Shuttle alongside
+  their display names. The admin uses clickable image tiles with hidden file
+  inputs. Verified all three tiles in the local browser after the restyle.
+  Customer Home and the driver profile service picker
+  read the image from the shared catalogue. Verified all three pickers in the
+  local admin browser, compiled all three Angular apps, and passed seven
+  backend settings tests. The migration ran on the local development database.
+  Next, verify the client's chosen images in both apps after deployment.
+
+- Customer Home map and route preview (2026-11-05). Private and Fixed tiles
+  switch map layers with a short fade and keep the booking sheet closed.
+  Both use the shared close-up 3D GPS camera. The booking map hides the
+  separate Follow GPS control. A Fixed route preview fades out other pins,
+  frames the selected pickup and destination, and restores the nearby pins
+  and GPS camera on Clear route. Verified the service switch, two-pin
+  preview, label framing, and clear action in the browser at 479 × 681.
+  All 24 targeted Home tests passed. Next, check heading changes on a
+  moving phone.
+
+- Customer Home map framing (2026-11-05). Private Ride and Book A Car
+  share a GPS-centered neighborhood overview. Marker refreshes leave the
+  camera alone, so a car beside the passenger cannot cause extreme zoom.
+  Verified Private → Book A Car → Private in the browser at 479 × 681.
+  Each map showed zoom 14.75. All 24 Home tests passed. Next, check the
+  overview while moving with device GPS.
+
+- Customer Home sheet handle (2026-11-05). The circular arrow overlaps the
+  collapsed sheet edge. It moves repeatedly up to open and down to close.
+  The sheet and bottom navigation use the same background. Verified both
+  animation directions and tap controls in the running browser at 479 × 681.
+  Angular template and Sass checks passed. Next, confirm on a physical phone.
+
+- Customer Home service picker (2026-11-05). The mobile sheet shows just
+  service choices over the map when collapsed. Tapping a service opens a
+  full-height booking panel above the tab bar. The map keeps its viewport
+  behind the panel. Verified at 479 × 681 in the running browser app:
+  both service tiles open, the picker stays visible while scrolling,
+  dragging down returns to the Fixed map, and tapping the handle closes
+  Private. All 23 targeted Home tests and compilation checks passed.
+  Next, confirm the touch gesture on a physical phone.
+
+- Customer Home swipe sheet (2026-11-05). Swipe up on the handle for
+  the expanded booking panel or swipe down to return to the map. Tap also
+  works. The service picker stays above scrolling content, and collapsing
+  returns to the current service's booking controls. All 23 targeted Home
+  tests passed, along with Angular template and Sass compilation checks.
+  Next, check the swipe and scroll feel on a phone.
+
+- Customer Home map and sheet (2026-11-05). Restored the collapsed sheet
+  to 32% of the phone viewport within a 196–270 px range. The compact
+  phone layout places service icons beside the labels and goes straight
+  to the Private and Shuttle booking buttons. Sass compilation passed.
+  Clear route removes the
+  selected destination pin and returns to the nearby pickup overview, which
+  passed the earlier 22-test Home suite. Next, check the booking controls and
+  map framing at the reported phone viewport.
+
+- Customer Home nearby services (2026-11-05). The default sheet shows more
+  content with smaller service buttons and more space above the journey
+  switch. Fixed cards and map pins share a 1 km straight-line pickup filter.
+  Tap a pin to preview its pickup and route destination. Private shows
+  available cars for the selected journey type. All 21 targeted Home tests,
+  Angular template checks, Sass compilation, and PHP syntax checks passed.
+  The backend feature test requires local Composer dependencies. Next, review
+  the map with device GPS and an online Private driver.
+
+- Customer Home service switcher (2026-11-05): service choices sit at
+  the top of the existing Home sheet. Switching animates the service
+  panel below. Private shows search and saved places, Fixed shows routes,
+  and Shuttle shows its booking entry when available. The map and shared
+  content stay on Home. All 20 targeted Home tests passed. Next, review
+  the transition on the local Home screen.
+
+- Superseded Customer Home service preview (2026-11-05): the earlier
+  prototype used
+  `/customer-tabs/go?servicePreview=1` to review the service chooser.
+  The first screen shows only service choices and defers its location
+  request until a service opens. It uses Private and Fixed examples
+  until the catalog arrives.
+  Selecting a service opens an expanded screen with a distinct header and
+  an animated transition. All services returns to the chooser.
+  Private shows destination search, Fixed shows routes,
+  and Shuttle shows its booking entry when enabled. Offers, coupons, banners,
+  how it works, and promise cards are shared. All nine targeted Home tests
+  passed at that stage.
+
+- Operator Settings service names (2026-11-05): the Services tab contains
+  the name fields above the Local and Outstation switches. Admins can set global
+  display names for Private, Fixed, and Shuttle. The customer booking
+  selectors and driver profile picker read the display names from the
+  catalog. The local migration ran, all three Angular compilations passed,
+  and a rolled-back database check verified saving and resetting the names.
+  Next, verify the labels in a catalog with active services.
+
+- Driver Fixed Ride details buttons (2026-11-05): gave boarding and
+  departure the primary green treatment and used a lighter red outline
+  for cancellation in the summary card.
+
+- Driver Fixed Ride sheet sizing (2026-11-05): reduced the route header,
+  summary spacing, ride buttons, tabs, and cabin footprint within the
+  existing layout. Next, check the fit at the user's mobile viewport.
+
+- Driver Fixed Ride details refinement (2026-11-05): kept the summary,
+  tabs, and cabin layout from the user's screenshot. The header shows the
+  route only. Reduced the height of ride buttons and tabs slightly.
+
+- Driver Fixed Ride details redesign (2026-11-05): the route name is
+  the sole heading. Tabs sit directly under it, seat counts sit with the
+  cabin, and ride actions stay in a footer. Seat buttons use a top-down
+  seat shape. All nine Fixed Ride UI tests passed. Next, review the revised
+  sheet in the local driver preview.
+
+- Driver Fixed Ride details (2026-11-05): redesigned the sheet with
+  compact ride actions, a single row for Stops, Seats, and Passengers,
+  and a smaller cabin. Next, review the details sheet on the driver's
+  mobile preview with occupied and held seats.
+
+- Driver Fixed active ride prototype (2026-11-05): shows the vehicle's
+  seat layout in the summary card, using live seat states. The embedded
+  map uses a steeper 3D camera that looks ahead of the car, a more visible
+  route line, and a next-stop panel with routed distance when available.
+  Next, review the prototype at mobile width before any wider rollout.
+
+- Driver Fixed active ride layout (2026-11-05): used the supplied sketch
+  to place the live map first, with Seats booked on the left and Next stop
+  on the right below it. Ride actions sit below the summary. Next, review
+  the layout in the driver preview with a long stop name.
+
+- **Done — Customer and Driver navigation lifecycle implementation**
+  (2026-11-05). Both apps passed Angular compilation. The live device
+  walkthrough remains a separate verification item covering GPS follow,
+  boarding, drop-off, and ride completion.
 
 - Cross-app map recheck (2026-11-04): reviewed all 16 map constructors.
   Driver Dashboard has a ride card and opens its map from the ride screen.

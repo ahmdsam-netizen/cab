@@ -91,9 +91,10 @@ class FixedRouteService
         $mapped = $routes->map(fn (Route $route) => $this->shapeCustomerRoute($route, $userLat, $userLng, $images));
 
         if ($userLat !== null && $userLng !== null) {
-            $mapped = $mapped->sortBy(function ($r) {
-                return $r['distance_to_start'] ?? PHP_INT_MAX;
-            })->values();
+            $distanceKey = ($filters['sort_by'] ?? null) === 'nearest_pickup'
+                ? 'distance_to_nearest_pickup'
+                : 'distance_to_start';
+            $mapped = $mapped->sortBy(fn ($route) => $route[$distanceKey] ?? PHP_INT_MAX)->values();
         }
 
         return $mapped->take($limit)->values();

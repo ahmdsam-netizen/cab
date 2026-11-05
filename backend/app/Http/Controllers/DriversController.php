@@ -699,6 +699,8 @@ class DriversController extends Controller
             'lng' => ['required', 'numeric', 'between:-180,180'],
             'radius_km' => ['nullable', 'numeric', 'min:0.1', 'max:50'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'service_mode' => ['nullable', 'in:private,fixed,shuttle'],
+            'scope' => ['nullable', 'in:local,outstation'],
         ]);
 
         $lat = (float) $data['lat'];
@@ -714,6 +716,8 @@ class DriversController extends Controller
         $eligibleIds = Driver::query()
             ->where('approval_status', 'approved')
             ->where('is_online', true)
+            ->when(isset($data['service_mode']), fn ($q) => $q->where('active_service_mode', $data['service_mode']))
+            ->when(isset($data['scope']), fn ($q) => $q->whereIn('active_service_scope', [$data['scope'], Driver::SERVICE_SCOPE_BOTH]))
             ->whereNotIn('user_id', $busyDriverIds)
             ->pluck('user_id');
 

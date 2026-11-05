@@ -3,19 +3,28 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Models\OperatorSetting;
+use App\Models\RideType;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class AdminOperatorSettingsController
 {
     public function show()
     {
         return response()->json([
-            'settings' => OperatorSetting::instance()->toArray(),
+            'settings' => $this->settingsPayload(OperatorSetting::instance()),
         ]);
     }
 
     public function update(Request $request)
     {
+        $imageRules = [];
+        foreach (RideType::MODES as $mode) {
+            $imageRules[$mode . '_service_image'] = ['sometimes', 'required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'];
+            $imageRules[$mode . '_remove_service_image'] = ['sometimes', 'boolean'];
+        }
+
         $data = $request->validate([
             'private_service_name' => ['nullable', 'string', 'max:40'],
             'fixed_service_name' => ['nullable', 'string', 'max:40'],
@@ -66,6 +75,7 @@ class AdminOperatorSettingsController
             // Templates
             'customer_ride_accept_msg' => ['nullable', 'string', 'max:2000'],
             'ride_cancellation_msg' => ['nullable', 'string', 'max:2000'],
+            ...$imageRules,
         ]);
 
         $settings = OperatorSetting::instance();
@@ -108,12 +118,69 @@ class AdminOperatorSettingsController
             ], 422);
         }
 
-        $settings->fill($data);
-        $settings->save();
+        $images = [];
+        foreach (RideType::MODES as $mode) {
+            $upload = $mode . '_service_image';
+            $remove = $mode . '_remove_service_image';
+            if (isset($data[$upload]) || !empty($data[$remove])) {
+                $images[$mode . '_service_image_path'] = $data[$upload] ?? null;
+            }
+            unset($data[$upload], $data[$remove]);
+        }
+
+        if ($images) {
+            $this->saveWithImages($settings, $data, $images);
+        } else {
+            $settings->update($data);
+        }
 
         return response()->json([
-            'settings' => $settings->fresh()->toArray(),
+            'settings' => $this->settingsPayload($settings->fresh()),
             'message' => 'Operator settings updated.',
         ]);
+    }
+
+    private function settingsPayload(OperatorSetting $settings): array
+    {
+        $payload = $settings->toArray();
+        foreach (RideType::MODES as $mode) {
+            $payload[$mode . '_service_image_url'] = $settings->serviceImageUrl($mode);
+        }
+
+        return $payload;
+    }
+
+    private function saveWithImages(OperatorSetting $settings, array $data, array $images): void
+    {
+        $disk = Storage::disk('public');
+        $newPaths = [];
+        $oldPaths = [];
+
+        try {
+            foreach ($images as $field => $image) {
+                $data[$field] = null;
+                if ($image) {
+                    $path = $image->store('service_images', 'public');
+                    abort_unless($path, 500, 'Could not store the service image.');
+                    $newPaths[] = $path;
+                    $data[$field] = $path;
+                }
+            }
+
+            DB::transaction(function () use ($settings, $data, $images, &$oldPaths) {
+                $locked = OperatorSetting::query()->lockForUpdate()->findOrFail($settings->id);
+                foreach ($images as $field => $_) {
+                    if ($locked->{$field}) {
+                        $oldPaths[] = $locked->{$field};
+                    }
+                }
+                $locked->update($data);
+            });
+        } catch (\Throwable $error) {
+            $disk->delete($newPaths);
+            throw $error;
+        }
+
+        $disk->delete($oldPaths);
     }
 }

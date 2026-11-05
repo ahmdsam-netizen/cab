@@ -13,7 +13,8 @@ import {
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { AlertController, ViewDidEnter, ViewDidLeave, ViewWillEnter } from '@ionic/angular';
-import { Subscription, interval } from 'rxjs';
+import { carSport } from 'ionicons/icons';
+import { Subscription, catchError, exhaustMap, interval, of, timer } from 'rxjs';
 
 import { ApiService } from '../../../core/api.service';
 import { AuthService } from '../../../core/auth.service';
@@ -86,7 +87,30 @@ interface HomeRoute {
   origin_name?: string;
   dest_name?: string;
   flat_fare?: number | null;
-  stops?: Array<{ id: number }>;
+  dest_lat?: number;
+  dest_lng?: number;
+  stops?: HomeRouteStop[];
+  nearbyPickups?: Array<HomeRouteStop & { distanceMeters: number }>;
+}
+
+interface HomeRouteStop {
+  id: number;
+  seq: number;
+  name: string;
+  lat: number;
+  lng: number;
+  is_pickup: boolean;
+  is_drop: boolean;
+  is_active: boolean;
+  is_temporarily_unavailable: boolean;
+}
+
+interface NearbyHomeCar {
+  id: number;
+  lat: number;
+  lng: number;
+  bearing_deg?: number | null;
+  map_marker_url?: string | null;
 }
 
 interface HomeOffer {
@@ -111,6 +135,7 @@ interface HomeOffer {
 })
 export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, ViewDidLeave, OnDestroy {
   @ViewChild('mapEl', { static: true }) mapElRef!: ElementRef<HTMLDivElement>;
+  @ViewChild('bookingScroll') bookingScroll?: ElementRef<HTMLDivElement>;
   private failedProfileImageUrl: string | null = null;
 
   get profileImageUrl(): string | null {
@@ -146,6 +171,8 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
   city: City | null = null;
   located = false;
   homeExpanded = false;
+  private homeSheetPointer: { id: number; x: number; y: number } | null = null;
+  private homeSheetDragged = false;
   offersTab: 'offers' | 'coupons' = 'offers';
   savedPlaces: Array<{ label: string }> = [];
   homeOffers: HomeOffer[] = [];
@@ -156,6 +183,15 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
   routesLoading = false;
   routesError = false;
   private homeRoutesSub?: Subscription;
+  private homeRouteCatalog: HomeRoute[] = [];
+  private nearbyPickupMarkers = new Map<string, any>();
+  private pickupChoices = new Map<string, Array<{ route: HomeRoute; stop: HomeRouteStop }>>();
+  private pickupInfo: any = null;
+  private pickupDestinationMarker: any = null;
+  private pickupMarkerAnimations = new WeakMap<object, Animation>();
+  private previewPickupKey: string | null = null;
+  private nearbyCarsSub?: Subscription;
+  private nearbyCarMarkers = new Map<number, any>();
 
   // ── App Banners ─────────────────────────────────────────────────────────
   fullScreenBanner: AppBanner | null = null;
@@ -181,6 +217,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
 
   // ── Google Maps internals ────────────────────────────────────────────────
   private map: any = null;
+  private homeMapTransition?: Animation;
   private userMarker: any = null;   // AdvancedMarkerElement
   private accuracyCircle: any = null;
   private watchId: string | null = null;
@@ -226,6 +263,10 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     }
     if (this.map && this.activeFixedRide) {
       this.syncActiveRideMap();
+    } else {
+      if (!this.activeFixedRide && !this.gpsFollow) this.resumeHomeCamera();
+      if (this.routesLoading) this.loadHomeRoutes();
+      this.syncHomeMap();
     }
   }
 
@@ -237,6 +278,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     this.resolvingFix = null;
     this.homeInitPromise = null;
     this.homeRoutesSub?.unsubscribe();
+    this.clearHomeMap();
     if (this.watchId) {
       void this.geo.clearWatch(this.watchId);
       this.watchId = null;
@@ -255,6 +297,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     ++this.watchRevision;
     this.homeOffersSub?.unsubscribe();
     this.homeRoutesSub?.unsubscribe();
+    this.clearHomeMap();
     if (this.watchId) {
       void this.geo.clearWatch(this.watchId);
       this.watchId = null;
@@ -334,7 +377,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
   trackHomeBanner = (_: number, banner: AppBanner): number => banner.id;
 
   homeBannerImage(banner: AppBanner): string {
-    return this.failedHomeBannerImages.has(`${banner.id}:${banner.image_url}`) ? '' : this.resolveBannerImageUrl(banner.image_url);
+    return this.failedHomeBannerImages.has(`${banner.id}:${banner.image_url}`) ? '' : this.resolveHomeImageUrl(banner.image_url);
   }
 
   onHomeBannerImageError(banner: AppBanner): void {
@@ -342,7 +385,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     this.cdr.markForCheck();
   }
 
-  resolveBannerImageUrl(url: string | null | undefined): string {
+  resolveHomeImageUrl(url: string | null | undefined): string {
     const value = url?.trim();
     if (!value) return '';
     const apiBase = environment.apiUrl.replace(/\/api\/?$/i, '').replace(/\/$/, '');
@@ -473,6 +516,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
 
   async recenterMap(): Promise<void> {
     if (this.refreshingMapLocation) return;
+    if (this.previewPickupKey) this.clearSelectedPickupRoute();
     this.gpsFollow = true;
     this.refreshingMapLocation = true;
     this.mapLocationMessage = '';
@@ -500,16 +544,17 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
       void this.recenterMap();
       return;
     }
-    if (!this.map) return;
+    this.showMapOverview();
+  }
+
+  private showMapOverview(): void {
+    if (!this.map || !this.activeFixedRide) return;
     this.gpsFollow = false;
     this.activeNavigation.stopFollowing();
+
     const points = [this.currentCoords];
-    if (this.activeFixedRide) {
-      for (const marker of [this.fixedPickupMarker, this.fixedDropMarker, this.fixedDriverMarker]) {
-        if (marker?.position) points.push(new google.maps.LatLng(marker.position).toJSON());
-      }
-    } else if (this.city?.center_lat != null && this.city.center_lng != null) {
-      points.push({ lat: Number(this.city.center_lat), lng: Number(this.city.center_lng) });
+    for (const marker of [this.fixedPickupMarker, this.fixedDropMarker, this.fixedDriverMarker]) {
+      if (marker?.position) points.push(new google.maps.LatLng(marker.position).toJSON());
     }
     const bounds = new google.maps.LatLngBounds();
     for (const point of points) if (this.validCoords(point)) bounds.extend(point);
@@ -566,6 +611,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     const latlng = { lat, lng };
     const revision = ++this.positionRevision;
     this.currentCoords = latlng;
+    this.updateNearbyRoutes();
     if (!this.map) return;
 
     if (!this.userMarker) {
@@ -582,6 +628,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
         zIndex: 1100,
         title: 'Your exact location',
       });
+      if (!this.activeFixedRide && this.gpsFollow) focusCustomerNavigation(this.map, latlng);
     } else {
       if (!this.activeNavigation.following) this.userMarker.position = latlng;
     }
@@ -590,8 +637,9 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
       this.syncActiveRideMap(pan);
       return;
     }
-    this.userMarker.map = this.map;
+    if (!this.hasSelectedPickupRoute && this.userMarker.map !== this.map) this.userMarker.map = this.map;
 
+    this.syncHomeMap();
     if (this.gpsFollow) this.activeNavigation.follow(this.map, latlng, null, this.userMarker, pan);
   }
 
@@ -617,7 +665,9 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
       this.tiles = [];
       this.mode = null;
       this.homeRoutesSub?.unsubscribe();
+      this.homeRouteCatalog = [];
       this.homeRoutes = [];
+      this.clearHomeMap();
       this.catalogRetryAfter = 0;
       this.resolvingFix = null;
       this.cdr.markForCheck();
@@ -637,7 +687,9 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
       this.catalog = [];
       this.tiles = [];
       this.homeRoutesSub?.unsubscribe();
+      this.homeRouteCatalog = [];
       this.homeRoutes = [];
+      this.clearHomeMap();
       this.catalogFix = null;
       this.resolvingFix = null;
       this.cdr.markForCheck();
@@ -753,23 +805,74 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     if (this.scope === scope) return;
     this.scope = scope;
     this.booking.setScope(scope);
-    this.mode = null;
     this.rebuildTiles();
+    this.clearHomeMap();
+    if (!this.activeFixedRide && !this.gpsFollow) this.resumeHomeCamera();
     this.loadHomeRoutes();
+    this.syncHomeMap();
+    this.resetBookingScroll();
     this.cdr.markForCheck();
   }
 
   pickMode(tile: ServiceTile): void {
+    const changed = this.mode !== tile.mode;
     this.mode = tile.mode;
     this.booking.setMode(tile.mode, tile.rideTypeId);
+    if (changed) {
+      this.clearHomeMap();
+      if (!this.activeFixedRide && !this.gpsFollow) this.resumeHomeCamera();
+      this.syncHomeMap();
+      if (this.mapReady && !this.activeFixedRide && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        this.homeMapTransition = this.mapElRef?.nativeElement.animate(
+          [{ opacity: .82 }, { opacity: 1 }],
+          { duration: 260, easing: 'ease-out' },
+        );
+      }
+    }
+    this.resetBookingScroll();
     this.cdr.markForCheck();
   }
 
-  whereTo(): void {
-    this.booking.setScope(this.scope);
-    if (this.mode) this.booking.setMode(this.mode);
+  private resetBookingScroll(): void {
+    if (this.bookingScroll) this.bookingScroll.nativeElement.scrollTop = 0;
+  }
 
-    switch (this.mode) {
+  startHomeSheetSwipe(event: PointerEvent): void {
+    if (event.button !== 0 || this.homeSheetPointer) return;
+    this.homeSheetDragged = false;
+    this.homeSheetPointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    (event.currentTarget as HTMLButtonElement).setPointerCapture(event.pointerId);
+  }
+
+  finishHomeSheetSwipe(event: PointerEvent): void {
+    const start = this.homeSheetPointer;
+    if (!start || start.id !== event.pointerId) return;
+    this.homeSheetPointer = null;
+    if (event.type !== 'pointerup') return;
+
+    const dx = Math.abs(event.clientX - start.x);
+    const dy = event.clientY - start.y;
+    this.homeSheetDragged = Math.max(dx, Math.abs(dy)) >= 32;
+    if (this.homeSheetDragged && Math.abs(dy) > dx) this.setBookingSheetExpanded(dy < 0);
+  }
+
+  toggleBookingSheet(event: MouseEvent): void {
+    if (!this.homeSheetDragged || event.detail === 0) this.setBookingSheetExpanded(!this.homeExpanded);
+    this.homeSheetDragged = false;
+  }
+
+  private setBookingSheetExpanded(expanded: boolean): void {
+    if (this.homeExpanded === expanded) return;
+    this.homeExpanded = expanded;
+    if (!expanded) this.resetBookingScroll();
+  }
+
+  whereTo(): void {
+    const mode = this.mode;
+    this.booking.setScope(this.scope);
+    if (mode) this.booking.setMode(mode, this.tiles.find(tile => tile.mode === mode)?.rideTypeId ?? null);
+
+    switch (mode) {
       case 'private': void this.router.navigate(['/customer-tabs/go/private']); break;
       case 'fixed':   void this.router.navigate(['/customer-tabs/go/fixed']);   break;
       case 'shuttle': void this.router.navigate(['/customer-tabs/go/shuttle']); break;
@@ -778,14 +881,13 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
   }
 
   trackByMode = (_: number, tile: ServiceTile): string => tile.mode;
+  trackByHomeRoute = (_: number, route: HomeRoute): number => route.id;
 
   private rebuildTiles(): void {
     this.tiles = tilesFor(this.catalog, this.scope);
-    if (this.tiles.length && !this.tiles.some((t) => t.mode === this.mode)) {
-      const first = this.tiles[0];
-      this.mode = first.mode;
-      this.booking.setMode(first.mode, first.rideTypeId);
-    }
+    const selected = this.tiles.find(tile => tile.mode === this.mode) ?? this.tiles[0];
+    this.mode = selected?.mode ?? null;
+    if (selected) this.booking.setMode(selected.mode, selected.rideTypeId);
   }
 
   get offersFixed(): boolean {
@@ -820,20 +922,27 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
 
   private loadHomeRoutes(): void {
     this.homeRoutesSub?.unsubscribe();
+    this.homeRouteCatalog = [];
     this.homeRoutes = [];
+    this.syncHomeMap();
     this.routesError = false;
     this.routesLoading = false;
-    if (!this.city || !this.offersFixed) return;
-    const params = new URLSearchParams({ city_id: String(this.city.id) });
-    if (this.currentCoords) {
-      params.set('lat', String(this.currentCoords.lat));
-      params.set('lng', String(this.currentCoords.lng));
-    }
+    if (!this.city || !this.offersFixed || !this.currentCoords) return;
+    const params = new URLSearchParams({
+      city_id: String(this.city.id),
+      scope: this.scope,
+      lat: String(this.currentCoords.lat),
+      lng: String(this.currentCoords.lng),
+      sort_by: 'nearest_pickup',
+      limit: '100',
+    });
     this.routesLoading = true;
     this.homeRoutesSub = this.api.get<{ data: HomeRoute[] }>('/fixed/routes?' + params).subscribe({
       next: res => {
-        this.homeRoutes = (res.data ?? []).filter(route => route.scope === this.scope).slice(0, 3);
+        this.homeRouteCatalog = (res.data ?? []).filter(route => route.scope === this.scope);
+        this.updateNearbyRoutes();
         this.routesLoading = false;
+        this.syncHomeMap();
         this.cdr.markForCheck();
       },
       error: () => {
@@ -842,6 +951,221 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
         this.cdr.markForCheck();
       },
     });
+  }
+
+  private updateNearbyRoutes(): void {
+    const position = this.currentCoords;
+    if (!position) return;
+    this.homeRoutes = this.homeRouteCatalog.map(route => {
+      const nearbyPickups = (route.stops ?? [])
+        .filter(stop => stop.is_pickup && stop.is_active && !stop.is_temporarily_unavailable
+          && this.validCoords(stop) && stop.lat !== 0 && stop.lng !== 0)
+        .map(stop => ({
+          ...stop,
+          distanceMeters: distanceKm(position.lat, position.lng, stop.lat, stop.lng) * 1000,
+        }))
+        .filter(stop => stop.distanceMeters <= 1000)
+        .sort((a, b) => a.distanceMeters - b.distanceMeters);
+      return { ...route, nearbyPickups };
+    }).filter(route => route.nearbyPickups.length)
+      .sort((a, b) => a.nearbyPickups[0].distanceMeters - b.nearbyPickups[0].distanceMeters);
+    this.cdr.markForCheck();
+  }
+
+  private syncHomeMap(): void {
+    if (!this.pageActive || !this.map || !this.userMarker || !this.city || !this.currentCoords || this.activeFixedRide) return;
+    if (this.mode === 'fixed') this.syncNearbyPickupMarkers();
+    if (this.mode === 'private') this.startNearbyCars();
+  }
+
+  private syncNearbyPickupMarkers(): void {
+    const choices = new Map<string, Array<{ route: HomeRoute; stop: HomeRouteStop }>>();
+    for (const route of this.homeRoutes) {
+      for (const stop of route.nearbyPickups ?? []) {
+        const key = `${stop.lat},${stop.lng}`;
+        const atStop = choices.get(key) ?? [];
+        atStop.push({ route, stop });
+        choices.set(key, atStop);
+        if (!this.nearbyPickupMarkers.has(key)) {
+          const marker = new google.maps.marker.AdvancedMarkerElement({
+            position: { lat: stop.lat, lng: stop.lng },
+            map: !this.hasSelectedPickupRoute || key === this.previewPickupKey ? this.map : null,
+            title: `Pickup: ${stop.name}`,
+            content: buildFixedRidePin('pickup', stop.name),
+          });
+          marker.addListener('click', () => this.zone.run(() => this.openPickupChoices(key, marker)));
+          this.nearbyPickupMarkers.set(key, marker);
+        }
+      }
+    }
+    this.pickupChoices = choices;
+    if (this.previewPickupKey && !choices.has(this.previewPickupKey)) this.clearSelectedPickupRoute();
+    for (const [key, marker] of this.nearbyPickupMarkers) {
+      if (choices.has(key)) continue;
+      marker.map = null;
+      this.nearbyPickupMarkers.delete(key);
+    }
+  }
+
+  private openPickupChoices(key: string, marker: any): void {
+    if (this.hasSelectedPickupRoute) return;
+    const choices = this.pickupChoices.get(key);
+    if (!choices?.length) return;
+    this.clearPickupPreview();
+    this.previewPickupKey = key;
+    if (choices.length === 1) {
+      this.previewPickup(key, choices[0].route, choices[0].stop);
+      return;
+    }
+    const menu = document.createElement('div');
+    for (const { route, stop } of choices) {
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.textContent = route.name;
+      option.style.cssText = 'display:block;background:white;color:#102337;padding:10px;text-align:left';
+      option.addEventListener('click', () => this.zone.run(() => this.previewPickup(key, route, stop)));
+      menu.append(option);
+    }
+    this.pickupInfo = new google.maps.InfoWindow({ content: menu, ariaLabel: 'Choose a route' });
+    this.pickupInfo.open({ map: this.map, anchor: marker });
+  }
+
+  private previewPickup(key: string, route: HomeRoute, stop: HomeRouteStop): void {
+    this.clearPickupPreview();
+    this.previewPickupKey = key;
+    this.gpsFollow = false;
+    this.activeNavigation.stopFollowing();
+    for (const [pickupKey, marker] of this.nearbyPickupMarkers) {
+      if (pickupKey !== key) this.fadePickupMarker(marker, false);
+    }
+    if (this.userMarker) this.fadePickupMarker(this.userMarker, false);
+    const pickup = { lat: stop.lat, lng: stop.lng };
+    const terminal = route.stops?.filter(point => point.is_drop && point.seq > stop.seq)
+      .reduce<HomeRouteStop | undefined>((last, point) => !last || point.seq > last.seq ? point : last, undefined);
+    const destination = { lat: route.dest_lat ?? 0, lng: route.dest_lng ?? 0 };
+    const drop = this.validCoords(destination) && destination.lat !== 0 && destination.lng !== 0 ? destination : terminal;
+    const bounds = new google.maps.LatLngBounds().extend(pickup);
+    if (drop && this.validCoords(drop)) {
+      const label = `Destination: ${route.dest_name || terminal?.name || route.name}`;
+      this.pickupDestinationMarker = new google.maps.marker.AdvancedMarkerElement({
+        position: { lat: drop.lat, lng: drop.lng },
+        title: label,
+        content: buildFixedRidePin('drop', label),
+        zIndex: 1000,
+      });
+      this.fadePickupMarker(this.pickupDestinationMarker, true);
+      bounds.extend(drop);
+    }
+    if (!bounds.getSouthWest().equals(bounds.getNorthEast())) {
+      const sidePadding = Math.min(100, this.map.getDiv().clientWidth * .22);
+      fitCustomerMap(this.map, bounds, { top: 100, bottom: 28, left: sidePadding, right: sidePadding });
+    } else {
+      focusCustomerNavigation(this.map, pickup);
+    }
+    this.cdr.markForCheck();
+  }
+
+  private startNearbyCars(): void {
+    if (this.nearbyCarsSub) return;
+    this.nearbyCarsSub = timer(0, 6000).pipe(exhaustMap(() => {
+      const { lat, lng } = this.currentCoords!;
+      const params = new URLSearchParams({
+        lat: String(lat), lng: String(lng), service_mode: 'private', scope: this.scope,
+      });
+      return this.api.get<{ data: NearbyHomeCar[] }>('/drivers/nearby?' + params)
+        .pipe(catchError(() => of({ data: [] as NearbyHomeCar[] })));
+    })).subscribe(({ data }) => {
+      const ids = new Set<number>();
+      for (const car of data ?? []) {
+        if (!this.validCoords(car)) continue;
+        ids.add(car.id);
+        const bearing = car.bearing_deg ?? 0;
+        const markerUrl = car.map_marker_url || carSport;
+        const position = { lat: car.lat, lng: car.lng };
+        let marker = this.nearbyCarMarkers.get(car.id);
+        if (marker) {
+          marker.position = position;
+          updateCarMarkerBearing(marker, bearing);
+          updateCarMarkerImage(marker, markerUrl);
+        } else {
+          marker = new google.maps.marker.AdvancedMarkerElement({
+            position, map: this.map, title: 'Available Private car',
+            content: buildReusableCarMarkerElement({ bearing, markerUrl, width: 22, height: 42 }),
+          });
+          this.nearbyCarMarkers.set(car.id, marker);
+        }
+      }
+      for (const [id, marker] of this.nearbyCarMarkers) {
+        if (ids.has(id)) continue;
+        marker.map = null;
+        this.nearbyCarMarkers.delete(id);
+      }
+    });
+  }
+
+  get hasSelectedPickupRoute(): boolean {
+    return this.previewPickupKey !== null && !this.pickupInfo;
+  }
+
+  clearSelectedPickupRoute(): void {
+    const selectedKey = this.hasSelectedPickupRoute ? this.previewPickupKey : null;
+    if (this.pickupDestinationMarker) {
+      this.fadePickupMarker(this.pickupDestinationMarker, false);
+      this.pickupDestinationMarker = null;
+    }
+    this.clearPickupPreview();
+    if (selectedKey) {
+      for (const [key, marker] of this.nearbyPickupMarkers) {
+        if (key !== selectedKey) this.fadePickupMarker(marker, true);
+      }
+      if (this.userMarker) this.fadePickupMarker(this.userMarker, true);
+    }
+    this.resumeHomeCamera();
+  }
+
+  private fadePickupMarker(marker: any, visible: boolean): void {
+    this.pickupMarkerAnimations.get(marker)?.cancel();
+    if (visible) marker.map = this.map;
+    if (!marker.content?.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      if (!visible) marker.map = null;
+      return;
+    }
+    const animation = marker.content.animate(
+      [{ opacity: visible ? 0 : 1 }, { opacity: visible ? 1 : 0 }],
+      { duration: 220, easing: 'ease-out' },
+    );
+    this.pickupMarkerAnimations.set(marker, animation);
+    animation.onfinish = () => {
+      this.pickupMarkerAnimations.delete(marker);
+      if (!visible) marker.map = null;
+    };
+  }
+
+  private resumeHomeCamera(): void {
+    this.gpsFollow = true;
+    if (this.map && this.currentCoords) {
+      this.activeNavigation.follow(this.map, this.currentCoords, null, this.userMarker, true);
+    }
+  }
+
+  private clearPickupPreview(): void {
+    this.pickupInfo?.close();
+    this.pickupInfo = null;
+    if (this.pickupDestinationMarker) this.pickupDestinationMarker.map = null;
+    this.pickupDestinationMarker = null;
+    this.previewPickupKey = null;
+  }
+
+  private clearHomeMap(): void {
+    this.homeMapTransition?.cancel();
+    this.homeMapTransition = undefined;
+    this.clearPickupPreview();
+    this.nearbyCarsSub?.unsubscribe();
+    this.nearbyCarsSub = undefined;
+    for (const marker of [...this.nearbyPickupMarkers.values(), ...this.nearbyCarMarkers.values()]) marker.map = null;
+    this.nearbyPickupMarkers.clear();
+    this.pickupChoices.clear();
+    this.nearbyCarMarkers.clear();
   }
 
   openHomeRoute(route: HomeRoute): void {
@@ -916,11 +1240,9 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
             this.driverPosition = null;
             this.clearActiveRideMap();
             if (this.userMarker && this.map) this.userMarker.map = this.map;
-            if (this.gpsFollow && this.map && this.currentCoords) {
-              this.map.setHeading(0);
-              this.activeNavigation.follow(this.map, this.currentCoords, null, this.userMarker, true);
-            }
+            this.resumeHomeCamera();
             this.stopActiveRideTracking();
+            this.syncHomeMap();
             this.cdr.markForCheck();
           }
         }
@@ -931,6 +1253,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
 
   private syncActiveRideMap(recenter = false): void {
     if (!this.map || typeof google === 'undefined' || !this.activeFixedRide) return;
+    this.clearHomeMap();
     const b = this.activeFixedRide;
     const boarded = b.status?.toUpperCase() === 'BOARDED';
     if (this.userMarker) this.userMarker.map = boarded ? null : this.map;

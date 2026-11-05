@@ -32,6 +32,74 @@ Customer-Route-Seat-Payment-Verification-2026-10-21.md.
 
 ## User decisions and constraints
 
+- 2026-11-05: let operators upload service images alongside the existing
+  names in Operator Settings. One image per service applies to Local and
+  Outstation in every city.
+
+- 2026-11-05: use the same close-up 3D GPS camera for Private Ride and
+  Book A Car on Customer Home. Service tiles switch the map with a brief
+  fade. The arrow opens and closes the booking panel. Hide the separate
+  Follow GPS button on the booking map.
+  A Fixed route preview shows just its pickup and destination pins.
+  Clear route fades the nearby pins back in and restores the GPS camera.
+
+- 2026-11-05: show only the service choices below the map in the collapsed
+  Customer Home sheet. The booking panel opens at full height,
+  with the service picker available for switching. The handle arrow
+  sits in a white circle at the top edge, moves repeatedly in the available
+  direction, and matches the bottom navigation background.
+
+- 2026-11-05: let customers swipe the Home handle up to open a near-full
+  booking sheet and down to return to the map. Keep the selected service and
+  pin the service picker above the scrolling booking content.
+
+- 2026-11-05: give the map most of the Customer Home screen by default,
+  and fit the main booking controls within the shorter collapsed sheet.
+  Keep the Home sheet expandable and give Fixed route previews a visible
+  Clear route action that returns to the nearby pickup overview.
+
+- 2026-11-05: keep the Customer Home sheet, make its service buttons more
+  compact, and add space above Local and Outstation. Show more content at
+  the default sheet height. In Fixed, use the same 1 km pickup radius for
+  the list and the map, and show the route destination when a pickup is
+  selected. In Private, show available cars for the selected journey type.
+
+- 2026-11-05: use the existing Home sheet for service switching. Keep
+  the switcher above the animated service panel and the shared content
+  below it.
+
+- 2026-11-05: the customer Home preview starts with a service chooser.
+  The chooser shows only the service options and has no location gate.
+  Tapping a service opens a distinct booking screen with an animated
+  transition. All services returns to the chooser.
+
+- 2026-11-05: preview an animated customer Home service switch. Show
+  destination search for Private and route cards for Fixed. Offers,
+  coupons, banners, how it works, and promise cards are shared by all services.
+
+- 2026-11-05: let operators edit the Private, Fixed, and Shuttle display
+  names in Operator Settings. Keep the underlying service keys stable.
+
+- 2026-11-05: compact the whole driver ride details sheet, including the
+  header, buttons, tabs, and dark cabin with its seat grid.
+
+- 2026-11-05: preserve the details layout shown in the latest screenshot.
+  Keep the seat summary and actions above the tabs and make the buttons
+  and tabs slightly smaller.
+
+- 2026-11-05: keep the origin and destination as the driver details
+  heading and remove the generic Fixed Ride title and booking status badge.
+
+- 2026-11-05: make the driver Fixed Ride details sheet compact. Use one
+  row for Stops, Seats, and Passengers and a smaller interactive cabin.
+
+- 2026-11-05: show the seat layout in the driver Fixed ride summary.
+  Prototype the new navigation appearance on the embedded active ride map
+  and review it before applying it to other maps.
+
+- 2026-11-05: the driver Fixed active ride sketch places the map above a
+  two-column summary with Seats booked on the left and Next stop on the right.
+
 - 2026-11-04: center Customer Home on the device location by default.
   Add a visible GPS and overview switch. Keep Private and Fixed in the
   collapsed sheet and put the remaining content within scroll reach.

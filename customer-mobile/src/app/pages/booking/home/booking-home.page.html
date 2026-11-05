@@ -11,8 +11,8 @@
     </div>
   </section>
   <div class="bh-home-content" [class.has-active-ride]="!!activeFixedRide" [class.is-sheet-expanded]="homeExpanded"
+    [class.has-service-choices]="tiles.length > 0"
     [attr.inert]="!located ? '' : null" [attr.aria-hidden]="!located ? true : null">
-
   <div class="bh-location-status" *ngIf="locationFetching" role="status">
     <ion-spinner name="crescent"></ion-spinner>
     <span>Finding your location…</span>
@@ -39,10 +39,14 @@
     </a>
   </header>
 
-  <div class="bh-map-controls" *ngIf="mapReady && located">
-    <button type="button" (click)="toggleMapMode()" [disabled]="refreshingMapLocation">
+  <div class="bh-map-controls" *ngIf="mapReady && located && (activeFixedRide || hasSelectedPickupRoute || mapLocationMessage)">
+    <button *ngIf="activeFixedRide" type="button" (click)="toggleMapMode()" [disabled]="refreshingMapLocation">
       <ion-icon [name]="gpsFollow ? 'map-outline' : 'locate-outline'" aria-hidden="true"></ion-icon>
       {{ refreshingMapLocation ? 'Finding location…' : (gpsFollow ? 'Route overview' : 'Follow GPS') }}
+    </button>
+    <button *ngIf="hasSelectedPickupRoute" class="bh-clear-route" type="button" (click)="clearSelectedPickupRoute()">
+      <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
+      Clear route
     </button>
     <span *ngIf="mapLocationMessage" role="status">{{ mapLocationMessage }}</span>
   </div>
@@ -65,7 +69,7 @@
     </button>
     <div class="dc-banner-fullscreen-hero" (click)="onBannerClick(fullScreenBanner)">
       <img
-        [src]="resolveBannerImageUrl(fullScreenBanner.image_url)"
+        [src]="resolveHomeImageUrl(fullScreenBanner.image_url)"
         [alt]="fullScreenBanner.title"
         class="dc-banner-fullscreen-hero-img"
       />
@@ -143,32 +147,57 @@
     </div>
   </section>
 
-  <section class="bh-home-sheet" *ngIf="!activeFixedRide" [class.is-expanded]="homeExpanded" aria-label="Book a ride">
-    <button class="bh-sheet-toggle" type="button" (click)="homeExpanded = !homeExpanded"
-      [attr.aria-expanded]="homeExpanded" [attr.aria-label]="homeExpanded ? 'Collapse Home panel' : 'Expand Home panel'">
-      <span aria-hidden="true"></span>
+  <section class="bh-home-sheet bh-booking-sheet" *ngIf="!activeFixedRide" [class.is-expanded]="homeExpanded" aria-label="Book a ride">
+    <button class="bh-sheet-toggle bh-booking-sheet-handle" type="button"
+      (pointerdown)="startHomeSheetSwipe($event)" (pointerup)="finishHomeSheetSwipe($event)"
+      (pointercancel)="finishHomeSheetSwipe($event)" (lostpointercapture)="finishHomeSheetSwipe($event)"
+      (click)="toggleBookingSheet($event)"
+      [attr.aria-expanded]="homeExpanded" [attr.aria-label]="homeExpanded ? 'Close booking' : 'Open booking'">
+      <span class="bh-booking-arrow" aria-hidden="true"><ion-icon name="chevron-up-outline"></ion-icon></span>
     </button>
-    <div class="bh-home-scroll">
-      <h1 class="bh-home-title">Where are you going?</h1>
-      <button class="bh-search" type="button" [disabled]="loading || !tiles.length" (click)="whereTo()">
-        <ion-icon name="search-outline" aria-hidden="true"></ion-icon>
-        <span>Where to?</span>
-        <span class="bh-search-action"><ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></span>
-      </button>
-
+    <div class="bh-service-controls" *ngIf="tiles.length">
+      <div class="bh-services" role="group" aria-label="Ride services">
+        <button *ngFor="let tile of tiles; trackBy: trackByMode" type="button"
+          [class.is-selected]="mode === tile.mode" [attr.aria-pressed]="mode === tile.mode"
+          aria-controls="home-service-panel" (click)="pickMode(tile)">
+          <img *ngIf="resolveHomeImageUrl(tile.imageUrl) as imageUrl; else serviceIcon" class="bh-service-image"
+            [src]="imageUrl" alt="" (error)="tile.imageUrl = null">
+          <ng-template #serviceIcon><ion-icon [name]="tile.icon" aria-hidden="true"></ion-icon></ng-template>
+          <strong>{{ tile.title }}</strong>
+          <span>{{ tile.hint }}</span>
+        </button>
+      </div>
       <div class="bh-scope-row" *ngIf="hasScopeSwitch" role="group" aria-label="Journey type">
         <button *ngFor="let s of scopes" type="button" [class.is-selected]="scope === s"
           [attr.aria-pressed]="scope === s" (click)="pickScope(s)">{{ scopeLabel(s) }}</button>
         <span *ngIf="city">{{ city.name }}</span>
       </div>
-      <div class="bh-services" *ngIf="tiles.length" role="group" aria-label="Ride services">
-        <button *ngFor="let tile of tiles; trackBy: trackByMode" type="button"
-          [class.is-selected]="mode === tile.mode" [attr.aria-pressed]="mode === tile.mode" (click)="pickMode(tile)">
-          <ion-icon [name]="tile.icon" aria-hidden="true"></ion-icon>
-          <strong>{{ tile.title }}</strong>
-          <span>{{ tile.hint }}</span>
-        </button>
+    </div>
+
+    <div #bookingScroll class="bh-home-scroll">
+      <div id="home-service-panel" [ngSwitch]="mode">
+        <section *ngSwitchCase="'private'" class="bh-service-panel" aria-label="Private booking">
+          <h1 class="bh-home-title">Where are you going?</h1>
+          <button class="bh-search" type="button" (click)="whereTo()">
+            <ion-icon name="search-outline" aria-hidden="true"></ion-icon>
+            <span>Where to?</span>
+            <span class="bh-search-action"><ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></span>
+          </button>
+          <ng-container *ngTemplateOutlet="savedPlacesPanel"></ng-container>
+        </section>
+        <section *ngSwitchCase="'fixed'" class="bh-service-panel" aria-label="Fixed booking">
+          <ng-container *ngTemplateOutlet="fixedRoutes"></ng-container>
+        </section>
+        <section *ngSwitchCase="'shuttle'" class="bh-service-panel" aria-label="Shuttle booking">
+          <h1 class="bh-home-title">Find a shuttle</h1>
+          <button class="bh-search" type="button" (click)="whereTo()">
+            <ion-icon name="bus-outline" aria-hidden="true"></ion-icon>
+            <span>Browse shuttles</span>
+            <span class="bh-search-action"><ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></span>
+          </button>
+        </section>
       </div>
+
       <div class="bh-home-notice" *ngIf="loading" role="status">
         <ion-spinner name="crescent"></ion-spinner><span>Finding rides in your area…</span>
       </div>
@@ -215,6 +244,7 @@
         </div>
       </section>
 
+      <ng-template #savedPlacesPanel>
       <div class="bh-saved-places" aria-label="Saved places">
         <a *ngFor="let place of savedPlaces" routerLink="/customer-tabs/saved-locations" [attr.aria-label]="'View saved place: ' + place.label">
           <ion-icon [name]="place.label.toLowerCase() === 'home' ? 'home-outline' : (place.label.toLowerCase() === 'work' ? 'briefcase-outline' : 'location-outline')" aria-hidden="true"></ion-icon>{{ place.label }}
@@ -222,19 +252,23 @@
         <a routerLink="/customer-tabs/saved-locations"><ion-icon name="add-outline" aria-hidden="true"></ion-icon>{{ savedPlaces.length ? 'Add place' : 'Save a place' }}</a>
       </div>
 
-      <section class="bh-route-section" *ngIf="offersFixed" aria-labelledby="home-routes-title">
+      </ng-template>
+
+      <ng-template #fixedRoutes>
+      <section class="bh-route-section" aria-labelledby="home-routes-title">
         <div class="bh-section-heading"><h2 id="home-routes-title">Explore fixed routes</h2>
           <button type="button" (click)="browseFixedRoutes()">See all<ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon></button></div>
-        <p class="bh-section-subtitle">Find your pickup stop and choose a seat.</p>
+        <p class="bh-section-subtitle">Pickup stops within 1 km of your location.</p>
         <p class="bh-route-state" *ngIf="routesLoading">Loading routes…</p>
-        <p class="bh-route-state" *ngIf="!routesLoading && !homeRoutes.length">{{ routesError ? 'Routes could not load. Open all routes to try again.' : 'Check all routes for the latest availability.' }}</p>
-        <button type="button" class="bh-route-card" *ngFor="let route of homeRoutes" (click)="openHomeRoute(route)" [attr.aria-label]="'View departures for ' + route.name">
+        <p class="bh-route-state" *ngIf="!routesLoading && !homeRoutes.length">{{ routesError ? 'Routes could not load. Open all routes to try again.' : 'No pickup stops within 1 km. Tap See all to browse farther.' }}</p>
+        <button type="button" class="bh-route-card" *ngFor="let route of homeRoutes; trackBy: trackByHomeRoute" (click)="openHomeRoute(route)" [attr.aria-label]="'View departures for ' + route.name">
           <span class="bh-route-icon"><ion-icon name="bus-outline" aria-hidden="true"></ion-icon></span>
           <div><h3>{{ route.name }}</h3><p *ngIf="route.origin_name || route.dest_name">{{ route.origin_name }}<span *ngIf="route.dest_name"> → {{ route.dest_name }}</span></p>
-            <span class="bh-route-scope">{{ route.scope === 'outstation' ? 'Outstation' : 'Local' }}<span *ngIf="route.stops?.length"> · {{ route.stops?.length }} stops</span></span></div>
+            <span class="bh-route-scope" *ngIf="route.nearbyPickups?.[0] as pickup">{{ pickup.name }} · {{ pickup.distanceMeters | number:'1.0-0' }} m away</span></div>
           <strong class="bh-route-fare" *ngIf="route.flat_fare != null">₹{{ route.flat_fare | number:'1.0-0' }}<small>/ seat</small></strong>
         </button>
       </section>
+      </ng-template>
 
       <section class="bh-how" aria-labelledby="home-how-title">
         <div class="bh-section-heading"><h2 id="home-how-title">How it works</h2><span>YOUR JOURNEY, SIMPLIFIED</span></div>

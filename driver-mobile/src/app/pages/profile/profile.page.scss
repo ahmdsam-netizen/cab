@@ -1242,6 +1242,7 @@
 }
 
 .pf-service-item {
+  .pf-service-item__image { width: 36px; height: 30px; object-fit: contain; flex-shrink: 0; }
   display: flex;
   align-items: center;
   justify-content: space-between;

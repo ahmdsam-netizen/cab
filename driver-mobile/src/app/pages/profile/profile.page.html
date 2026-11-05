@@ -383,6 +383,7 @@
                 <div class="pf-service-item__radio" [class.is-checked]="selectedRideKey === m.key">
                   <div class="pf-service-item__radio-dot" *ngIf="selectedRideKey === m.key"></div>
                 </div>
+                <img *ngIf="m.image_url" class="pf-service-item__image" [src]="m.image_url" alt="" (error)="m.image_url = null">
                 <div class="pf-service-item__info">
                   <span class="pf-service-item__name">{{ m.name }}</span>
                   <span class="pf-service-item__sub">{{ m.scope === 'outstation' ? 'Outstation Service' : 'Local Service' }}</span>

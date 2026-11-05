@@ -44,6 +44,7 @@ export interface ServiceTile {
   title: string;
   hint: string;
   icon: string;
+  imageUrl?: string | null;
   /** The catalogue ride-type id, needed to price Fixed/Shuttle. */
   rideTypeId: number | null;
 }

@@ -1,5 +1,21 @@
 # Android release handoff
 
+## 2026-11-05 — Customer and driver release APKs
+
+- The user requested fresh APKs for both apps in `release-apks`.
+- Both production web builds, Capacitor syncs, and Gradle
+  `assembleRelease` runs passed. Both APKs contain the new web bundles.
+  The builds use the configured versions and existing signing keys.
+- Customer APK `release-apks/DreamCabs-Customer-5.7.2-release-2026-11-05.apk`
+  is `product.customer.dreamcab`, version code 572, 11,525,585 bytes.
+  SHA-256 `efbd0c82f026012b7b928328a109a510ccc0a76bc501b8f20278cfc9c0888d9f`.
+- Driver APK `release-apks/Cabbies-Driver-5.1.5-release-2026-11-05.apk`
+  is `product.driver.dreamcab`, version code 515, 11,964,033 bytes.
+  SHA-256 `c78ae704efd3495d5f9fca8506843b22ca7ab91e53849bd1be9a5b02557e199d`.
+- Android tools verified both packages, versions, and v2 signatures.
+  The signing certificate fingerprints match the respective October builds.
+  Device installation, live GPS, and Play Console status remain unverified.
+
 ## 2026-11-04 — Customer navigation readiness check
 
 - Local evidence: the customer production web build passed from the working
