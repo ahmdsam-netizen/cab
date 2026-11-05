@@ -520,16 +520,28 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     this.gpsFollow = true;
     this.refreshingMapLocation = true;
     this.mapLocationMessage = '';
+    const lastPosition = this.currentCoords;
+    this.cdr.markForCheck();
     const revision = this.positionRevision;
     try {
-      const fix = await this.geo.getCurrentPosition(0);
+      if (this.map && this.validCoords(lastPosition)) {
+        if (this.activeFixedRide) {
+          this.syncActiveRideMap(true);
+        } else {
+          this.activeNavigation.stopFollowing();
+          focusCustomerNavigation(this.map, lastPosition);
+        }
+      }
+      const fix = await this.geo.getCurrentPosition(0).catch(() => null);
       if (!this.pageActive) return;
       if (revision !== this.positionRevision && this.currentCoords) {
         await this.updateMapPosition(this.currentCoords.lat, this.currentCoords.lng, 40, true);
       } else if (this.validCoords(fix)) {
         await this.onLocationFix(fix, true);
       } else {
-        this.mapLocationMessage = 'Couldn’t refresh your location';
+        this.mapLocationMessage = this.validCoords(lastPosition) && !this.activeFixedRide
+          ? 'Showing your last known location. Couldn’t get a new GPS fix.'
+          : 'Couldn’t get a new GPS fix. Check location access and try again.';
       }
     } catch {
       if (this.pageActive) this.mapLocationMessage = 'Couldn’t refresh your location';
@@ -577,7 +589,7 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
           if (err) {
             // A failed initial watch must not supersede an in-flight GPS/catalog
             // request. A later valid fix can still recover without a page reload.
-            if (!this.locationFetching) this.failLocation(++this.locationRevision);
+            if (!this.locationFetching && !this.located) this.failLocation(++this.locationRevision);
             return;
           }
           if (pos) void this.onLocationFix(pos);

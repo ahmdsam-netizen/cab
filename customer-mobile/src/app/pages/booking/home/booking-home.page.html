@@ -29,9 +29,9 @@
         <ng-template #profileIcon><ion-icon name="person-outline" aria-hidden="true"></ion-icon></ng-template>
       </ion-menu-button>
     </div>
-    <button class="bh-location-button" type="button" (click)="recenterMap()" aria-label="Show my location on the map">
+    <button class="bh-location-button" type="button" (click)="recenterMap()" [disabled]="refreshingMapLocation" aria-label="Show my location on the map">
       <ion-icon name="location-outline" aria-hidden="true"></ion-icon>
-      <span>{{ locationFetching ? 'Finding your location…' : (city?.name || 'Your location') }}</span>
+      <span>{{ locationFetching || refreshingMapLocation ? 'Finding your location…' : (city?.name || 'Your location') }}</span>
       <ion-icon name="chevron-down-outline" aria-hidden="true"></ion-icon>
     </button>
     <a class="bh-icon-button" routerLink="/customer-tabs/notifications" aria-label="Notifications">

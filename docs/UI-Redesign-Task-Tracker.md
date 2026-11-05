@@ -4,6 +4,13 @@ Last updated: 2026-11-05 (Asia/Calcutta)
 
 ## Start here
 
+- Customer Home location button (2026-11-05). Tapping it immediately
+  centers the map on the last device fix while requesting a fresh one.
+  The browser returned to the device marker after a map drag and displayed
+  the fallback message when the refresh timed out. All 26 Home tests passed,
+  including a simulated fresh fix that updates the service area. Next, verify
+  a fresh GPS fix on a physical phone.
+
 - Operator service images (2026-11-05). Services now supports uploading,
   replacing, and clearing the image for Private, Fixed, and Shuttle alongside
   their display names. The admin uses clickable image tiles with hidden file

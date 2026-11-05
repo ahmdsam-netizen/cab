@@ -117,6 +117,39 @@ describe('Home location gate and catalog continuity', () => {
     expect(page.booking.catalog).toHaveBeenCalledTimes(1);
     expect(page.located).toBeTrue();
   });
+  it('recenters on the last device fix immediately even if a fresh request times out', async () => {
+    const { page } = setup();
+    await page.loadLocationAndCatalog();
+    const fresh = deferred<null>();
+    page.geo.getCurrentPosition.and.returnValue(fresh.promise);
+    page.map = { moveCamera: jasmine.createSpy('moveCamera') };
+
+    const recentering = page.recenterMap();
+
+    expect(page.map.moveCamera).toHaveBeenCalledWith(jasmine.objectContaining({ center: sopore }));
+    expect(page.refreshingMapLocation).toBeTrue();
+    fresh.resolve(null);
+    await recentering;
+
+    expect(page.mapLocationMessage).toContain('last known location');
+    expect(page.located).toBeTrue();
+    expect(page.refreshingMapLocation).toBeFalse();
+  });
+  it('uses a fresh fix and updates the service area when the device has moved', async () => {
+    const { page } = setup();
+    await page.loadLocationAndCatalog();
+    page.geo.getCurrentPosition.and.resolveTo(achabal);
+    page.map = { moveCamera: jasmine.createSpy('moveCamera') };
+    page.userMarker = {};
+    const follow = spyOn(page.activeNavigation, 'follow');
+
+    await page.recenterMap();
+
+    expect(page.currentCoords).toEqual(achabal);
+    expect(follow).toHaveBeenCalledWith(page.map, achabal, null, page.userMarker, true);
+    expect(page.city.name).toBe('Achabal');
+    expect(page.mapLocationMessage).toBe('');
+  });
   it('keeps a catalog failure distinct from a successful empty service area', async () => {
     const { page } = setup();
     page.booking.catalog.and.rejectWith(new Error('offline'));
