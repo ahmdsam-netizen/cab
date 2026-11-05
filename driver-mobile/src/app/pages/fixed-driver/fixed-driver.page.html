@@ -396,19 +396,32 @@
     <ng-container *ngIf="activeVehicle as vehicle">
       
       <div class="dc-fullmap-view route-workspace">
-        <section class="route-next-section route-next-section--top" *ngIf="nextStopGuide as topNext; else routeStopsFinished" aria-label="Next stop">
-          <button type="button" class="route-next" (click)="openStopDetail(topNext)">
-            <span class="route-next-heading"><span>Next stop</span><small class="route-live-status">{{ statusLabel(vehicle) }}</small></span>
-            <strong><b>{{ topNext.seq }}</b>{{ topNext.name }}</strong>
-            <small>{{ topNext.waitingCount }} waiting · {{ topNext.dropCount }} to drop off</small>
-          </button>
-        </section>
-        <ng-template #routeStopsFinished><section class="route-next-section route-next-section--top" aria-label="Route progress"><div class="route-next"><span class="route-next-heading"><span>Route progress</span><small class="route-live-status">{{ statusLabel(vehicle) }}</small></span><strong>{{ stops.length ? 'All stops reached' : 'Stops unavailable' }}</strong></div></section></ng-template>
         <section class="route-map-section" aria-label="Live route map">
           <div id="fixed-driver-embedded-map" class="dc-fullscreen-map"></div>
           <button *ngIf="nextStopGuide as mapNext" type="button" class="route-map-navigate" (click)="navigateToStop(mapNext)" [attr.aria-label]="'Navigate to ' + mapNext.name" [attr.title]="'Navigate to ' + mapNext.name"><ion-icon name="navigate" aria-hidden="true"></ion-icon></button>
         </section>
         <section class="dc-map-floating-bottom-bar" aria-label="Ride actions and progress">
+          <section class="route-live-summary" aria-label="Live ride details">
+            <button type="button" class="route-filled" aria-label="Open seats, stops and passenger list" (click)="openDetailsModal('seats')">
+              <span class="route-section-heading">Seats booked</span>
+              <strong><ion-icon name="people" aria-hidden="true"></ion-icon>{{ vehicle.seats_taken }} / {{ vehicle.capacity }}</strong>
+              <span class="route-seat-progress" aria-hidden="true"><i [style.width.%]="vehicle.capacity ? (vehicle.seats_taken / vehicle.capacity) * 100 : 0"></i></span>
+            </button>
+            <button *ngIf="nextStopGuide as next; else routeStopsFinished" type="button" class="route-next" (click)="openStopDetail(next)">
+              <span class="route-next-heading">Next stop</span>
+              <strong><b>{{ next.seq }}</b>{{ next.name }}</strong>
+              <small>{{ next.waitingCount }} waiting · {{ next.dropCount }} to drop off</small>
+              <small class="route-live-status">{{ statusLabel(vehicle) }}</small>
+            </button>
+            <ng-template #routeStopsFinished>
+              <div class="route-next">
+                <span class="route-next-heading">Route progress</span>
+                <strong>{{ stops.length ? 'All stops reached' : 'Stops unavailable' }}</strong>
+                <small class="route-live-status">{{ statusLabel(vehicle) }}</small>
+              </div>
+            </ng-template>
+          </section>
+
           <!-- Primary Lifecycle Action (Start / Complete / Cancel) -->
           <div class="route-lifecycle-actions">
           <!-- 1. START BOARDING (Before departure) -->
@@ -449,13 +462,6 @@
           </button>
           </div>
 
-          <section class="route-live-summary" aria-label="Live ride details">
-            <button type="button" class="route-filled" aria-label="Open seats, stops and passenger list" (click)="openDetailsModal('seats')">
-              <span class="route-section-heading"><span>Seats booked</span><strong><ion-icon name="people" aria-hidden="true"></ion-icon>{{ vehicle.seats_taken }} / {{ vehicle.capacity }}</strong></span>
-              <span class="route-seat-progress" aria-hidden="true"><i [style.width.%]="vehicle.capacity ? (vehicle.seats_taken / vehicle.capacity) * 100 : 0"></i></span>
-            </button>
-          </section>
-
         </section>
 
       </div>
@@ -479,7 +485,7 @@
 <!-- Page-level overlays escape the content scroll/clipping context. -->
 <ng-container *ngIf="activeVehicle as vehicle">
       <div class="dc-manifest-modal-overlay" *ngIf="detailsModalOpen" (click)="closeDetailsModal()">
-        <div class="dc-manifest-modal-sheet" (click)="$event.stopPropagation()">
+        <div class="dc-manifest-modal-sheet" role="dialog" aria-modal="true" aria-labelledby="fixed-ride-details-title" (click)="$event.stopPropagation()">
           
           <!-- Modal Top Handle -->
           <div class="dc-modal-drag-handle-wrap">
@@ -489,13 +495,7 @@
           <!-- Modal Header -->
           <div class="dc-modal-header">
             <div class="dc-modal-header-left">
-              <div class="dc-modal-title-row">
-                <h2 class="dc-modal-route-name">{{ vehicle.route_name || 'Fixed Ride' }}</h2>
-                <span class="dc-modal-status-badge" [class.is-live]="rideStarted">
-                  {{ statusLabel(vehicle) }}
-                </span>
-              </div>
-              <span class="dc-modal-route-path">{{ routeOriginName }} → {{ routeDestName }}</span>
+              <h2 id="fixed-ride-details-title" class="dc-modal-route-path">{{ routeOriginName }} → {{ routeDestName }}</h2>
             </div>
 
             <button type="button" class="dc-modal-close-btn dc-press" (click)="closeDetailsModal()" aria-label="Close">
@@ -510,8 +510,8 @@
               <div class="dc-overview-seats">
                 <div class="dc-overview-seats-top">
                   <div class="dc-overview-seats-title">
-                    <span class="dc-hero-seat-icon">💺</span>
-                    <strong>{{ vehicle.seats_taken }} of {{ vehicle.capacity }} Seats Booked</strong>
+                    <strong>{{ vehicle.seats_taken }} / {{ vehicle.capacity }}</strong>
+                    <span>seats booked</span>
                   </div>
                   <span class="dc-hero-seats-free">{{ vehicle.seats_remaining }} seat{{ vehicle.seats_remaining !== 1 ? 's' : '' }} free</span>
                 </div>
@@ -521,11 +521,11 @@
               </div>
 
               <!-- Contextual Ride Action Button inside Overview Card -->
-              <div class="dc-overview-actions" *ngIf="canStart(vehicle) || rideStarted || canCloseVehicle(vehicle)">
+              <div class="dc-overview-actions" *ngIf="canStart(vehicle) || canDepart(vehicle) || rideStarted || canCloseVehicle(vehicle)">
                 <!-- 1. START BOARDING (Before departure) -->
                 <button class="dc-modal-action-cta dc-modal-action-cta--start dc-press" *ngIf="canStart(vehicle)" (click)="startRide()" [disabled]="busy">
                   <ion-icon name="play"></ion-icon>
-                  <span>Start Boarding</span>
+                  <span>Start boarding</span>
                 </button>
                 <button class="dc-modal-action-cta dc-modal-action-cta--start dc-press" *ngIf="canDepart(vehicle)" (click)="departRide()" [disabled]="busy">
                   <ion-icon name="play"></ion-icon><span>Depart from origin</span>
@@ -535,25 +535,25 @@
                 <!-- 2. COMPLETE RIDE (Only shown once the ride has started) -->
                 <button class="dc-modal-action-cta dc-modal-action-cta--complete dc-press" *ngIf="rideStarted" (click)="completeRide()" [disabled]="busy">
                   <ion-icon name="checkmark-done-circle"></ion-icon>
-                  <span>Complete Fixed Ride</span>
+                  <span>Complete ride</span>
                 </button>
 
                 <!-- 3. CANCEL / CLOSE (If 0 bookings before departure) -->
                 <button class="dc-modal-action-cta dc-modal-action-cta--close dc-press" *ngIf="canCloseVehicle(vehicle)" (click)="closeBookings()" [disabled]="busy">
                   <ion-icon name="close-circle-outline"></ion-icon>
-                  <span>Cancel / Close Ride</span>
+                  <span>Cancel ride</span>
                 </button>
               </div>
             </div>
 
-            <!-- Section 2: Segmented Tabs (Stops and Seats) -->
-            <div class="dc-modal-nav-tabs">
+            <div class="dc-modal-nav-tabs" role="group" aria-label="Ride details views">
               
 
               <button 
                 type="button" 
                 class="dc-modal-tab-btn dc-press" 
                 [class.is-active]="sheetTab === 'stops'" 
+                [attr.aria-pressed]="sheetTab === 'stops'"
                 (click)="selectSheetTab('stops')"
               >
                 <ion-icon name="git-commit-outline"></ion-icon>
@@ -564,11 +564,17 @@
                 type="button" 
                 class="dc-modal-tab-btn dc-press" 
                 [class.is-active]="sheetTab === 'seats'" 
+                [attr.aria-pressed]="sheetTab === 'seats'"
                 (click)="selectSheetTab('seats')"
               >
                 <ion-icon name="car-outline"></ion-icon>
                 <span>Seats</span>
                 <span class="dc-modal-tab-badge dc-modal-tab-badge--blocked" *ngIf="blockedSeatCellsCount > 0">{{ blockedSeatCellsCount }}</span>
+              </button>
+              <button type="button" class="dc-modal-tab-btn dc-press" [class.is-active]="sheetTab === 'passengers'"
+                [attr.aria-pressed]="sheetTab === 'passengers'" (click)="selectSheetTab('passengers')">
+                <ion-icon name="people-outline" aria-hidden="true"></ion-icon>
+                <span>Passengers</span>
               </button>
             </div>
 
@@ -621,11 +627,10 @@
             </div>
 
             <!-- TAB 3: VEHICLE SEAT LAYOUT & WALK-IN BLOCK/UNBLOCK VIEW -->
-            <div class="dc-modal-tab-pane" *ngIf="sheetTab === 'seats'">
+            <div class="dc-modal-tab-pane" *ngIf="sheetTab !== 'stops'">
               
         <aside class="route-live-panel route-modal-panel" aria-label="Vehicle seats and passengers">
-          <div class="route-view-tabs" aria-label="Route view"><button type="button" [attr.aria-pressed]="livePanelTab === 'seats'" [class.is-active]="livePanelTab === 'seats'" (click)="livePanelTab = 'seats'">Seats</button><button type="button" [attr.aria-pressed]="livePanelTab === 'list'" [class.is-active]="livePanelTab === 'list'" (click)="livePanelTab = 'list'">List</button></div>
-          <ng-container *ngIf="livePanelTab === 'seats'">
+          <ng-container *ngIf="sheetTab === 'seats'">
             <div class="route-seat-loading" *ngIf="seatMapLoading && !seatMapData"><ion-spinner name="crescent"></ion-spinner><span>Loading seats…</span></div>
             <div class="route-seat-empty" *ngIf="!seatMapLoading && !seatMapData"><p>Seat layout unavailable</p><button type="button" (click)="loadDepartureSeatMap(vehicle.id)">Retry</button></div>
             <div class="route-mini-cabin" *ngIf="seatMapData">
@@ -639,7 +644,7 @@
             <div class="route-mini-legend" *ngIf="seatMapData"><span><i class="booked"></i>Booked</span><span><i></i>Available</span><span><i class="held"></i>Held</span><span><i class="blocked"></i>Walk-in</span></div>
           </ng-container>
             <!-- Passenger filters and actions in Seats / List -->
-            <div class="dc-modal-tab-pane" *ngIf="livePanelTab === 'list'">
+            <div class="dc-modal-tab-pane" *ngIf="sheetTab === 'passengers'">
               
               <!-- Filter Sub-Tabs -->
               <div class="dc-modal-filter-pills">

@@ -4157,22 +4157,17 @@ ion-content.is-map-fullscreen {
   .route-lifecycle-actions { grid-column: 1; }
 }
 .route-workspace .route-lifecycle-actions:not(:has(> .dc-float-cta:nth-child(2))) > .dc-float-cta { flex: 1 1 100%; width: 100%; }
-.route-live-summary { position: relative; grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; }
-.route-live-summary button, .route-live-summary .route-next { min-width: 0; text-align: left; border: 0; background: #f5f8fa; border-radius: 10px; padding: 7px 9px; color: #102b3d; display: grid; gap: 3px; box-shadow: none; }
-.route-next-section { display: block; width: 100%; }
-.route-next-section .route-next { width: 100%; }
-.route-next-section .route-navigate { display: grid; place-items: center; width: 38px; min-width: 38px; height: 38px; min-height: 38px; align-self: center; padding: 0; border: 0; border-radius: 12px; background: #1166df; color: #fff; box-shadow: 0 3px 9px rgba(17,102,223,.2); }
-.route-next-section .route-navigate ion-icon { font-size: 19px; }
-.route-next-section .route-navigate:active { transform: scale(.95); }
-.route-live-summary .route-filled { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; min-height: 38px; }
-.route-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.route-section-heading > span { font-size: 11px !important; font-weight: 650; }
+.route-live-summary { position: relative; grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.route-live-summary button, .route-live-summary .route-next { min-width: 0; text-align: left; border: 1px solid #e1eaf0; background: #f5f8fa; border-radius: 12px; padding: 9px 10px; color: #102b3d; display: grid; align-content: start; gap: 5px; box-shadow: none; }
+.route-live-summary .route-filled { grid-template-columns: minmax(0, 1fr); align-items: center; }
 .route-seat-progress { display: block; width: 100%; height: 3px; overflow: hidden; border-radius: 4px; background: #dfe8e4; }
 .route-seat-progress i { display: block; height: 100%; border-radius: inherit; background: #0a9854; transition: width .2s ease; }
 .route-live-summary span { font-size: 9px; color: #647786; letter-spacing: .02em; }
 .route-live-summary strong { min-width: 0; display: flex; align-items: center; gap: 5px; font-size: 12px; }
-.route-live-summary .route-next-heading { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
-.route-filled strong { font-size: 15px; }
+.route-live-summary .route-next-heading, .route-live-summary .route-section-heading { font-size: 11px; font-weight: 650; }
+.route-live-summary .route-filled strong { font-size: 16px; }
+.route-live-summary .route-next strong { overflow-wrap: anywhere; }
+.route-live-summary .route-live-status { justify-self: start; white-space: normal; }
 .route-filled ion-icon { color: #0a9854; font-size: 18px; }
 .route-next strong b { display: grid; place-items: center; width: 23px; height: 23px; flex-shrink: 0; border-radius: 50%; background: #e74848; color: white; font-size: 12px; }
 .route-next strong b { width: 20px; height: 20px; font-size: 10px; }
@@ -4311,7 +4306,7 @@ ion-content.is-map-fullscreen {
   padding-bottom: max(22px, env(safe-area-inset-bottom));
 }
 
-/* Fixed ride modal refresh: clearer hierarchy and larger touch targets. */
+/* Compact Fixed Ride details. */
 .dc-manifest-modal-sheet {
   background: #f3f7fb;
 }
@@ -4320,41 +4315,53 @@ ion-content.is-map-fullscreen {
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
 }
 .dc-manifest-modal-sheet .dc-modal-header {
-  padding: 14px 20px 18px;
+  padding: 6px 14px 8px;
   border-bottom-color: #dce6ef;
 }
-.dc-manifest-modal-sheet .dc-modal-route-name { font-size: 19px !important; }
-.dc-manifest-modal-sheet .dc-modal-route-path { font-size: 13px !important; }
+.dc-manifest-modal-sheet .dc-modal-route-path { margin: 0; font-size: 13px; }
 .dc-manifest-modal-sheet .dc-modal-scrollable-body {
-  gap: 16px;
-  padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+  gap: 10px;
+  padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
 }
 .dc-manifest-modal-sheet .dc-overview-hero-card {
-  gap: 16px;
-  padding: 18px;
+  gap: 8px;
+  padding: 10px 12px;
   border-color: #d8e5ed;
   border-radius: 22px;
   box-shadow: 0 8px 24px rgba(25, 55, 75, .07);
 }
-.dc-manifest-modal-sheet .dc-overview-seats-title strong { font-size: 15px; }
-.dc-manifest-modal-sheet .dc-overview-seats-bar { height: 8px; background: #eaf0f5; }
+.dc-manifest-modal-sheet .dc-overview-seats-title { font-size: 13px; }
+.dc-manifest-modal-sheet .dc-overview-seats-title strong { font-size: 14px; }
+.dc-manifest-modal-sheet .dc-overview-seats-bar { height: 5px; background: #eaf0f5; }
 .dc-manifest-modal-sheet .dc-overview-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  display: flex;
+  gap: 8px;
 }
 .dc-manifest-modal-sheet .dc-overview-actions .dc-modal-action-cta {
+  flex: 0 1 auto;
   min-width: 0;
   height: auto;
-  min-height: 54px;
-  padding: 10px 12px;
-  border-radius: 15px;
-  font-size: 13px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
   line-height: 1.2;
-  box-shadow: 0 5px 14px rgba(5, 75, 50, .12);
+  box-shadow: none;
+
+  ion-icon { flex-shrink: 0; font-size: 15px; }
+  &:only-child { flex: 1; }
+  &:focus-visible { outline: 2px solid #1761dc; outline-offset: 2px; }
+  &:disabled { opacity: .55; cursor: not-allowed; }
 }
 .dc-manifest-modal-sheet .dc-overview-actions .dc-modal-action-cta--start {
-  background: linear-gradient(135deg, #0bb778, #07895a);
+  flex: 1;
+  background: #087f50;
+}
+.dc-manifest-modal-sheet .dc-overview-actions .dc-modal-action-cta--close {
+  background: #fff;
+  border: 1px solid #efcaca;
+  color: #a03333;
 }
 .dc-manifest-modal-sheet .dc-overview-actions .dc-modal-action-cta--complete {
   background: #e8f5ee;
@@ -4363,15 +4370,19 @@ ion-content.is-map-fullscreen {
   box-shadow: none;
 }
 .dc-manifest-modal-sheet .dc-modal-nav-tabs {
-  padding: 5px;
+  padding: 3px;
   border: 1px solid #dbe5ed;
   border-radius: 16px;
   background: #e9f0f6;
 }
 .dc-manifest-modal-sheet .dc-modal-nav-tabs .dc-modal-tab-btn {
-  min-height: 46px;
-  border-radius: 12px;
-  font-size: 14px;
+  height: 36px;
+  min-width: 0;
+  gap: 4px;
+  padding: 0 2px;
+  border-radius: 10px;
+  font-size: 12px;
+  ion-icon { font-size: 14px; }
 }
 .dc-manifest-modal-sheet .dc-modal-nav-tabs .dc-modal-tab-btn.is-active {
   background: #fff;
@@ -4380,30 +4391,31 @@ ion-content.is-map-fullscreen {
 }
 .dc-manifest-modal-sheet .route-modal-panel.route-live-panel {
   max-width: 520px;
-  padding: 8px 10px 22px;
+  padding: 8px 8px 12px;
   border: 1px solid #dce7ee;
   border-radius: 20px;
   background: #fff;
 }
 .dc-manifest-modal-sheet .route-modal-panel .route-mini-cabin {
-  width: min(100%, 400px);
-  max-width: 400px;
-  padding: 14px 10px;
-  border-radius: 52px 52px 32px 32px;
+  width: min(100%, 260px);
+  max-width: 260px;
+  padding: 8px 8px 10px;
+  border-width: 4px;
+  border-radius: 34px 34px 22px 22px;
 }
 .dc-manifest-modal-sheet .route-modal-panel .route-mini-seat {
-  min-height: 64px;
-  border-radius: 12px 12px 8px 8px;
-  font-size: 17px;
+  min-height: 44px;
+  border-radius: 8px 8px 6px 6px;
+  font-size: 13px;
 }
-.dc-manifest-modal-sheet .route-modal-panel .route-mini-row { gap: 7px; margin-bottom: 10px; }
-.dc-manifest-modal-sheet .route-modal-panel .route-mini-windshield { padding: 14px 8px; margin-bottom: 14px; }
-.dc-manifest-modal-sheet .route-modal-panel .route-mini-legend { gap: 12px; font-size: 12px; }
+.dc-manifest-modal-sheet .route-modal-panel .route-mini-row { gap: 5px; margin-bottom: 5px; }
+.dc-manifest-modal-sheet .route-modal-panel .route-mini-windshield { padding: 5px 6px; margin-bottom: 6px; }
+.dc-manifest-modal-sheet .route-modal-panel .route-mini-windshield ion-icon { font-size: 16px; }
+.dc-manifest-modal-sheet .route-modal-panel .route-mini-legend { gap: 8px; padding-top: 8px; font-size: 11px; }
 
 @media (max-width: 360px) {
-  .dc-manifest-modal-sheet .dc-overview-actions { grid-template-columns: minmax(0, 1fr); }
-  .dc-manifest-modal-sheet .dc-overview-actions .dc-modal-action-cta { min-height: 50px; }
-  .dc-manifest-modal-sheet .route-modal-panel .route-mini-seat { min-height: 58px; font-size: 16px; }
+  .dc-manifest-modal-sheet .dc-overview-actions { flex-direction: column; }
+  .dc-manifest-modal-sheet .dc-modal-nav-tabs .dc-modal-tab-btn ion-icon { display: none; }
 }
 
 /* Reference 4: fixed stop header/map, passenger list, then boarding action. */
@@ -4521,34 +4533,10 @@ ion-content.is-map-fullscreen {
   box-sizing: border-box;
   overflow: hidden;
   border: 1px solid #dce6ec;
-  border-top: 0;
-  border-radius: 0 0 18px 18px;
+  border-radius: 18px;
   background: #e7edf0;
   box-shadow: 0 4px 16px rgba(15,35,50,.08);
 }
-.route-workspace.dc-fullmap-view .route-next-section--top {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-}
-.route-workspace.dc-fullmap-view .route-next-section--top .route-next {
-  display: grid;
-  gap: 6px;
-  width: 100%;
-  min-height: 76px;
-  padding: 10px 12px;
-  border: 1px solid #e1eaf0;
-  border-bottom-color: #dce6ec;
-  border-radius: 18px 18px 0 0;
-  background: #fff;
-  color: #102b3d;
-  text-align: left;
-  box-shadow: 0 3px 12px rgba(15,35,50,.06);
-}
-.route-workspace.dc-fullmap-view .route-next-section--top .route-next-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.route-workspace.dc-fullmap-view .route-next-section--top .route-next-heading > span { color: #647786; font-size: 11px; }
-.route-workspace.dc-fullmap-view .route-next-section--top .route-next strong { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 14px; }
-.route-workspace.dc-fullmap-view .route-next-section--top .route-next > small { color: #647786; font-size: 11px; }
 .route-workspace.dc-fullmap-view .route-map-navigate {
   position: absolute;
   z-index: 5;
@@ -4572,7 +4560,7 @@ ion-content.is-map-fullscreen {
   width: 100%;
   height: 100%;
   min-height: 0;
-  border-radius: 0 0 18px 18px;
+  border-radius: inherit;
 }
 .route-workspace.dc-fullmap-view .dc-map-floating-bottom-bar {
   position: relative;

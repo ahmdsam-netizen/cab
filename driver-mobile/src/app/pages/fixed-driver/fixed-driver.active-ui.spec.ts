@@ -53,7 +53,7 @@ describe('Active route reference layout', () => {
     expect(f.nativeElement.querySelector('.route-mini-seat.is-booked').textContent).toContain('1A');
     expect(f.nativeElement.querySelector('.route-mini-seat.is-held').textContent).toContain('2A');
     const navigate = spyOn(page, 'navigateToStop');
-    f.nativeElement.querySelector('.route-navigate').click();
+    f.nativeElement.querySelector('.route-map-navigate').click();
     expect(navigate).toHaveBeenCalledWith(jasmine.objectContaining({ id: 1 }));
     const details = spyOn(page, 'onSeatCellTap');
     f.nativeElement.querySelector('.route-mini-seat').click();
@@ -76,11 +76,11 @@ describe('Active route reference layout', () => {
   it('switches to passenger list and does not fabricate a missing layout', () => {
     const { f, page } = setup();
     page.detailsModalOpen = true; page.sheetTab = 'seats'; f.detectChanges();
-    f.nativeElement.querySelectorAll('.route-view-tabs button')[1].click(); f.detectChanges();
+    f.nativeElement.querySelector('.dc-modal-nav-tabs button:last-child').click(); f.detectChanges();
+    expect(page.sheetTab).toBe('passengers');
     expect(f.nativeElement.querySelector('.route-modal-panel').textContent).toContain('No passengers found');
     expect(f.nativeElement.querySelector('.route-modal-panel').textContent).toContain('Waiting (0)');
-    expect(f.nativeElement.querySelector('.dc-modal-nav-tabs').textContent).not.toContain('Passengers');
-    page.livePanelTab = 'seats'; page.seatMapData = null; f.detectChanges();
+    page.selectSheetTab('seats'); page.seatMapData = null; f.detectChanges();
     expect(f.nativeElement.querySelector('.route-seat-empty').textContent).toContain('unavailable');
     expect(f.nativeElement.querySelectorAll('.route-mini-seat').length).toBe(0);
   });

@@ -372,7 +372,7 @@ export class FixedDriverPage implements OnDestroy {
   citySettings: FixedCitySettings | null = null;
   selectedStopDetail: StopDetailModalData | null = null;
   passengerFilter: 'all' | 'waiting' | 'onboard' | 'done' = 'all';
-  sheetTab: 'stops' | 'seats' = 'seats';
+  sheetTab: 'stops' | 'seats' | 'passengers' = 'seats';
   showStopsTimeline = false;
   passengerSheetExpanded = true;
   detailsModalOpen = false;
@@ -380,7 +380,6 @@ export class FixedDriverPage implements OnDestroy {
 
   // Seat layout map state
   seatMapData: DepartureSeatMap | null = null;
-  livePanelTab: 'seats' | 'list' = 'seats';
   boardingSuccess: FixedPassenger | null = null;
   completionSummary: { route: string; capacity: number; dropped: number; noShows: number } | null = null;
 
@@ -418,8 +417,7 @@ export class FixedDriverPage implements OnDestroy {
   previewMapFullscreen = false;
 
   openDetailsModal(tab: 'passengers' | 'stops' | 'seats' = 'seats'): void {
-    this.sheetTab = tab === 'passengers' ? 'seats' : tab;
-    if (tab === 'passengers') this.livePanelTab = 'list';
+    this.sheetTab = tab;
     this.detailsModalOpen = true;
     if (this.activeVehicle) {
       this.loadDepartureSeatMap(this.activeVehicle.id);
@@ -431,8 +429,7 @@ export class FixedDriverPage implements OnDestroy {
   }
 
   selectSheetTab(tab: 'passengers' | 'stops' | 'seats'): void {
-    this.sheetTab = tab === 'passengers' ? 'seats' : tab;
-    if (tab === 'passengers') this.livePanelTab = 'list';
+    this.sheetTab = tab;
     if (tab === 'seats' && this.activeVehicle && !this.seatMapData) {
       this.loadDepartureSeatMap(this.activeVehicle.id);
     }
