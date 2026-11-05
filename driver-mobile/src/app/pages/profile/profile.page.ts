@@ -26,7 +26,7 @@ interface VehicleTypeOpt { id: number; name: string; description: string | null;
 interface CityVehicleOpt { id: number; display_name: string; max_people: number; luggage_capacity: number; vehicle_type_id: number; ride_type_id: number | null; image_url?: string | null; }
 interface FleetOpt { id: number; name: string; city_id: number | null; }
 interface DocumentLabelDef { id: number; label: string; label_type: LabelType; mandatory: boolean; sort_order: number; }
-interface RideModeOption { id: number; scope: ServiceScope; mode: ServiceMode; name: string; image_url: string | null; sort_order: number; }
+interface RideModeOption { id: number; scope: ServiceScope; mode: ServiceMode; name: string; display_name?: string | null; image_url: string | null; sort_order: number; }
 interface RideScopeOption { id: number; scope: ServiceScope; name: string; sort_order: number; modes: RideModeOption[]; }
 interface CatalogDoc {
   id: number;
@@ -951,7 +951,7 @@ export class ProfilePage implements OnInit, OnDestroy {
         const modes: Array<RideModeOption & { key: string }> = [];
         for (const sc of res.scopes ?? []) {
           for (const m of sc.modes ?? []) {
-            modes.push({ ...m, key: `${m.scope}:${m.mode}:${m.id}` });
+            modes.push({ ...m, name: m.display_name || m.name, key: `${m.scope}:${m.mode}:${m.id}` });
           }
         }
         this.rideModes = modes;
