@@ -16,6 +16,7 @@ use App\Services\FareEstimationService;
 use App\Services\GatewayFeeService;
 use App\Services\VehicleFamilyImageService;
 use App\Support\RideCatalog;
+use App\Support\ServiceTileArtwork;
 use Illuminate\Http\Request;
 
 class PricingController extends Controller
@@ -112,6 +113,12 @@ class PricingController extends Controller
                     ...$mode,
                     'images' => $imagePayload['images'],
                     'image_url' => $imagePayload['image_url'],
+                    'tile_image_url' => !empty($mode['image_path']) && $imagePayload['image_url'] === $mode['image_url']
+                        ? route('pricing.service-tile-artwork', [
+                            'rideType' => $mode['ride_type_id'],
+                            'version' => ServiceTileArtwork::version($mode['image_path']),
+                        ], false)
+                        : null,
                     'map_marker_url' => $imagePayload['map_marker_url'],
                 ];
             })->values();

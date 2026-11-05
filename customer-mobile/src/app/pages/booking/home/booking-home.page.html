@@ -160,11 +160,12 @@
         <button *ngFor="let tile of tiles; trackBy: trackByMode" type="button"
           [class.is-selected]="mode === tile.mode" [attr.aria-pressed]="mode === tile.mode"
           aria-controls="home-service-panel" (click)="pickMode(tile)">
-          <img *ngIf="resolveHomeImageUrl(tile.imageUrl) as imageUrl; else serviceIcon" class="bh-service-image"
-            [src]="imageUrl" alt="" (error)="tile.imageUrl = null">
-          <ng-template #serviceIcon><ion-icon [name]="tile.icon" aria-hidden="true"></ion-icon></ng-template>
+          <span class="bh-service-art" aria-hidden="true">
+            <img *ngIf="resolveHomeImageUrl(tile.imageUrl) as imageUrl; else serviceIcon" class="bh-service-image"
+              [src]="imageUrl" alt="" (error)="tile.imageUrl = null">
+            <ng-template #serviceIcon><ion-icon [name]="tile.icon"></ion-icon></ng-template>
+          </span>
           <strong>{{ tile.title }}</strong>
-          <span>{{ tile.hint }}</span>
         </button>
       </div>
       <div class="bh-scope-row" *ngIf="hasScopeSwitch" role="group" aria-label="Journey type">

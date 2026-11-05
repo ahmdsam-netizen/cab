@@ -13,6 +13,7 @@ use App\Http\Controllers\LocationController;
 use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PricingController;
+use App\Http\Controllers\ServiceTileArtworkController;
 use App\Http\Controllers\ShuttleBookingsController;
 use App\Http\Controllers\ShuttleDriverController;
 use App\Http\Controllers\TripsController;
@@ -164,6 +165,8 @@ Route::post('/shuttle/quote', [PricingController::class, 'shuttleQuote'])->middl
 // Public lookup endpoints for the mobile booking UI.
 Route::get('/pricing/cities', [PricingController::class, 'cities']);
 Route::get('/pricing/cities/{city}/products', [PricingController::class, 'products']);
+Route::get('/pricing/service-tile-artwork/{rideType}/{version}', ServiceTileArtworkController::class)
+    ->whereNumber('rideType')->where('version', '[a-f0-9]{64}')->name('pricing.service-tile-artwork');
 Route::get('/pricing/ride-types', [PricingController::class, 'rideTypes']);
 Route::get('/pricing/vehicle-types', [PricingController::class, 'vehicleTypes']);
 Route::get('/pricing/outstation-packages', [PricingController::class, 'outstationPackages']);
