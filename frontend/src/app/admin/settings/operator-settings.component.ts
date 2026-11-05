@@ -13,6 +13,9 @@ import {
 } from '../../ui';
 
 interface OperatorSettings {
+  private_service_name: string | null;
+  fixed_service_name: string | null;
+  shuttle_service_name: string | null;
   tips_enabled: boolean;
   customer_tip_value_1: number;
   customer_tip_value_2: number;
@@ -57,6 +60,7 @@ type SectionKey =
   | 'wallet'
   | 'subscription'
   | 'services'
+  | 'serviceNames'
   | 'notifications'
   | 'templates';
 
@@ -65,6 +69,7 @@ interface RideMode {
   id: number;
   mode: 'private' | 'fixed' | 'shuttle' | string;
   name: string;
+  display_name?: string | null;
   is_active: boolean;
 }
 
@@ -335,7 +340,7 @@ interface SectionMeta {
 
                 <label class="switch-row svc-scope__mode" [class.svc-scope__mode--off]="!scope.is_active" *ngFor="let mode of scope.modes">
                   <span class="switch-row__text">
-                    <span class="switch-row__title">{{ mode.name }}</span>
+                    <span class="switch-row__title">{{ mode.display_name || mode.name }}</span>
                     <span class="switch-row__sub">{{ modeSub(mode) }}</span>
                   </span>
                   <span class="switch">
@@ -344,6 +349,15 @@ interface SectionMeta {
                   </span>
                 </label>
               </div>
+            </ng-container>
+
+            <ng-container *ngIf="activeSection === 'serviceNames'">
+              <div class="chan-note">
+                <span class="chan-note__sub">These names apply to Local and Outstation in every city. Leave a field blank to use its default name. Use up to 40 characters per name.</span>
+              </div>
+              <tm-input label="Private display name" placeholder="Private" [(ngModel)]="settings.private_service_name" />
+              <tm-input label="Fixed display name" placeholder="Fixed" [(ngModel)]="settings.fixed_service_name" />
+              <tm-input label="Shuttle display name" placeholder="Shuttle" [(ngModel)]="settings.shuttle_service_name" />
             </ng-container>
 
             <!-- ============= NOTIFICATIONS ============= -->
@@ -656,6 +670,7 @@ export class OperatorSettingsComponent implements OnInit {
     { key: 'wallet',       label: 'Wallet',            icon: 'rupee',         desc: 'Cash-wallet limits and the terms shown to users.' },
     { key: 'subscription', label: 'Subscription',      icon: 'star',          desc: 'Copy for the driver subscription promo popup.' },
     { key: 'services',     label: 'Services',          icon: 'car',           desc: 'Which ride services the apps offer: Local & Outstation, each with Private, Fixed and Shuttle. Off = hidden in both the customer and driver apps.' },
+    { key: 'serviceNames', label: 'Service names',      icon: 'car',           desc: 'Choose the display names for Private, Fixed and Shuttle.' },
     { key: 'notifications', label: 'Notifications',     icon: 'bell',          desc: 'Email switches for fixed module messages. SMS is OTP-only; push is managed per user from their profile page.' },
     { key: 'templates',    label: 'Templates',         icon: 'envelope',      desc: 'Notification copy with dynamic placeholders.' },
   ];
@@ -667,6 +682,7 @@ export class OperatorSettingsComponent implements OnInit {
     wallet: false,
     subscription: false,
     services: false,
+    serviceNames: false,
     notifications: false,
     templates: false,
   };
@@ -718,6 +734,7 @@ export class OperatorSettingsComponent implements OnInit {
       'subscription_popup_button2',
     ],
     services: [], // per-toggle instant PATCH, not part of the settings form
+    serviceNames: ['private_service_name', 'fixed_service_name', 'shuttle_service_name'],
     // SMS keys dropped from the UI on purpose: SMS is OTP-only (login +
     // boarding, always on) so the old SMS toggles are dead switches.
     notifications: [
@@ -812,6 +829,7 @@ export class OperatorSettingsComponent implements OnInit {
         next: (res) => {
           this.saving[section] = false;
           this.settings = res.settings;
+          if (section === 'serviceNames') this.loadServices();
           this.toast.success(`${this.titleFor(section)} saved`);
         },
         error: (err) => {

@@ -86,7 +86,7 @@ export class BookingService {
 export interface RawScope {
   scope: TripScope;
   name: string;
-  modes: { mode: RideMode | null; kind?: string; name: string; ride_type_id?: number; id?: number }[];
+  modes: { mode: RideMode | null; kind?: string; name: string; display_name?: string | null; ride_type_id?: number; id?: number }[];
 }
 
 /**
@@ -106,7 +106,8 @@ export function tilesFor(scopes: RawScope[], scope: TripScope): ServiceTile[] {
     const mode = (m.mode ?? (m.kind === 'fixed' || m.kind === 'shuttle' ? m.kind : 'private')) as RideMode;
     if (seen.has(mode)) continue;
     seen.add(mode);
-    tiles.push({ mode, ...MODE_COPY[mode], rideTypeId: m.ride_type_id ?? m.id ?? null });
+    const copy = MODE_COPY[mode];
+    tiles.push({ mode, ...copy, title: m.display_name || copy.title, rideTypeId: m.ride_type_id ?? m.id ?? null });
   }
 
   return tiles;

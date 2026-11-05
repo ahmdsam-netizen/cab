@@ -17,6 +17,10 @@ class AdminOperatorSettingsController
     public function update(Request $request)
     {
         $data = $request->validate([
+            'private_service_name' => ['nullable', 'string', 'max:40'],
+            'fixed_service_name' => ['nullable', 'string', 'max:40'],
+            'shuttle_service_name' => ['nullable', 'string', 'max:40'],
+
             // Tipping
             'customer_tip_value_1' => ['nullable', 'integer', 'min:0', 'max:10000'],
             'customer_tip_value_2' => ['nullable', 'integer', 'min:0', 'max:10000'],

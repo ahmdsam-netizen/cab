@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\RideType;
+use App\Models\OperatorSetting;
 use Illuminate\Support\Collection;
 
 /**
@@ -48,6 +49,7 @@ class RideCatalog
     public static function tree(bool $onlyActive = true, ?callable $modeFilter = null): array
     {
         $rideTypes = self::rideTypes();
+        $settings = OperatorSetting::query()->find(1);
         $out = [];
 
         foreach (self::SCOPES as [$scope, $scopeName, $scopeSort]) {
@@ -58,7 +60,7 @@ class RideCatalog
                 $on = self::isActive($rt, $scope);
                 if ($onlyActive && !$on) continue;
                 if ($modeFilter && !$modeFilter($rt, $scope)) continue;
-                $modes[] = self::shapeMode($rt, $scope, $on, $sort);
+                $modes[] = self::shapeMode($rt, $scope, $on, $sort, $settings);
             }
 
             // A scope is on when anything under it is on.
@@ -78,17 +80,20 @@ class RideCatalog
         return $out;
     }
 
-    public static function shapeMode(RideType $rt, string $scope, bool $isActive, int $sortOrder): array
+    public static function shapeMode(RideType $rt, string $scope, bool $isActive, int $sortOrder, ?OperatorSetting $settings = null): array
     {
+        $mode = $rt->resolvedMode();
+
         return [
             // The ride type id. Unique within a scope; clients key on scope+mode.
             'id' => $rt->id,
             'ride_type_id' => $rt->id,
             'scope' => $scope,
-            'mode' => $rt->mode ?? 'private',
+            'mode' => $mode,
             // Legacy alias some older clients still read.
-            'kind' => ($rt->mode ?? 'private') === 'private' ? $scope : $rt->mode,
+            'kind' => $mode === RideType::MODE_PRIVATE ? $scope : $mode,
             'name' => $rt->name,
+            'display_name' => $settings?->getAttribute($mode . '_service_name'),
             'image_path' => $rt->image_path,
             'image_url' => $rt->image_url,
             'is_active' => $isActive,

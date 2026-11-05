@@ -641,6 +641,7 @@ export class CustomerBookPage implements OnDestroy {
       scope?: 'local' | 'outstation' | null;
       mode?: 'private' | 'fixed' | 'shuttle' | null;
       name: string;
+      display_name?: string | null;
       image_url: string | null;
     };
     type ApiScope = {
@@ -658,7 +659,7 @@ export class CustomerBookPage implements OnDestroy {
           kind: p.kind,
           scope: p.scope ?? null,
           mode: p.mode ?? null,
-          label: p.name,
+          label: p.display_name || p.name,
           image_url: p.image_url,
           icon: this.iconForKind(p.kind),
         }));
@@ -672,7 +673,7 @@ export class CustomerBookPage implements OnDestroy {
             kind: m.kind,
             scope: m.scope ?? s.scope,
             mode: m.mode ?? null,
-            label: m.name,
+            label: m.display_name || m.name,
             image_url: m.image_url,
             icon: this.iconForKind(m.mode ?? m.kind),
           })),

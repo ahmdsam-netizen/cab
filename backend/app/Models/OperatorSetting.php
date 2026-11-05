@@ -7,6 +7,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 #[Fillable([
+    'private_service_name',
+    'fixed_service_name',
+    'shuttle_service_name',
+
     // Tipping
     'customer_tip_value_1',
     'customer_tip_value_2',
