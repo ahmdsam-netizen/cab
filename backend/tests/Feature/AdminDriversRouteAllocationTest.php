@@ -1,6 +1,6 @@
 <?php
 namespace Tests\Feature;
-use App\Models\{City, CityVehicleType, Driver, Route, RouteGroup, User};
+use App\Models\{City, CityVehicleType, Driver, ManagerRole, Permission, Route, RouteGroup, User};
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
@@ -9,6 +9,64 @@ use Tests\TestCase;
 class AdminDriversRouteAllocationTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_city_and_stand_rosters_count_assignments_before_pagination(): void
+    {
+        $city = City::create(['name' => 'First', 'country_code' => 'IN']);
+        $other = City::create(['name' => 'Other', 'country_code' => 'IN']);
+        $empty = City::create(['name' => 'Vacant', 'country_code' => 'IN']);
+        $alice = Driver::create(['user_id' => User::factory()->create(['name' => 'Alice'])->id, 'city_id' => $city->id]);
+        $alice->cities()->attach([$city->id, $other->id]);
+        $bob = Driver::create(['user_id' => User::factory()->create(['name' => 'Bob'])->id, 'city_id' => $city->id]);
+        $alice->forceFill(['created_at' => now()->subDay()])->save();
+        $stand = RouteGroup::create(['city_id' => $city->id, 'name' => 'Airport', 'is_active' => true]);
+        $stand->drivers()->attach($alice->user_id);
+        RouteGroup::create(['city_id' => $city->id, 'name' => 'Station', 'is_active' => false]);
+        $otherStand = RouteGroup::create(['city_id' => $other->id, 'name' => 'Airport', 'is_active' => true]);
+        $otherStand->drivers()->attach($alice->user_id);
+
+        $role = ManagerRole::create(['slug' => 'roster_manager', 'name' => 'Roster Manager']);
+        $permission = Permission::firstOrCreate(['slug' => 'drivers'], ['name' => 'Drivers']);
+        $role->permissions()->attach($permission);
+        $manager = User::factory()->create(['manager_role_id' => $role->id, 'manager_all_cities' => true]);
+        $manager->addRole('admin');
+        Sanctum::actingAs($manager, ['act-as:admin']);
+
+        $this->getJson('/api/admin/drivers/city-counts')->assertOk()->assertExactJson(['data' => [
+            ['id' => $city->id, 'name' => 'First', 'driver_count' => 2],
+            ['id' => $other->id, 'name' => 'Other', 'driver_count' => 1],
+            ['id' => $empty->id, 'name' => 'Vacant', 'driver_count' => 0],
+        ]]);
+        $this->getJson("/api/admin/cities/{$city->id}/driver-stand-counts")->assertOk()
+            ->assertJsonPath('data.0.driver_count', 1)
+            ->assertJsonPath('data.1.driver_count', 0)
+            ->assertJsonPath('data.1.is_active', false);
+        $listUrl = '/api/admin/drivers?city_id='.$city->id;
+        $this->getJson($listUrl.'&per_page=1')->assertOk()
+            ->assertJsonPath('data.total', 2)
+            ->assertJsonPath('data.data.0.id', $bob->id);
+        $this->getJson($listUrl.'&stand_id='.$stand->id)->assertOk()
+            ->assertJsonPath('data.total', 1)
+            ->assertJsonPath('data.data.0.id', $alice->id)
+            ->assertJsonPath('data.data.0.user.name', 'Alice')
+            ->assertJsonPath('data.data.0.cities', [
+                ['id' => $city->id, 'name' => 'First'],
+                ['id' => $other->id, 'name' => 'Other'],
+            ]);
+        $this->getJson($listUrl.'&stand_id='.$stand->id.'&q=Bob')->assertOk()->assertJsonPath('data.total', 0);
+        $this->getJson($listUrl.'&stand_id='.$otherStand->id)->assertUnprocessable();
+        $csv = $this->get('/api/admin/drivers/export?city_id='.$city->id.'&stand_id='.$stand->id)
+            ->assertOk()->streamedContent();
+        $this->assertStringContainsString('Alice', $csv);
+        $this->assertStringNotContainsString('Bob', $csv);
+
+        $manager->forceFill(['manager_city_id' => $city->id, 'manager_all_cities' => false])->save();
+        $this->getJson('/api/admin/drivers/city-counts')->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $city->id);
+        $this->getJson("/api/admin/cities/{$other->id}/driver-stand-counts")->assertForbidden();
+        $this->getJson('/api/admin/drivers?city_id='.$other->id)->assertForbidden();
+    }
+
     public function test_approval_views_filter_before_pagination_and_export(): void
     {
         $admin = User::factory()->create(['manager_all_cities' => true]); $admin->addRole('admin');

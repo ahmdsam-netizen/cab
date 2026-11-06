@@ -273,6 +273,7 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::match(['post', 'put', 'patch'], '/admin/me/profile', [AdminAuthController::class, 'updateProfile']);
     Route::match(['post', 'put', 'patch'], '/admin/me/password', [AdminAuthController::class, 'updatePassword']);
     Route::get('/admin/drivers', [AdminDriversController::class, 'index'])->middleware('permission:drivers');
+    Route::get('/admin/drivers/city-counts', [AdminDriversController::class, 'cityCounts'])->middleware('permission:drivers');
     Route::get('/admin/drivers/export', [AdminDriversController::class, 'exportCsv'])->middleware('permission:drivers');
     Route::get('/admin/drivers/leaderboard', [AdminDriversController::class, 'leaderboard'])->middleware('permission:drivers');
     Route::get('/admin/drivers/performance', [AdminDriversController::class, 'performance'])->middleware('permission:drivers');
@@ -357,6 +358,7 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     // when the caller's scoped to a different city.
     Route::middleware('manager.city')->group(function () {
         Route::get('/admin/cities/{city}', [AdminCitiesController::class, 'show']);
+        Route::get('/admin/cities/{city}/driver-stand-counts', [AdminDriversController::class, 'cityStands'])->middleware('permission:drivers');
         Route::patch('/admin/cities/{city}', [AdminCitiesController::class, 'update'])->middleware('permission:city_settings');
         Route::patch('/admin/cities/{city}/polygon', [AdminCitiesController::class, 'updatePolygon'])->middleware('permission:city_settings');
         Route::delete('/admin/cities/{city}', [AdminCitiesController::class, 'destroy'])->middleware('permission:city_settings');

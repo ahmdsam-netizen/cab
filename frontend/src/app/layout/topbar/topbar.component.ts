@@ -92,7 +92,6 @@ import {
           <button
             type="button"
             class="tb__user"
-            [class.is-open]="menuOpen"
             [attr.aria-expanded]="menuOpen"
             aria-haspopup="menu"
             (click)="toggleMenu($event)"

@@ -1,5 +1,22 @@
 # Android release handoff
 
+## 2026-11-06 — Release APKs for client delivery
+
+- The user requested both Android apps for direct delivery to the client.
+- Local build from commit `6303acb6`. Both production web builds, Capacitor
+  syncs, and Gradle release builds passed with the configured versions.
+- Customer APK `release-apks/DreamCabs-Customer-5.7.2-release-2026-11-06.apk`
+  is `product.customer.dreamcab`, version code 572, 11,530,837 bytes.
+  SHA-256 `8d7d86c20da5cd547d0bc9fc6ab562e98840bc66b6b21bfdf9f0654457507a3e`.
+- Driver APK `release-apks/Cabbies-Driver-5.1.5-release-2026-11-06.apk`
+  is `product.driver.dreamcab`, version code 515, 11,964,109 bytes.
+  SHA-256 `15fc126199db28b5f181564609d2c1733e35a1119b78cdddefb2af1f77a33f5c`.
+- Android tools verified package IDs, versions, and v2 signatures with the
+  existing release certificates. Each packaged main JavaScript bundle matched
+  its production build.
+- The APKs are ready for the user to share. Phone installation, live behavior,
+  and Play Console status remain unverified.
+
 ## 2026-11-05 — Customer and driver release APKs
 
 - The user requested fresh APKs for both apps in `release-apks`.

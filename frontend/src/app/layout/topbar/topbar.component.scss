@@ -84,19 +84,11 @@
 .tb__user {
   display: flex;
   align-items: center;
-  gap: var(--tm-space-3);
-  padding: 4px 4px 4px var(--tm-space-3);
+  padding: 4px;
   border-radius: var(--tm-radius-pill);
-  background: var(--tm-surface);
-  border: 1px solid var(--tm-line);
+  background: transparent;
+  border: 0;
   cursor: pointer;
-  transition: background var(--tm-duration-fast) var(--tm-ease),
-              border-color var(--tm-duration-fast) var(--tm-ease);
-}
-.tb__user:hover,
-.tb__user.is-open {
-  background: var(--tm-canvas-2);
-  border-color: var(--tm-line-2);
 }
 .tb__user-meta { display: flex; flex-direction: column; line-height: 1.2; text-align: right; }
 .tb__user-name { font-weight: 700; font-size: 13px; color: var(--tm-text); }

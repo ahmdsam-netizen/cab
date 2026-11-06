@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { ToastService } from '../../core/toast.service';
+import { IconComponent } from '../../ui/icon/icon.component';
 
 interface GroupOpt { id: number; name: string; city_id?: number; city_name?: string; is_active: boolean; vehicle_set_names?: string[]; matches_vehicle_set?: boolean; }
 interface EffRoute { id: number; name: string; origin_name: string; dest_name: string; scope: string; is_active: boolean; }
@@ -16,15 +17,46 @@ interface Payload { assigned_group_ids: number[]; groups: GroupOpt[]; effective_
 @Component({
   selector: 'app-driver-route-groups-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, IconComponent],
   template: `
-    <section class="drg">
+    <section class="drg" [class.drg--readonly]="readOnly">
       <header class="drg__head">
         <h3>Fixed route access</h3>
-        <span class="drg__sub">Routes are granted by stands across this driver's registered operating cities.</span>
+        <span class="drg__sub">This driver's stand assignments determine which fixed routes they can serve.</span>
       </header>
 
-      <p *ngIf="loading" role="status">Loading route assignments…</p><p *ngIf="loadFailed" role="alert">Could not load assignments. Close and try again.</p><div class="drg__body" *ngIf="!loading && !loadFailed">
+      <p *ngIf="loading" role="status">Loading route assignments…</p>
+      <p *ngIf="loadFailed" role="alert">Could not load assignments. Close and try again.</p>
+      @if (!loading && !loadFailed) {
+        @if (readOnly) {
+          <div class="drg__cards">
+            <section class="drg__card" *ngIf="assignedGroups as stands">
+              <h4><tm-icon name="map-marker" [size]="16" aria-hidden="true" /> Assigned stands <span>{{ stands.length }}</span></h4>
+              <p class="drg__empty" *ngIf="!stands.length">No stands assigned.</p>
+              <ul class="drg__items" *ngIf="stands.length">
+                <li class="drg__route" *ngFor="let stand of stands">
+                  <strong>{{ stand.name }}</strong>
+                  <small *ngIf="stand.city_name">{{ stand.city_name }}</small>
+                  <small class="drg__paused" *ngIf="!stand.is_active">Route access paused</small>
+                </li>
+              </ul>
+            </section>
+            <section class="drg__card drg__card--routes">
+              <h4><tm-icon name="road" [size]="16" aria-hidden="true" /> Accessible routes <span>{{ effective.length }}</span></h4>
+              <p class="drg__empty" *ngIf="!effective.length">No fixed routes available.</p>
+              <ul class="drg__items" *ngIf="effective.length">
+                <li class="drg__route" *ngFor="let route of effective">
+                  <ng-container *ngTemplateOutlet="routeDetails; context: { $implicit: route }" />
+                </li>
+              </ul>
+            </section>
+          </div>
+        } @else {
+          <ng-container *ngTemplateOutlet="assignmentEditor" />
+        }
+      }
+      <ng-template #assignmentEditor>
+        <div class="drg__body">
         <div class="drg__col">
           <div class="drg__label">Stands</div>
           <div class="drg__empty" *ngIf="!groups.length">No stands found in this driver's cities yet.</div>
@@ -53,16 +85,20 @@ interface Payload { assigned_group_ids: number[]; groups: GroupOpt[]; effective_
             {{ effective.length ? 'No routes match the selected scope filter.' : 'No routes — assign a stand to give this driver work.' }}
           </div>
           <div class="drg__route" *ngFor="let r of filteredEffective">
-            <div class="drg__route-top">
-              <strong>{{ r.name }}</strong>
-              <span class="drg__badge" [class.is-outstation]="r.scope === 'outstation'" [class.is-local]="r.scope === 'local'">
-                {{ r.scope | uppercase }}
-              </span>
-            </div>
-            <small>{{ r.origin_name }} → {{ r.dest_name }}</small>
+            <ng-container *ngTemplateOutlet="routeDetails; context: { $implicit: r }" />
           </div>
         </div>
       </div>
+      </ng-template>
+      <ng-template #routeDetails let-route>
+        <div class="drg__route-top">
+          <strong [title]="readOnly ? routeLabel(route) : null">{{ readOnly ? routeLabel(route) : route.name }}</strong>
+          <span class="drg__badge" [class.is-outstation]="route.scope === 'outstation'" [class.is-local]="route.scope === 'local'">
+            {{ route.scope | uppercase }}
+          </span>
+        </div>
+        <small *ngIf="!readOnly">{{ route.origin_name }} → {{ route.dest_name }}</small>
+      </ng-template>
     </section>
   `,
   styles: [`
@@ -70,6 +106,20 @@ interface Payload { assigned_group_ids: number[]; groups: GroupOpt[]; effective_
     .drg__head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
     .drg__head h3 { margin: 0; font-size: 15px; font-weight: 800; color: var(--tm-text); }
     .drg__sub { font-size: 12px; color: var(--tm-text-muted); }
+    .drg--readonly { border: 0; padding: 0; margin-top: 0; }
+    .drg--readonly .drg__head { margin-bottom: 14px; }
+    .drg__cards { display: grid; gap: 12px; }
+    .drg__card { min-width: 0; padding: 12px; border: 1px solid var(--tm-line); border-radius: 12px; background: var(--tm-canvas); }
+    .drg__card h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; font-size: 13px; color: var(--tm-text); }
+    .drg__card h4 tm-icon { color: var(--tm-green-deep); }
+    .drg__card h4 span { margin-left: auto; padding: 2px 6px; border-radius: var(--tm-radius-pill); background: var(--tm-surface); color: var(--tm-text-muted); font-size: 11px; }
+    .drg__card .drg__empty { margin: 0; }
+    .drg__items { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+    .drg__items .drg__route { margin: 0; background: var(--tm-surface); overflow-wrap: anywhere; }
+    .drg__card--routes .drg__route-top { gap: 6px; }
+    .drg__card--routes .drg__route-top strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .drg__card--routes .drg__badge { flex-shrink: 0; }
+    .drg__route .drg__paused { color: #b45309; }
     .drg__body { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     @media (max-width: 640px) { .drg__body { grid-template-columns: 1fr; } }
     .drg__header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
@@ -93,6 +143,7 @@ interface Payload { assigned_group_ids: number[]; groups: GroupOpt[]; effective_
 })
 export class DriverRouteGroupsPanelComponent implements OnChanges {
   @Input() driverId!: number;
+  @Input() readOnly = false;
   @Output() saved = new EventEmitter<void>();
 
   groups: GroupOpt[] = [];
@@ -102,6 +153,16 @@ export class DriverRouteGroupsPanelComponent implements OnChanges {
   loading = false;
   loadFailed = false;
   scopeFilter: 'all' | 'local' | 'outstation' = 'all';
+
+  get assignedGroups(): GroupOpt[] {
+    return this.groups.filter(group => this.assigned.has(group.id));
+  }
+
+  routeLabel(route: EffRoute): string {
+    const endpoints = `${route.origin_name} → ${route.dest_name}`;
+    const name = route.name.trim();
+    return name && name !== endpoints ? `${name} · ${endpoints}` : endpoints;
+  }
 
   get localCount(): number {
     return this.effective.filter((r) => r.scope === 'local').length;
@@ -137,12 +198,13 @@ export class DriverRouteGroupsPanelComponent implements OnChanges {
   }
 
   toggle(id: number): void {
+    if (this.readOnly) return;
     if (this.assigned.has(id)) this.assigned.delete(id);
     else this.assigned.add(id);
   }
 
   save(): void {
-    if (!this.driverId || this.saving || this.loading || this.loadFailed) return;
+    if (this.readOnly || !this.driverId || this.saving || this.loading || this.loadFailed) return;
     this.saving = true;
     this.api.put<Payload>(`/admin/drivers/${this.driverId}/route-groups`, { group_ids: Array.from(this.assigned) }).subscribe({
       next: (res) => {

@@ -15,8 +15,8 @@ import $ from 'jquery';
 import moment from 'moment';
 import 'daterangepicker';
 import { ApiService } from '../../core/api.service';
-import { Subscription } from 'rxjs';
-import { CityContextService } from '../../core/city-context.service';
+import { catchError, EMPTY, expand, map, Observable, reduce, Subscription, throwError } from 'rxjs';
+import { CityContextService, CityOption } from '../../core/city-context.service';
 import { DriverRouteGroupsPanelComponent } from './driver-route-groups-panel.component';
 import { ToastService } from '../../core/toast.service';
 import {
@@ -24,6 +24,7 @@ import {
   ChartComponent,
   ColumnComponent,
   DataTableComponent,
+  FilterSelectComponent,
   IconComponent,
   InputComponent,
   ModalComponent,
@@ -39,6 +40,7 @@ type ApprovalFilter = 'all' | 'approved' | 'not_approved' | 'pending' | 'rejecte
 
 interface DriverRow {
   id: number;
+  cities?: { id: number; name: string }[];
   route_groups?: { id: number; name: string; city_name: string | null; is_active: boolean }[];
   allocated_route_count?: number;
   approval_status: 'pending' | 'approved' | 'rejected';
@@ -63,6 +65,27 @@ interface DriverRow {
   } | null;
 }
 
+interface DriverLocationCount {
+  id: number;
+  name: string;
+  driver_count: number;
+}
+
+interface DriverStandCount extends DriverLocationCount {
+  is_active: boolean;
+  driver_user_ids?: number[];
+}
+
+interface DriverListResponse {
+  data: { data: DriverRow[]; total: number; last_page?: number };
+  allocation_filters_supported?: boolean;
+}
+
+interface AllocationVehicle {
+  id: number;
+  display_name: string;
+}
+
 @Component({
   selector: 'app-drivers-list',
   standalone: true,
@@ -74,6 +97,7 @@ interface DriverRow {
     ChartComponent,
     ColumnComponent,
     DataTableComponent,
+    FilterSelectComponent,
     IconComponent,
     InputComponent,
     ModalComponent,
@@ -128,7 +152,9 @@ interface DriverRow {
             Insights
           </tm-button>
           <tm-button variant="green" icon="download"
-                     [loading]="exporting" (clicked)="exportCsv()">
+                     [loading]="exporting" [disabled]="!!legacyStand"
+                     [title]="legacyStand ? 'Stand-filtered CSV requires the updated backend' : ''"
+                     (clicked)="exportCsv()">
             Export CSV
           </tm-button>
         </div>
@@ -306,9 +332,15 @@ interface DriverRow {
         </article>
       </section>
 
-      <tm-modal [open]="!!allocationDriver" [title]="(allocationDriver?.user?.name || 'Driver') + ' — Route assignments'" (closed)="allocationDriver = null"><div slot="body"><app-driver-route-groups-panel *ngIf="allocationDriver as driver" [driverId]="driver.id" (saved)="refreshAllocations()" /></div></tm-modal>
+      <tm-modal [open]="!!allocationDriver" [title]="(allocationDriver?.user?.name || 'Driver') + ' — Stand &amp; Route Assignments'"
+                (closed)="allocationDriver = null">
+        <div slot="body">
+          <app-driver-route-groups-panel *ngIf="allocationDriver as driver" [driverId]="driver.id" [readOnly]="true" />
+        </div>
+      </tm-modal>
       <!-- =================== Reusable table =================== -->
       <tm-data-table
+        class="drivers-table"
         *ngIf="view === 'table'"
         [rows]="rows"
         [total]="total"
@@ -325,19 +357,29 @@ interface DriverRow {
         <tm-input
           slot="search"
           icon="search"
-          placeholder="Driver ID, name, phone, email or vehicle no."
+          placeholder="Search drivers"
           [(ngModel)]="search"
           (ngModelChange)="onSearchChange()"
         />
 
         <!-- Toolbar: filters on the RIGHT -->
         <ng-container slot="filters">
-          <select *ngIf="allocationFiltersSupported" class="allocation-filter" aria-label="Driver city" [(ngModel)]="cityScope" (ngModelChange)="changeAllocationFilter()">
-            <option value="all">All cities</option><option value="selected" *ngIf="allocationCityId">{{ allocationCityName || 'Selected city' }}</option>
-          </select>
-          <select *ngIf="allocationFiltersSupported" class="allocation-filter" aria-label="Driver vehicle" [(ngModel)]="allocationVehicleId" (ngModelChange)="changeAllocationVehicle()" [disabled]="!allocationCityId">
-            <option [ngValue]="null">All vehicles</option><option *ngFor="let vehicle of allocationVehicles" [ngValue]="vehicle.id">{{ vehicle.display_name }}</option>
-          </select>
+          <tm-filter-select *ngIf="allocationFiltersSupported || cityCounts" icon="map-marker"
+            ariaLabel="Driver city" allLabel="All cities" searchPlaceholder="Search cities"
+            [options]="cityOptions" [value]="cityFilterValue"
+            (valueChange)="selectDriverCity($event === 'all' ? null : +$event)" (focusin)="onDocumentClick()" />
+          <tm-filter-select *ngIf="allocationFiltersSupported || cityCounts" icon="pin" ariaLabel="Driver stand"
+            searchPlaceholder="Search stands"
+            [allLabel]="standFilterLabel"
+            [options]="standOptions" [value]="selectedStandId?.toString() ?? 'all'"
+            [disabled]="cityScope === 'all' || standCountsLoading || standCountsFailed || !standCounts.length"
+            (valueChange)="selectDriverStand($event === 'all' ? null : +$event)" (focusin)="onDocumentClick()" />
+          <button type="button" class="allocation-filter" *ngIf="standCountsFailed" (click)="loadStandCounts()">Retry stands</button>
+          <tm-filter-select *ngIf="allocationFiltersSupported" icon="car" ariaLabel="Driver vehicle" allLabel="All vehicles"
+            searchPlaceholder="Search vehicles"
+            [options]="vehicleOptions" [value]="allocationVehicleId?.toString() ?? 'all'"
+            [disabled]="!allocationCityId || (!!cityCounts && cityScope === 'all')"
+            (valueChange)="selectDriverVehicle($event)" (focusin)="onDocumentClick()" />
           <!-- State select (Active / Deactivated / All) — custom dropdown for full CSS control -->
           <div class="state-select" [class.has-value]="state !== 'all'" [class.is-open]="stateOpen">
             <button
@@ -544,10 +586,8 @@ interface DriverRow {
               </span>
               <div class="cell-user__meta">
                 <span class="cell-user__name">{{ row.user?.name || 'Unnamed' }}</span>
-                <span class="cell-user__sub" *ngIf="row.vehicle_type || row.vehicle_reg_no">
-                  {{ row.vehicle_type || '—' }}
-                  <span *ngIf="row.vehicle_reg_no" class="mono"> · {{ row.vehicle_reg_no }}</span>
-                </span>
+                <span class="cell-user__sub" *ngIf="row.vehicle_type">{{ row.vehicle_type }}</span>
+                <span class="cell-user__sub mono" *ngIf="row.vehicle_reg_no">{{ row.vehicle_reg_no }}</span>
               </div>
             </div>
           </ng-template>
@@ -564,11 +604,29 @@ interface DriverRow {
           </ng-template>
         </tm-column>
 
-                <tm-column key="route_groups" label="Stands" width="230">
-          <ng-template let-row><div class="allocation-groups"><button type="button" *ngFor="let group of row.route_groups" (click)="allocationDriver = row" [title]="group.city_name || ''">{{ group.name }}<span *ngIf="!group.is_active"> · Disabled</span></button><span class="muted" *ngIf="row.route_groups && !row.route_groups.length">Unassigned</span><button type="button" *ngIf="!row.route_groups" (click)="allocationDriver = row">View stands</button></div></ng-template>
+        <tm-column *ngIf="cityCounts" key="cities" label="Cities" [wrap]="true">
+          <ng-template let-row>
+            <ng-container *ngFor="let city of row.cities; let last = last">{{ city.name }}{{ last ? '' : ', ' }}</ng-container>
+            <span class="muted" *ngIf="!row.cities?.length">—</span>
+          </ng-template>
         </tm-column>
-        <tm-column key="allocated_routes" label="Route access" width="140">
-          <ng-template let-row><button type="button" class="allocation-manage" (click)="allocationDriver = row">{{ row.allocated_route_count === undefined ? 'Manage routes' : row.allocated_route_count + ' routes' }} <tm-icon name="edit" [size]="13" /></button></ng-template>
+        <tm-column key="assignments" label="Stand &amp; Route Assignments" width="220">
+          <ng-template let-row>
+            <button type="button" class="allocation-view" title="View stand and route assignments"
+                    (click)="allocationDriver = row">
+              <span>
+                @if (row.route_groups) {
+                  {{ row.route_groups.length | i18nPlural: standCountLabels }}
+                }
+                @if (row.allocated_route_count != null) {
+                  <ng-container *ngIf="row.route_groups"> · </ng-container>
+                  {{ row.allocated_route_count | i18nPlural: routeCountLabels }}
+                } @else if (!row.route_groups) {
+                  View assignments
+                }
+              </span>
+            </button>
+          </ng-template>
         </tm-column>
         <tm-column key="registered_on" label="Registered" width="140">
           <ng-template let-row>
@@ -578,62 +636,35 @@ interface DriverRow {
           </ng-template>
         </tm-column>
 
-        <tm-column key="rides_7d" label="Rides (7d)" width="110" align="right">
+        <tm-column key="rides_7d_total" label="Rides (7d / total)" width="145">
           <ng-template let-row>
-            <span class="rides-chip" [class.is-zero]="!row.rides_7d"
-                  title="Completed trips in the last 7 days">
-              {{ row.rides_7d ?? 0 }}
+            <span class="rides-chip" [class.is-zero]="!row.rides_7d && !row.total_rides"
+                  title="Completed rides in the last 7 days / all completed rides">
+              {{ row.rides_7d ?? 0 }} / {{ row.total_rides ?? 0 }}
             </span>
           </ng-template>
         </tm-column>
 
-        <tm-column key="total_rides" label="Total rides" width="120" align="right">
+        <tm-column key="status" label="Status" width="135">
           <ng-template let-row>
-            <span class="rides-chip" [class.is-zero]="!row.total_rides"
-                  title="All completed trips for this driver">
-              {{ row.total_rides ?? 0 }}
-            </span>
-          </ng-template>
-        </tm-column>
-
-        <tm-column key="action" label="" width="140" align="right">
-          <ng-template let-row>
-            <ng-container *ngIf="!row.deactivated_at; else reactivateBtn">
-              <tm-button
-                variant="outline"
-                size="sm"
-                [loading]="busyId === row.id"
-                (clicked)="deactivate(row)"
-              >
-                Deactivate
-              </tm-button>
-            </ng-container>
-            <ng-template #reactivateBtn>
-              <tm-button
-                variant="green"
-                size="sm"
-                [loading]="busyId === row.id"
-                (clicked)="reactivate(row)"
-              >
-                Reactivate
-              </tm-button>
-            </ng-template>
-          </ng-template>
-        </tm-column>
-
-        <tm-column key="status" label="Status" width="200">
-          <ng-template let-row>
-            <div class="status-cluster">
+            @if (row.deactivated_at) {
               <span
-                *ngIf="row.deactivated_at"
                 class="status-pill is-deactivated"
                 title="Driver is deactivated — dispatch is stopped"
               >
                 <span class="status-dot"></span>
                 Deactivated
               </span>
+            } @else if (row.approval_status === 'pending' || row.approval_status === 'rejected') {
+              <span class="status-pill"
+                    [class.is-rejected]="row.approval_status === 'rejected'"
+                    [class.is-pending]="row.approval_status === 'pending'"
+                    [title]="'Approval: ' + row.approval_status">
+                <span class="status-dot"></span>
+                {{ row.approval_status }}
+              </span>
+            } @else {
               <span
-                *ngIf="!row.deactivated_at"
                 class="status-pill"
                 [class.is-online]="row.is_online"
                 [class.is-offline]="!row.is_online"
@@ -642,29 +673,23 @@ interface DriverRow {
                 <span class="status-dot"></span>
                 {{ row.is_online ? 'Online' : 'Offline' }}
               </span>
-              <span class="status-pill status-pill--ghost"
-                    [class.is-approved]="row.approval_status === 'approved'"
-                    [class.is-rejected]="row.approval_status === 'rejected'"
-                    [class.is-pending]="row.approval_status === 'pending'"
-                    [title]="'Approval: ' + row.approval_status">
-                {{ row.approval_status }}
-              </span>
-            </div>
+            }
           </ng-template>
         </tm-column>
 
-        <tm-column key="view" label="" width="130" align="right">
+        <tm-column key="view" label="" width="64" align="right">
           <ng-template let-row>
             <div class="id-pop" [class.is-open]="openPopoverId === row.id">
               <button
                 type="button"
-                class="view-btn view-btn--text"
+                class="row-icon-btn"
                 [class.is-open]="openPopoverId === row.id"
                 (click)="togglePopover(row, $event)"
                 [attr.aria-expanded]="openPopoverId === row.id"
                 aria-label="View driver details"
+                title="View driver details"
               >
-                View details
+                <tm-icon name="eye" [size]="16" aria-hidden="true" />
               </button>
               <div
                 class="id-pop__panel"
@@ -746,6 +771,24 @@ interface DriverRow {
                 </footer>
               </div>
             </div>
+          </ng-template>
+        </tm-column>
+        <tm-column key="action" label="" width="64" align="right">
+          <ng-template let-row>
+            <button
+              type="button"
+              class="row-icon-btn"
+              [class.is-reactivate]="row.deactivated_at"
+              [class.is-deactivate]="!row.deactivated_at"
+              [attr.aria-label]="row.deactivated_at ? 'Reactivate driver' : 'Deactivate driver'"
+              [title]="row.deactivated_at ? 'Reactivate driver' : 'Deactivate driver'"
+              [attr.aria-busy]="busyId === row.id ? 'true' : null"
+              [disabled]="busyId === row.id"
+              (click)="row.deactivated_at ? reactivate(row) : deactivate(row)"
+            >
+              <tm-icon [name]="busyId === row.id ? 'clock' : row.deactivated_at ? 'refresh' : 'ban'"
+                       [size]="16" aria-hidden="true" />
+            </button>
           </ng-template>
         </tm-column>
       </tm-data-table>
@@ -925,8 +968,12 @@ interface DriverRow {
     .approval-views button.is-active { background: var(--tm-success-bg, #ecfdf5); border-color: var(--tm-success, #16a34a); color: var(--tm-text); }
     .approval-hint { margin: 0; color: var(--tm-text-muted); font-size: 12px; }
     .allocation-filter { padding: 8px 10px; border: 1px solid var(--tm-line); border-radius: var(--tm-radius-sm); background: var(--tm-surface); color: var(--tm-text); font: inherit; font-size: 12px; max-width: 170px; }
-    .allocation-groups { display: flex; flex-wrap: wrap; gap: 5px; }.allocation-groups button { border: 0; border-radius: var(--tm-radius-pill); padding: 4px 8px; background: var(--tm-green-tint); color: var(--tm-green-deep); font: inherit; font-size: 11px; cursor: pointer; }
-    .allocation-manage { display: inline-flex; align-items: center; gap: 7px; border: 0; background: transparent; color: var(--tm-green-deep); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .drivers-table {
+      --tm-dt-cell-padding: 8px 10px;
+      --driver-filter-height: 36px;
+      container: driver-table / inline-size;
+    }
+    .allocation-view { padding: 0; border: 0; background: transparent; color: var(--tm-green-deep); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
     :host { display: block; }
 
     .page {
@@ -1159,6 +1206,7 @@ interface DriverRow {
       transition: border-color var(--tm-duration-fast) var(--tm-ease),
                   background var(--tm-duration-fast) var(--tm-ease);
     }
+    .state-select__trigger { width: 100%; height: var(--driver-filter-height); }
     .state-select__trigger:hover { border-color: var(--tm-ink); }
     .state-select.is-open .state-select__trigger { border-color: var(--tm-ink); }
     .state-select.has-value .state-select__trigger {
@@ -1167,7 +1215,7 @@ interface DriverRow {
     }
     .state-select__icon { color: var(--tm-text-muted); display: inline-flex; }
     .state-select.has-value .state-select__icon { color: var(--tm-green-deep); }
-    .state-select__value { min-width: 110px; text-align: left; }
+    .state-select__value { flex: 1; min-width: 0; text-align: left; }
     .state-select__caret {
       color: var(--tm-text-soft);
       transition: transform var(--tm-duration-fast) var(--tm-ease);
@@ -1226,6 +1274,7 @@ interface DriverRow {
     /* ---------- Date range picker ---------- */
     .date-range {
       display: inline-flex;
+      height: var(--driver-filter-height);
       align-items: center;
       gap: 8px;
       padding: 8px 8px 8px 14px;
@@ -1255,7 +1304,8 @@ interface DriverRow {
       font-weight: 600;
       color: var(--tm-text);
       padding: 0;
-      min-width: 220px;
+      flex: 1;
+      min-width: 0;
       cursor: pointer;
       line-height: 1.2;
     }
@@ -1422,17 +1472,7 @@ interface DriverRow {
       color: var(--tm-text-muted);
     }
 
-    /* ----- Status column: grouped pill cluster ----- */
-    .status-cluster {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 6px;
-      background: var(--tm-canvas);
-      border: 1px solid var(--tm-line);
-      border-radius: var(--tm-radius-pill);
-      max-width: 100%;
-    }
+    /* ----- Status column ----- */
     .status-pill {
       display: inline-flex;
       align-items: center;
@@ -1471,42 +1511,15 @@ interface DriverRow {
     .status-pill.is-offline     { background: var(--tm-surface);     color: var(--tm-text-muted); border-color: var(--tm-line-2); }
     .status-pill.is-offline .status-dot { background: var(--tm-text-soft); box-shadow: none; }
     .status-pill.is-deactivated { background: #fee2e2;               color: #b91c1c;              border-color: #fecaca; }
-    .status-pill--ghost {
-      background: var(--tm-surface);
-      border: 1px solid var(--tm-line-2);
-      color: var(--tm-text-muted);
-    }
-    .status-pill--ghost.is-approved {
-      background: var(--tm-green-tint);
-      border-color: var(--tm-green-soft);
-      color: var(--tm-green-deep);
-    }
-    .status-pill--ghost.is-approved::before {
-      content: '✓';
-      font-size: 10px;
-      font-weight: 900;
-      margin-right: 1px;
-    }
-    .status-pill--ghost.is-rejected {
+    .status-pill.is-rejected {
       background: #fef2f2;
       border-color: #fecaca;
       color: #dc2626;
     }
-    .status-pill--ghost.is-rejected::before {
-      content: '✕';
-      font-size: 10px;
-      font-weight: 900;
-      margin-right: 1px;
-    }
-    .status-pill--ghost.is-pending {
+    .status-pill.is-pending {
       background: #fffbeb;
       border-color: #fde68a;
       color: #b45309;
-    }
-    .status-pill--ghost.is-pending::before {
-      content: '⏱';
-      font-size: 10px;
-      margin-right: 1px;
     }
 
     .rides-chip {
@@ -1530,39 +1543,29 @@ interface DriverRow {
     .mono { font-family: var(--tm-font-mono); font-weight: 600; font-size: 12px; }
     .muted { color: var(--tm-text-soft); }
 
-    /* ---------- View-details button ---------- */
-    .view-btn {
+    /* ---------- Row actions ---------- */
+    .row-icon-btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       width: 32px;
       height: 32px;
-      border-radius: var(--tm-radius-sm);
-      background: var(--tm-canvas-2);
-      color: var(--tm-text-muted);
-      transition: background var(--tm-duration-fast) var(--tm-ease),
-                  color var(--tm-duration-fast) var(--tm-ease);
-    }
-    .view-btn:hover { background: var(--tm-ink); color: #fff; }
-    .view-btn.is-open { background: var(--tm-green); color: #fff; }
-    /* Text variant — replaces the icon-only square so the action reads
-       "View details" inline with the other approval pill column. */
-    .view-btn--text {
-      width: auto;
-      height: 28px;
-      padding: 0 12px;
-      font-family: var(--tm-font-body);
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-      white-space: nowrap;
+      padding: 0;
       border: 1px solid var(--tm-line-2);
+      border-radius: var(--tm-radius-sm);
       background: var(--tm-surface);
       color: var(--tm-text);
       cursor: pointer;
+      transition: background var(--tm-duration-fast) var(--tm-ease),
+                  color var(--tm-duration-fast) var(--tm-ease);
     }
-    .view-btn--text:hover { background: var(--tm-ink); color: #fff; border-color: var(--tm-ink); }
-    .view-btn--text.is-open { background: var(--tm-green); color: #fff; border-color: var(--tm-green); }
+    .row-icon-btn:hover:not(:disabled) { background: var(--tm-ink); color: #fff; border-color: var(--tm-ink); }
+    .row-icon-btn.is-open { background: var(--tm-green); color: #fff; border-color: var(--tm-green); }
+    .row-icon-btn.is-deactivate { color: var(--tm-danger); }
+    .row-icon-btn.is-deactivate:hover:not(:disabled) { background: var(--tm-danger); color: #fff; border-color: var(--tm-danger); }
+    .row-icon-btn.is-reactivate { color: var(--tm-green-deep); }
+    .row-icon-btn.is-reactivate:hover:not(:disabled) { background: var(--tm-green-deep); color: #fff; border-color: var(--tm-green-deep); }
+    .row-icon-btn:disabled { opacity: .55; cursor: not-allowed; }
 
     /* ---------- Detail popover ---------- */
     .id-pop { position: relative; display: inline-block; }
@@ -1645,8 +1648,37 @@ interface DriverRow {
     }
     .id-pop__link:hover { color: var(--tm-green); }
 
-    /* ---------- Toolbar surface tweaks (search to match state/date controls) ---------- */
-    :host ::ng-deep tm-data-table .tm-dt__toolbar tm-input .field {
+    /* ---------- Driver filter grid ---------- */
+    :host ::ng-deep .drivers-table .tm-dt__toolbar {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      align-items: stretch;
+    }
+    :host ::ng-deep .drivers-table .tm-dt__toolbar-left,
+    :host ::ng-deep .drivers-table .tm-dt__toolbar-right {
+      display: contents;
+    }
+    :host ::ng-deep .drivers-table .tm-dt__toolbar tm-input,
+    :host ::ng-deep .drivers-table .tm-dt__toolbar tm-filter-select {
+      min-width: 0;
+    }
+    :host ::ng-deep .drivers-table .tm-dt__toolbar .fs,
+    :host ::ng-deep .drivers-table .tm-dt__toolbar .fs__trigger {
+      width: 100%;
+    }
+    :host ::ng-deep .drivers-table .tm-dt__toolbar .fs__trigger {
+      height: var(--driver-filter-height);
+    }
+    :host ::ng-deep .drivers-table .tm-dt__toolbar .fs__value {
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    :host ::ng-deep .drivers-table .tm-dt__toolbar tm-input .field {
+      height: var(--driver-filter-height);
       background: transparent;
       border-color: var(--tm-line-2);
       padding: 9px 14px;
@@ -1659,6 +1691,12 @@ interface DriverRow {
     :host ::ng-deep tm-data-table .tm-dt__toolbar tm-input input {
       font-size: 13px;
       line-height: 1.2;
+    }
+    @container driver-table (max-width: 700px) {
+      :host ::ng-deep .drivers-table .tm-dt__toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @container driver-table (max-width: 360px) {
+      :host ::ng-deep .drivers-table .tm-dt__toolbar { grid-template-columns: minmax(0, 1fr); }
     }
 
     /* ---------- Deactivation modal ---------- */
@@ -1895,12 +1933,13 @@ interface DriverRow {
     @media (max-width: 880px) {
       .page__hero { flex-direction: column; align-items: stretch; }
       .page__hero-right { justify-content: flex-start; }
-      .date-range__input { min-width: 160px; }
       .state-select__field { min-width: 110px; }
     }
   `],
 })
 export class DriversListComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly routeCountLabels = { '=1': '1 route', other: '# routes' };
+  readonly standCountLabels = { '=1': '1 stand', other: '# stands' };
   @ViewChild('rangeInput', { static: false }) rangeInput!: ElementRef<HTMLInputElement>;
 
   rows: DriverRow[] = [];
@@ -1973,17 +2012,58 @@ export class DriversListComponent implements OnInit, AfterViewInit, OnDestroy {
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private refreshInFlight = false;
   allocationCityId: number | null = null;
-  allocationCityName = '';
+  catalogCities: CityOption[] = [];
+  cityCounts: DriverLocationCount[] | null = null;
+  standCounts: DriverStandCount[] = [];
+  standCountsLoading = false;
+  standCountsFailed = false;
+  selectedStandId: number | null = null;
   allocationFiltersSupported = false;
   private allocationReads = new Subscription();
   private allocationGroupLoading = new Set<number>();
   private allocationGroupCache = new Map<number, NonNullable<DriverRow['route_groups']>>();
   cityScope: 'all' | 'selected' = 'all';
   allocationVehicleId: number | null = null;
-  allocationVehicles: { id: number; display_name: string; vehicle_type_id: number | null }[] = [];
+  allocationVehicles: AllocationVehicle[] = [];
   allocationDriver: DriverRow | null = null;
   private allocationCitySub?: Subscription;
+  private vehicleOptionsRequest?: Subscription;
+  private standCountsRequest?: Subscription;
   private listRequest?: Subscription;
+
+  get cityFilterValue(): string {
+    return this.cityScope === 'selected' && this.allocationCityId ? String(this.allocationCityId) : 'all';
+  }
+
+  get cityOptions() {
+    return this.cityCounts
+      ? this.cityCounts.map(city => ({ value: String(city.id), label: `${city.name} (${city.driver_count.toLocaleString()})` }))
+      : this.catalogCities.map(city => ({ value: String(city.id), label: city.name }));
+  }
+
+  get standOptions() {
+    return this.standCounts.map(stand => ({
+      value: String(stand.id),
+      label: stand.name
+        + (stand.driver_user_ids === undefined ? ` (${stand.driver_count.toLocaleString()})` : '')
+        + (stand.is_active ? '' : ' · Disabled'),
+    }));
+  }
+
+  get standFilterLabel(): string {
+    if (this.cityScope === 'all') return 'Stands · choose a city';
+    if (this.standCountsLoading) return 'Loading stands…';
+    if (this.standCountsFailed) return 'Stands unavailable';
+    return this.standCounts.length ? 'All stands' : 'No stands in this city';
+  }
+
+  get legacyStand(): DriverStandCount | undefined {
+    return this.standCounts.find(stand => stand.id === this.selectedStandId && stand.driver_user_ids !== undefined);
+  }
+
+  get vehicleOptions() {
+    return this.allocationVehicles.map(vehicle => ({ value: String(vehicle.id), label: vehicle.display_name }));
+  }
   private loadLegacyGroupSummary(row: DriverRow): void {
     const cached = this.allocationGroupCache.get(row.id);
     if (cached) { row.route_groups = cached; return; }
@@ -1994,11 +2074,86 @@ export class DriversListComponent implements OnInit, AfterViewInit, OnDestroy {
       error: () => { this.allocationGroupLoading.delete(row.id); },
     }));
   }
-  refreshAllocations(): void { this.allocationGroupCache.clear(); this.reload(); }
-  changeAllocationFilter(): void { if (this.cityScope === 'all') this.allocationVehicleId = null; this.page = 1; this.reload(); }
-  changeAllocationVehicle(): void { if (this.allocationVehicleId) this.cityScope = 'selected'; this.page = 1; this.reload(); }
+  selectDriverCity(cityId: number | null): void {
+    this.cityScope = cityId === null ? 'all' : 'selected';
+    this.setAllocationCity(cityId ?? this.cityCtx.currentCityId);
+    this.page = 1;
+    this.reload();
+  }
+
+  selectDriverStand(standId: number | null): void {
+    this.selectedStandId = standId;
+    this.page = 1;
+    this.reload();
+  }
+
+  loadStandCounts(): void {
+    this.standCountsRequest?.unsubscribe();
+    this.standCountsLoading = false;
+    this.standCountsFailed = false;
+    if (this.cityScope === 'all' || !this.allocationCityId) return;
+
+    const cityPath = `/admin/cities/${this.allocationCityId}`;
+    this.standCountsLoading = true;
+    this.standCountsRequest = this.api.get<{ data: DriverStandCount[] }>(
+      `${cityPath}/driver-stand-counts`,
+    ).pipe(
+      catchError(error => {
+        if (error.status !== 404 && error.status !== 405) return throwError(() => error);
+        return this.api.get<{ data: DriverStandCount[] }>(`${cityPath}/route-groups`);
+      }),
+    ).subscribe({
+      next: ({ data }) => {
+        this.standCounts = data;
+        this.standCountsLoading = false;
+      },
+      error: () => {
+        this.standCountsLoading = false;
+        this.standCountsFailed = true;
+      },
+    });
+  }
+
+  private setAllocationCity(cityId: number | null): void {
+    this.allocationCityId = cityId;
+    this.allocationVehicleId = null;
+    this.allocationVehicles = [];
+    this.selectedStandId = null;
+    this.standCounts = [];
+    this.allocationDriver = null;
+    this.loadStandCounts();
+
+    this.vehicleOptionsRequest?.unsubscribe();
+    if (!cityId) return;
+    this.vehicleOptionsRequest = this.api.get<{ data: AllocationVehicle[] }>(
+      `/admin/cities/${cityId}/vehicle-types`,
+    ).subscribe({
+      next: ({ data }) => {
+        const names = new Set<string>();
+        this.allocationVehicles = (data || []).filter((vehicle) => {
+          if (names.has(vehicle.display_name)) return false;
+          names.add(vehicle.display_name);
+          return true;
+        });
+      },
+      error: () => { this.allocationVehicles = []; },
+    });
+  }
+
+  selectDriverVehicle(value: string): void {
+    this.allocationVehicleId = value === 'all' ? null : Number(value);
+    if (this.allocationVehicleId && this.cityScope === 'all') {
+      this.cityScope = 'selected';
+      this.loadStandCounts();
+    }
+    this.page = 1;
+    this.reload();
+  }
   private allocationParams(params: URLSearchParams): void {
-    if (this.cityScope === 'selected' && this.allocationCityId) params.set('city_id', String(this.allocationCityId));
+    if (this.cityScope === 'selected' && this.allocationCityId) {
+      params.set('city_id', String(this.allocationCityId));
+      if (this.selectedStandId && !this.legacyStand) params.set('stand_id', String(this.selectedStandId));
+    }
     if (this.allocationVehicleId) params.set('city_vehicle_type_id', String(this.allocationVehicleId));
   }
 
@@ -2014,15 +2169,17 @@ export class DriversListComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnInit(): void {
     this.reload();
     this.startLiveRefresh();
+    this.allocationReads.add(this.api.get<{ data: DriverLocationCount[] }>('/admin/drivers/city-counts').subscribe({
+      next: ({ data }) => {
+        this.cityCounts = data;
+        this.loadStandCounts();
+      },
+      error: () => { this.cityCounts = null; },
+    }));
+    this.allocationReads.add(this.cityCtx.cities$.subscribe(cities => { this.catalogCities = cities; }));
+    this.allocationReads.add(this.cityCtx.ensureCitiesLoaded().subscribe());
     this.allocationCitySub = this.cityCtx.cityId$.subscribe(cityId => {
-      this.allocationCityId = cityId; this.allocationVehicleId = null; this.allocationVehicles = []; this.allocationDriver = null;
-      this.cityCtx.ensureCitiesLoaded().subscribe(cities => { if (this.allocationCityId === cityId) this.allocationCityName = cities.find(city => city.id === cityId)?.name || ''; });
-      if (cityId) this.api.get<{ data: { id: number; display_name: string; vehicle_type_id: number | null }[] }>(`/admin/cities/${cityId}/vehicle-types`).subscribe({
-        next: res => { if (this.allocationCityId !== cityId) return; const names = new Set<string>(); this.allocationVehicles = (res.data || []).filter(vehicle => { if (names.has(vehicle.display_name)) return false; names.add(vehicle.display_name); return true; }); },
-        error: () => { if (this.allocationCityId === cityId) this.allocationVehicles = []; },
-      });
-      else this.cityScope = 'all';
-      if (this.cityScope === 'selected') { this.page = 1; this.reload(); }
+      if (this.cityScope === 'all') this.setAllocationCity(cityId);
     });
     // Deep-link support: /drivers?insights=leaderboard|performance opens the
     // drawer pre-selected (used by the sidebar nav and redirected legacy URLs).
@@ -2039,7 +2196,11 @@ export class DriversListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.allocationReads.unsubscribe(); this.allocationCitySub?.unsubscribe(); this.listRequest?.unsubscribe();
+    this.allocationReads.unsubscribe();
+    this.allocationCitySub?.unsubscribe();
+    this.vehicleOptionsRequest?.unsubscribe();
+    this.standCountsRequest?.unsubscribe();
+    this.listRequest?.unsubscribe();
     this.destroyDateRangePicker();
     if (this.refreshTimer) clearInterval(this.refreshTimer);
     if (this.insightsCloseTimer) clearTimeout(this.insightsCloseTimer);
@@ -2119,9 +2280,11 @@ export class DriversListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.allocationParams(params);
     this.refreshInFlight = true;
     if (!silent) this.loading = true;
-    this.listRequest = this.api.get<{ data: { data: DriverRow[]; total: number }; allocation_filters_supported?: boolean }>(
-      `/admin/drivers?${params.toString()}`,
-    ).subscribe({
+    const stand = this.legacyStand;
+    const result = stand
+      ? this.loadLegacyStandDrivers(params, stand.driver_user_ids ?? [])
+      : this.api.get<DriverListResponse>(`/admin/drivers?${params}`);
+    this.listRequest = result.subscribe({
       next: (res) => {
         this.rows = res?.data?.data ?? [];
         this.allocationFiltersSupported = !!res.allocation_filters_supported;
@@ -2141,6 +2304,27 @@ export class DriversListComponent implements OnInit, AfterViewInit, OnDestroy {
         this.refreshInFlight = false;
       },
     });
+  }
+
+  private loadLegacyStandDrivers(params: URLSearchParams, userIds: number[]): Observable<DriverListResponse> {
+    const members = new Set(userIds);
+    const offset = (this.page - 1) * this.pageSize;
+    const pageSize = this.pageSize;
+    const batchSize = 100;
+    const loadPage = (page: number) => {
+      params.set('page', String(page));
+      params.set('per_page', String(batchSize));
+      return this.api.get<DriverListResponse>(`/admin/drivers?${params}`).pipe(
+        map(response => ({ response, page })),
+      );
+    };
+
+    return loadPage(1).pipe(
+      expand(({ response, page }) => page < (response.data.last_page ?? Math.ceil(response.data.total / batchSize))
+        ? loadPage(page + 1) : EMPTY),
+      reduce((rows, { response }) => rows.concat(response.data.data.filter(row => row.user && members.has(row.user.id))), [] as DriverRow[]),
+      map(rows => ({ data: { data: rows.slice(offset, offset + pageSize), total: rows.length }, allocation_filters_supported: true })),
+    );
   }
 
   onSearchChange(): void {
@@ -2752,6 +2936,7 @@ export class DriversListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   exportCsv(): void {
+    if (this.legacyStand) return;
     this.exporting = true;
     const params = new URLSearchParams({ state: this.state });
     if (this.search.trim()) params.set('q', this.search.trim());
