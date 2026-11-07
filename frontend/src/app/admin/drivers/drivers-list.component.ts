@@ -338,6 +338,20 @@ interface AllocationVehicle {
           <app-driver-route-groups-panel *ngIf="allocationDriver as driver" [driverId]="driver.id" [readOnly]="true" />
         </div>
       </tm-modal>
+      <tm-modal [open]="!!citiesDriver" title="Assigned Cities"
+                (closed)="citiesDriver = null">
+        <div slot="body">
+          <div class="driver-cities" *ngIf="citiesDriver as driver">
+            <div class="driver-cities__summary">
+              <span>{{ driver.user?.name || 'Driver' }}</span>
+              <span class="driver-cities__count">{{ driver.cities?.length }} cities</span>
+            </div>
+            <ul class="driver-city-list" tabindex="0" aria-label="Assigned cities">
+              <li *ngFor="let city of driver.cities">{{ city.name }}</li>
+            </ul>
+          </div>
+        </div>
+      </tm-modal>
       <!-- =================== Reusable table =================== -->
       <tm-data-table
         class="drivers-table"
@@ -604,10 +618,16 @@ interface AllocationVehicle {
           </ng-template>
         </tm-column>
 
-        <tm-column *ngIf="cityCounts" key="cities" label="Cities" [wrap]="true">
+        <tm-column *ngIf="cityCounts" key="cities" label="Cities" width="130">
           <ng-template let-row>
-            <ng-container *ngFor="let city of row.cities; let last = last">{{ city.name }}{{ last ? '' : ', ' }}</ng-container>
-            <span class="muted" *ngIf="!row.cities?.length">—</span>
+            @if (row.cities?.length > 1) {
+              <button type="button" class="allocation-view" aria-haspopup="dialog"
+                      (click)="citiesDriver = row">{{ row.cities.length }} cities</button>
+            } @else if (row.cities?.length) {
+              <span [title]="row.cities[0].name">{{ row.cities[0].name }}</span>
+            } @else {
+              <span class="muted">—</span>
+            }
           </ng-template>
         </tm-column>
         <tm-column key="assignments" label="Stand &amp; Route Assignments" width="220">
@@ -974,6 +994,42 @@ interface AllocationVehicle {
       container: driver-table / inline-size;
     }
     .allocation-view { padding: 0; border: 0; background: transparent; color: var(--tm-green-deep); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .driver-cities__summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 0 14px;
+      color: var(--tm-text-muted);
+    }
+    .driver-cities__count {
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--tm-canvas-2);
+      color: var(--tm-text);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .driver-city-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+      gap: 8px;
+      max-height: min(360px, 52vh);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      list-style: none;
+      margin: 0;
+      padding: 2px 6px 2px 2px;
+    }
+    .driver-city-list li {
+      padding: 8px 12px;
+      border: 1px solid var(--tm-line);
+      border-radius: 8px;
+      background: var(--tm-canvas);
+      overflow-wrap: anywhere;
+    }
     :host { display: block; }
 
     .page {
@@ -2026,6 +2082,7 @@ export class DriversListComponent implements OnInit, AfterViewInit, OnDestroy {
   allocationVehicleId: number | null = null;
   allocationVehicles: AllocationVehicle[] = [];
   allocationDriver: DriverRow | null = null;
+  citiesDriver: DriverRow | null = null;
   private allocationCitySub?: Subscription;
   private vehicleOptionsRequest?: Subscription;
   private standCountsRequest?: Subscription;

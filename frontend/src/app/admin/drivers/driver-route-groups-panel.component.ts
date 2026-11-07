@@ -44,11 +44,32 @@ interface Payload { assigned_group_ids: number[]; groups: GroupOpt[]; effective_
             <section class="drg__card drg__card--routes">
               <h4><tm-icon name="road" [size]="16" aria-hidden="true" /> Accessible routes <span>{{ effective.length }}</span></h4>
               <p class="drg__empty" *ngIf="!effective.length">No fixed routes available.</p>
-              <ul class="drg__items" *ngIf="effective.length">
-                <li class="drg__route" *ngFor="let route of effective">
-                  <ng-container *ngTemplateOutlet="routeDetails; context: { $implicit: route }" />
-                </li>
-              </ul>
+              @if (effective.length) {
+                <div class="drg__tabs" role="tablist" aria-label="Route scope"
+                     (keydown.arrowleft)="switchRouteTab($event, localTab, outstationTab)"
+                     (keydown.arrowright)="switchRouteTab($event, localTab, outstationTab)">
+                  <button #localTab type="button" role="tab" [id]="'drg-local-' + driverId"
+                          [attr.aria-controls]="'drg-routes-' + driverId"
+                          [attr.aria-selected]="scopeFilter === 'local'" [tabIndex]="scopeFilter === 'local' ? 0 : -1"
+                          (click)="scopeFilter = 'local'">Local <span>{{ localCount }}</span></button>
+                  <button #outstationTab type="button" role="tab" [id]="'drg-outstation-' + driverId"
+                          [attr.aria-controls]="'drg-routes-' + driverId"
+                          [attr.aria-selected]="scopeFilter === 'outstation'" [tabIndex]="scopeFilter === 'outstation' ? 0 : -1"
+                          (click)="scopeFilter = 'outstation'">Outstation <span>{{ outstationCount }}</span></button>
+                </div>
+                <div role="tabpanel" [id]="'drg-routes-' + driverId" tabindex="0"
+                     [attr.aria-labelledby]="'drg-' + scopeFilter + '-' + driverId">
+                  @if (filteredEffective.length) {
+                    <ul class="drg__items">
+                      <li class="drg__route" *ngFor="let route of filteredEffective">
+                        <ng-container *ngTemplateOutlet="routeDetails; context: { $implicit: route }" />
+                      </li>
+                    </ul>
+                  } @else {
+                    <p class="drg__empty">No {{ scopeFilter }} routes available.</p>
+                  }
+                </div>
+              }
             </section>
           </div>
         } @else {
@@ -92,12 +113,14 @@ interface Payload { assigned_group_ids: number[]; groups: GroupOpt[]; effective_
       </ng-template>
       <ng-template #routeDetails let-route>
         <div class="drg__route-top">
-          <strong [title]="readOnly ? routeLabel(route) : null">{{ readOnly ? routeLabel(route) : route.name }}</strong>
-          <span class="drg__badge" [class.is-outstation]="route.scope === 'outstation'" [class.is-local]="route.scope === 'local'">
+          <strong>{{ readOnly ? (route.name.trim() || routeEndpoints(route)) : route.name }}</strong>
+          <span *ngIf="!readOnly" class="drg__badge" [class.is-outstation]="route.scope === 'outstation'" [class.is-local]="route.scope === 'local'">
             {{ route.scope | uppercase }}
           </span>
         </div>
-        <small *ngIf="!readOnly">{{ route.origin_name }} → {{ route.dest_name }}</small>
+        <small *ngIf="!readOnly || (route.name.trim() && route.name.trim() !== routeEndpoints(route))">
+          {{ routeEndpoints(route) }}
+        </small>
       </ng-template>
     </section>
   `,
@@ -114,10 +137,14 @@ interface Payload { assigned_group_ids: number[]; groups: GroupOpt[]; effective_
     .drg__card h4 tm-icon { color: var(--tm-green-deep); }
     .drg__card h4 span { margin-left: auto; padding: 2px 6px; border-radius: var(--tm-radius-pill); background: var(--tm-surface); color: var(--tm-text-muted); font-size: 11px; }
     .drg__card .drg__empty { margin: 0; }
-    .drg__items { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+    .drg__tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; margin-bottom: 10px; border-radius: 8px; background: var(--tm-canvas-2); }
+    .drg__tabs button { padding: 7px 4px; border: 0; border-radius: 6px; background: transparent; color: var(--tm-text-muted); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .drg__tabs button[aria-selected='true'] { background: var(--tm-surface); color: var(--tm-text); }
+    .drg__tabs span { margin-inline-start: 4px; }
+    .drg__items { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin: 0; padding: 0; list-style: none; }
     .drg__items .drg__route { margin: 0; background: var(--tm-surface); overflow-wrap: anywhere; }
-    .drg__card--routes .drg__route-top { gap: 6px; }
-    .drg__card--routes .drg__route-top strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .drg__card--routes .drg__route-top { align-items: flex-start; gap: 8px; }
+    .drg__card--routes .drg__route-top strong { min-width: 0; }
     .drg__card--routes .drg__badge { flex-shrink: 0; }
     .drg__route .drg__paused { color: #b45309; }
     .drg__body { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -158,10 +185,15 @@ export class DriverRouteGroupsPanelComponent implements OnChanges {
     return this.groups.filter(group => this.assigned.has(group.id));
   }
 
-  routeLabel(route: EffRoute): string {
-    const endpoints = `${route.origin_name} → ${route.dest_name}`;
-    const name = route.name.trim();
-    return name && name !== endpoints ? `${name} · ${endpoints}` : endpoints;
+  routeEndpoints(route: EffRoute): string {
+    return `${route.origin_name} → ${route.dest_name}`;
+  }
+
+  switchRouteTab(event: Event, localTab: HTMLButtonElement, outstationTab: HTMLButtonElement): void {
+    event.preventDefault();
+    const nextTab = this.scopeFilter === 'local' ? outstationTab : localTab;
+    nextTab.click();
+    nextTab.focus();
   }
 
   get localCount(): number {
@@ -191,6 +223,7 @@ export class DriverRouteGroupsPanelComponent implements OnChanges {
         if (this.driverId !== driverId) return; this.loading = false;
         this.groups = [...(res?.groups || [])].sort((a, b) => Number(!!b.matches_vehicle_set) - Number(!!a.matches_vehicle_set));
         this.effective = res?.effective_routes || [];
+        if (this.readOnly) this.scopeFilter = this.localCount ? 'local' : 'outstation';
         this.assigned = new Set<number>(res?.assigned_group_ids || []);
       },
       error: () => { if (this.driverId !== driverId) return; this.loading = false; this.loadFailed = true; },
