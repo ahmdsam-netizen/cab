@@ -6,6 +6,7 @@ import $ from 'jquery';
 import moment from 'moment';
 import 'daterangepicker';
 import { forkJoin } from 'rxjs';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { ApiService } from '../../core/api.service';
 import { ToastService } from '../../core/toast.service';
 import { DriverRouteGroupsPanelComponent } from './driver-route-groups-panel.component';
@@ -19,6 +20,20 @@ import {
   ModalComponent,
   StatusPillComponent,
 } from '../../ui';
+
+const DRIVER_SERVICE_MODE_OPTIONS = [
+  { value: 'private', label: 'Private Rides' },
+  { value: 'fixed', label: 'Fixed Routes' },
+  { value: 'shuttle', label: 'Shuttle' },
+] as const;
+
+type DriverServiceMode = typeof DRIVER_SERVICE_MODE_OPTIONS[number]['value'];
+
+interface DriverRideCatalogMode {
+  mode: DriverServiceMode;
+  name: string;
+  display_name?: string | null;
+}
 
 interface DriverProfile {
   id: number;
@@ -103,6 +118,7 @@ const BLOCK_REASONS = [
   imports: [
     CommonModule,
     FormsModule,
+    MultiSelectModule,
     DatePipe,
     RouterLink,
     ButtonComponent,
@@ -886,49 +902,35 @@ const BLOCK_REASONS = [
           <textarea class="form-control" rows="2" [(ngModel)]="editForm.address" maxlength="500"></textarea>
         </div>
 
-        <div class="drawer-section-heading mt-4">Operating Cities (Multi-Select)</div>
+        <div class="drawer-section-heading mt-4">Operating Cities</div>
         <div class="form-group">
-          <label class="form-label">Select All Cities where Driver Operates</label>
-          <div class="city-chips-grid">
-            <button
-              type="button"
-              *ngFor="let c of allCities"
-              class="city-chip"
-              [class.is-selected]="isEditCitySelected(c.id)"
-              (click)="toggleEditCity(c.id)"
-            >
-              <tm-icon [name]="isEditCitySelected(c.id) ? 'check' : 'plus'" [size]="12" />
-              <span>{{ c.name }}</span>
-            </button>
-          </div>
-          <small class="form-text-muted" *ngIf="!allCities.length">Loading cities list...</small>
+          <label id="driver-operating-cities-label" class="form-label" for="driver-operating-cities">Select the cities where the driver operates</label>
+          <p-multiSelect
+            inputId="driver-operating-cities"
+            ariaLabelledBy="driver-operating-cities-label"
+            [options]="allCities"
+            optionLabel="name"
+            optionValue="id"
+            [ngModel]="editForm.city_ids"
+            (ngModelChange)="updateEditCities($event)"
+            [style]="{ width: '100%' }"
+            [filter]="true"
+            filterPlaceHolder="Search cities"
+            ariaFilterLabel="Search cities"
+            [resetFilterOnHide]="true"
+            [showToggleAll]="false"
+            [maxSelectedLabels]="2"
+            selectedItemsLabel="{0} cities selected"
+            emptyMessage="No cities available"
+            placeholder="Select cities"
+          />
         </div>
 
         <div class="drawer-section-heading mt-4">Service &amp; Mode Settings</div>
         <div class="form-group-grid">
           <div class="form-group">
-            <label class="form-label">Service Scope (Multi-Select)</label>
-            <div style="display: flex; gap: 8px; margin-bottom: 6px;">
-              <button
-                type="button"
-                class="city-chip"
-                [class.is-selected]="isEditScopeActive('local')"
-                (click)="toggleEditScope('local')"
-              >
-                <tm-icon [name]="isEditScopeActive('local') ? 'check' : 'plus'" [size]="12" />
-                <span>Local</span>
-              </button>
-              <button
-                type="button"
-                class="city-chip"
-                [class.is-selected]="isEditScopeActive('outstation')"
-                (click)="toggleEditScope('outstation')"
-              >
-                <tm-icon [name]="isEditScopeActive('outstation') ? 'check' : 'plus'" [size]="12" />
-                <span>Outstation</span>
-              </button>
-            </div>
-            <select class="form-control" [(ngModel)]="editForm.service_scope">
+            <label class="form-label" for="driver-service-scope">Service Scope</label>
+            <select id="driver-service-scope" class="form-control" [(ngModel)]="editForm.service_scope">
               <option value="">Not Assigned</option>
               <option value="local">Local</option>
               <option value="outstation">Outstation</option>
@@ -936,12 +938,10 @@ const BLOCK_REASONS = [
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Service Mode</label>
-            <select class="form-control" [(ngModel)]="editForm.service_mode" (ngModelChange)="syncEditVehicle()">
+            <label class="form-label" for="driver-service-mode">Service Mode</label>
+            <select id="driver-service-mode" class="form-control" [(ngModel)]="editForm.service_mode" (ngModelChange)="syncEditVehicle()">
               <option value="">Not Assigned</option>
-              <option value="private">Private Rides</option>
-              <option value="fixed">Fixed Routes</option>
-              <option value="shuttle">Shuttle</option>
+              <option *ngFor="let option of serviceModeOptions" [value]="option.value">{{ option.label }}</option>
             </select>
           </div>
         </div>
@@ -956,7 +956,7 @@ const BLOCK_REASONS = [
             <option *ngIf="editVehicleKey && !hasEditVehicleChoice" [value]="editVehicleKey" [selected]="true" disabled>{{ profile?.city_vehicle_type_name || profile?.vehicle_type_name || 'Current vehicle' }}</option>
             <option *ngFor="let vehicle of editVehicleChoices" [value]="vehicle.key" [selected]="vehicle.key === editVehicleKey">{{ vehicle.name }}</option>
           </select>
-          <small class="form-text-muted">{{ editVehiclesLoading ? 'Loading vehicles…' : 'Choose the vehicle only. Service Mode above controls Fixed, Private or Shuttle.' }}</small>
+          <small class="form-text-muted">{{ editVehiclesLoading ? 'Loading vehicles…' : 'Choose a vehicle for the selected service mode.' }}</small>
           <div *ngIf="editVehiclesError" role="alert">Could not load vehicles. <button type="button" (click)="loadCityVehiclesForEdit()">Retry</button></div>
         </div>
 
@@ -1778,29 +1778,6 @@ const BLOCK_REASONS = [
     }
     .form-group-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .form-text-muted { font-size: 11px; color: var(--tm-text-muted); margin-top: 4px; display: block; }
-    .city-chips-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
-    .city-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      border-radius: 20px;
-      border: 1px solid var(--tm-line-2);
-      background: var(--tm-canvas);
-      color: var(--tm-text);
-      font-size: 12.5px;
-      font-weight: 600;
-      cursor: pointer;
-      font-family: var(--tm-font-body);
-      transition: all 0.15s ease;
-    }
-    .city-chip:hover { border-color: var(--tm-ink); }
-    .city-chip.is-selected {
-      background: var(--tm-green-tint, rgba(18,179,91,0.12));
-      border-color: var(--tm-green, #12b35b);
-      color: var(--tm-green-deep, #0e8f49);
-      font-weight: 700;
-    }
 
     .mono { font-family: var(--tm-font-mono) !important; font-variant-numeric: tabular-nums; }
     .text-emerald { color: var(--tm-green-deep) !important; }
@@ -1907,6 +1884,7 @@ export class DriverDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   // Edit profile drawer
   editOpen = false;
   editSaving = false;
+  serviceModeOptions: ReadonlyArray<{ value: DriverServiceMode; label: string }> = DRIVER_SERVICE_MODE_OPTIONS;
   editForm: {
     name: string;
     phone: string;
@@ -1915,7 +1893,7 @@ export class DriverDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     address: string;
     city_ids: number[];
     service_scope: 'local' | 'outstation' | 'both' | '';
-    service_mode: 'private' | 'fixed' | 'shuttle' | '';
+    service_mode: DriverServiceMode | '';
     vehicle_type_id: number | null;
     city_vehicle_type_id: number | null;
     vehicle_reg_no: string;
@@ -2247,61 +2225,38 @@ export class DriverDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     );
     this.editVehicleManuallyChosen = false;
     this.loadCityVehiclesForEdit();
+    this.loadServiceModeLabels(cityIds[0] ?? this.allCities[0]?.id);
     this.editOpen = true;
   }
 
-  toggleEditCity(cityId: number): void {
+  private loadServiceModeLabels(cityId?: number): void {
+    if (!cityId) return;
+    // This endpoint still takes a city ID, but the service catalog is global.
+    this.api.get<{ scopes: { modes: DriverRideCatalogMode[] }[] }>(
+      `/catalog/cities/${cityId}/driver-ride-products`,
+    ).subscribe({
+      next: ({ scopes }) => {
+        const catalogModes = scopes.flatMap(scope => scope.modes);
+        this.serviceModeOptions = DRIVER_SERVICE_MODE_OPTIONS.map(option => {
+          const catalogMode = catalogModes.find(mode => mode.mode === option.value);
+          return { ...option, label: catalogMode?.display_name || catalogMode?.name || option.label };
+        });
+      },
+      error: () => {
+        this.serviceModeOptions = DRIVER_SERVICE_MODE_OPTIONS;
+      },
+    });
+  }
+
+  updateEditCities(cityIds: number[]): void {
     if (!this.editForm) return;
-    const cid = Number(cityId);
-    const idx = this.editForm.city_ids.findIndex((id) => Number(id) === cid);
-    if (idx >= 0) {
-      if (this.editForm.city_ids.length > 1) {
-        this.editForm.city_ids.splice(idx, 1);
-      } else {
-        this.toast.error('Driver must have at least one operating city.');
-      }
-    } else {
-      this.editForm.city_ids.push(cid);
+    if (!cityIds.length) {
+      this.editForm.city_ids = [...this.editForm.city_ids];
+      this.toast.error('Driver must have at least one operating city.');
+      return;
     }
+    this.editForm.city_ids = cityIds;
     this.loadCityVehiclesForEdit();
-  }
-
-  isEditCitySelected(cityId: number): boolean {
-    if (!this.editForm?.city_ids) return false;
-    const cid = Number(cityId);
-    return this.editForm.city_ids.some((id) => Number(id) === cid);
-  }
-
-  isEditScopeActive(scope: 'local' | 'outstation'): boolean {
-    if (!this.editForm?.service_scope) return false;
-    if (this.editForm.service_scope === 'both') return true;
-    return this.editForm.service_scope === scope;
-  }
-
-  toggleEditScope(scope: 'local' | 'outstation'): void {
-    if (!this.editForm) return;
-    const current = this.editForm.service_scope;
-    const hasLocal = current === 'both' || current === 'local';
-    const hasOutstation = current === 'both' || current === 'outstation';
-
-    let nextLocal = hasLocal;
-    let nextOutstation = hasOutstation;
-
-    if (scope === 'local') {
-      nextLocal = !nextLocal;
-    } else {
-      nextOutstation = !nextOutstation;
-    }
-
-    if (nextLocal && nextOutstation) {
-      this.editForm.service_scope = 'both';
-    } else if (nextLocal) {
-      this.editForm.service_scope = 'local';
-    } else if (nextOutstation) {
-      this.editForm.service_scope = 'outstation';
-    } else {
-      this.editForm.service_scope = scope;
-    }
   }
 
   ensureOptionsLoaded(): void {
@@ -2309,6 +2264,9 @@ export class DriverDetailComponent implements OnInit, AfterViewInit, OnDestroy {
       this.api.get<{ data: { id: number; name: string }[] }>('/admin/cities').subscribe({
         next: (res) => {
           this.allCities = res.data ?? [];
+          if (this.editOpen && !this.editForm?.city_ids.length) {
+            this.loadServiceModeLabels(this.allCities[0]?.id);
+          }
           if (this.editForm && (!this.editForm.city_ids || !this.editForm.city_ids.length) && this.profile?.city_name) {
             const match = this.allCities.find((c) => c.name.toLowerCase() === this.profile!.city_name!.toLowerCase());
             if (match) {

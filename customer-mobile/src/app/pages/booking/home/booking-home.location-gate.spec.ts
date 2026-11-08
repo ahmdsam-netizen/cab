@@ -60,6 +60,7 @@ describe('Home location gate and catalog continuity', () => {
     expect(page.booking.catalog).not.toHaveBeenCalled();
     expect(page.city).toBeNull();
     expect(root.querySelector('.bh-location-gate')?.textContent).toContain('No location available');
+    expect(root.querySelector('.loc-loader-overlay')).toBeNull();
     expect(root.querySelector<HTMLButtonElement>('.bh-location-gate button')!.disabled).toBeFalse();
     expect(root.querySelector('.bh-home-content')!.hasAttribute('inert')).toBeTrue();
     page.watchId = 'denied-watch';
@@ -72,6 +73,7 @@ describe('Home location gate and catalog continuity', () => {
     expect(page.tiles[0].mode).toBe('fixed');
     expect(page.loadHomeRoutes).toHaveBeenCalled();
     expect(root.querySelector('.bh-location-gate')).toBeNull();
+    expect(root.querySelector('.loc-loader-overlay')).toBeNull();
     expect(root.querySelector('.bh-home-content')!.hasAttribute('inert')).toBeFalse();
   });
   it('recovers automatically when a late watch fix arrives after GPS failed', async () => {

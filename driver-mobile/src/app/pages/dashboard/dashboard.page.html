@@ -251,7 +251,7 @@
   </section>
 
   <section class="home-plan" *ngIf="driver && !activeFixedVehicleOpen" aria-labelledby="home-plan-title">
-    <div class="home-card-heading"><span class="home-icon-tile"><ion-icon name="git-branch-outline" aria-hidden="true"></ion-icon></span><div><h2 id="home-plan-title">Today's route</h2><strong class="home-route-name">{{ !isApproved ? 'Awaiting approval' : 'Choose your route' }}</strong><p>{{ !isOnline ? 'Go online to view your assigned routes' : (registeredServiceLabel || 'Registered service') }}</p></div></div>
+    <div class="home-card-heading"><span class="home-icon-tile"><ion-icon name="git-branch-outline" aria-hidden="true"></ion-icon></span><div><h2 id="home-plan-title">Today's route</h2><strong class="home-route-name">{{ !isApproved ? 'Awaiting approval' : 'Choose your route' }}</strong><p>{{ !isOnline ? 'Go online to start a route' : (registeredServiceLabel || 'Registered service') }}</p></div></div>
     <button type="button" class="home-plan-action" [disabled]="!isApproved || !isOnline || toggling || !driveMode" (click)="driveMode === 'fixed' ? chooseFixedRouteForBoarding() : navTo('/tabs/rides')"><ion-icon name="navigate-outline" aria-hidden="true"></ion-icon>{{ driveMode === 'fixed' || registeredServiceMode === 'fixed' ? 'Choose / change route' : 'View ride requests' }}<ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></button>
   </section>
 
@@ -266,6 +266,32 @@
     <strong class="home-earnings-amount">{{ homeWalletBalance === null ? 'View wallet' : (homeWalletBalance | currency:'INR':'symbol':'1.0-2') }}</strong>
     <span class="home-earnings-note">View wallet<ion-icon name="arrow-up-outline" aria-hidden="true"></ion-icon></span>
   </button>
+  </section>
+
+  <section class="home-service-access" *ngIf="driver" aria-labelledby="home-service-access-title">
+    <div class="home-service-header">
+      <h2 id="home-service-access-title">Service overview</h2>
+      <button type="button" (click)="navTo('/profile?tab=vehicle')">
+        View details <ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+      </button>
+    </div>
+    <dl *ngIf="serviceAccess as access; else serviceAccessStatus">
+      <div>
+        <dt><ion-icon name="business-outline" aria-hidden="true"></ion-icon> Cities <span>{{ access.cities.length }}</span></dt>
+        <dd><span *ngFor="let city of access.cities | slice:0:2">{{ city.name }}</span><span *ngIf="access.cities.length > 2">+{{ access.cities.length - 2 }} more</span><span *ngIf="!access.cities.length">None assigned</span></dd>
+      </div>
+      <div>
+        <dt><ion-icon name="location-outline" aria-hidden="true"></ion-icon> Stands <span>{{ access.stands.length }}</span></dt>
+        <dd><span *ngFor="let stand of access.stands | slice:0:2">{{ stand.name }}{{ stand.is_active ? '' : ' (inactive)' }}</span><span *ngIf="access.stands.length > 2">+{{ access.stands.length - 2 }} more</span><span *ngIf="!access.stands.length">None assigned</span></dd>
+      </div>
+      <div>
+        <dt><ion-icon name="git-branch-outline" aria-hidden="true"></ion-icon> Fixed routes <span>{{ access.routes.length }}</span></dt>
+        <dd><span *ngFor="let route of access.routes | slice:0:2">{{ route.name }}</span><span *ngIf="access.routes.length > 2">+{{ access.routes.length - 2 }} more</span><span *ngIf="!access.routes.length">None available</span></dd>
+      </div>
+    </dl>
+    <ng-template #serviceAccessStatus>
+      <p role="status">{{ serviceAccessFailed ? 'Could not load your assignments.' : 'Loading assignments…' }}</p>
+    </ng-template>
   </section>
 
   <section class="home-quick-access" aria-labelledby="home-quick-title">

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\DispatchDriverLocationUpdated;
 use App\Events\DriverVerificationUpdated;
 use App\Models\CitySetting;
+use App\Models\City;
 use App\Models\CityVehicleType;
 use App\Models\Driver;
 use App\Models\Fleet;
@@ -12,8 +13,12 @@ use App\Models\Document;
 use App\Models\DriverDocument;
 use App\Models\DriverLocation;
 use App\Models\OperatorSetting;
+use App\Models\Route;
+use App\Models\RouteGroup;
 use App\Models\Trip;
+use App\Models\User;
 use App\Services\DriverServiceModeService;
+use App\Services\DriverRouteAccessService;
 use App\Services\WalletService;
 use App\Services\FixedStopAutomationService;
 use App\Services\ShuttleStopAutomationService;
@@ -22,12 +27,49 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class DriversController extends Controller
 {
     public function register(Request $request)
     {
-        $user = $request->user();
+        return DB::transaction(function () use ($request) {
+            $user = User::query()->lockForUpdate()->findOrFail($request->user()->id);
+
+            return $this->saveRegistration($request, $user);
+        });
+    }
+
+    public function registrationStands(City $city)
+    {
+        return response()->json(['data' => RouteGroup::query()
+            ->where('city_id', $city->id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name'])]);
+    }
+
+    public function serviceAccess(Request $request, DriverRouteAccessService $access)
+    {
+        $userId = $request->user()->id;
+        $driver = Driver::query()->where('user_id', $userId)->firstOrFail();
+        $cityIds = $driver->city_ids;
+
+        return response()->json([
+            'cities' => City::query()->whereIn('id', $cityIds)->orderBy('name')->get(['id', 'name']),
+            'stands' => RouteGroup::query()->whereHas('drivers', fn ($query) => $query->whereKey($userId))
+                ->whereIn('city_id', $cityIds)->with('city:id,name')->orderBy('name')
+                ->get(['id', 'city_id', 'name', 'is_active']),
+            'routes' => Route::query()->whereIn('id', $access->effectiveRouteIds($userId))
+                ->where('mode', 'fixed')->where('is_active', true)->whereIn('scope', $driver->allowedScopes())
+                ->where(fn ($query) => $query->whereIn('city_id', $cityIds)
+                    ->orWhereIn('origin_city_id', $cityIds)->orWhereIn('dest_city_id', $cityIds))
+                ->orderBy('name')->get(['id', 'name', 'origin_name', 'dest_name', 'scope']),
+        ]);
+    }
+
+    private function saveRegistration(Request $request, User $user)
+    {
         $existing = Driver::query()->where('user_id', $user->id)->first();
 
         if ($request->has('service_scope') || $request->has('service_scopes')) {
@@ -79,12 +121,34 @@ class DriversController extends Controller
         }
 
         $chosenCityIds = [];
-        if (! empty($data['city_ids'])) {
+        if ($existing && ! empty($existing->city_ids)) {
+            $chosenCityIds = $existing->city_ids;
+        } elseif (! empty($data['city_ids'])) {
             $chosenCityIds = array_values(array_unique(array_map('intval', $data['city_ids'])));
         } elseif (! empty($data['city_id'])) {
             $chosenCityIds = [(int) $data['city_id']];
-        } elseif ($existing && ! empty($existing->city_ids)) {
-            $chosenCityIds = $existing->city_ids;
+        }
+
+        $stands = collect();
+        if (!$existing) {
+            if (count($chosenCityIds) !== 1 || count($data['city_ids'] ?? []) > 1
+                || (isset($data['city_id']) && (int) $data['city_id'] !== $chosenCityIds[0])) {
+                throw ValidationException::withMessages(['city_id' => 'Select exactly one operating city.']);
+            }
+
+            $selection = $request->validate([
+                'stand_ids' => ['required', 'array', 'size:2'],
+                'stand_ids.*' => ['required', 'integer', 'distinct'],
+            ], [
+                'stand_ids.required' => 'Select exactly two stands in your operating city.',
+                'stand_ids.size' => 'Select exactly two stands in your operating city.',
+            ]);
+            $stands = RouteGroup::query()->where('city_id', $chosenCityIds[0])
+                ->where('is_active', true)->whereIn('id', $selection['stand_ids'])
+                ->orderBy('id')->lockForUpdate()->get(['id']);
+            if ($stands->count() !== 2) {
+                throw ValidationException::withMessages(['stand_ids' => 'Select two active stands in your operating city.']);
+            }
         }
 
         if (!$existing || $existing->approval_status !== 'approved') {
@@ -243,13 +307,21 @@ class DriversController extends Controller
             }
         }
 
+        $saveCities = !$existing || empty($existing->city_ids);
+        if (!$saveCities) {
+            unset($payload['city_id']);
+        }
+
         $driver = Driver::query()->updateOrCreate(
             ['user_id' => $user->id],
             $payload,
         );
 
-        if (! empty($chosenCityIds)) {
+        if ($saveCities && ! empty($chosenCityIds)) {
             $driver->cities()->sync($chosenCityIds);
+        }
+        foreach ($stands as $stand) {
+            $stand->drivers()->attach($user->id);
         }
 
         $user->addRole('driver');

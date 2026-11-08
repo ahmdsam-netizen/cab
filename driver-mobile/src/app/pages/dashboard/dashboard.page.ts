@@ -8,6 +8,7 @@ import { Router } from '@angular/router';
 import { AlertController, ModalController } from '@ionic/angular';
 import { firstValueFrom, interval, Subscription } from 'rxjs';
 import { ApiService } from '../../core/api.service';
+import { DriverServiceAccess } from '../../core/driver-service-access';
 import { AuthService, AuthUser } from '../../core/auth.service';
 import { LocationConsentService } from '../../core/location-consent.service';
 import { DriverPresenceService, PresenceFix } from '../../core/driver-presence.service';
@@ -162,6 +163,9 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
    * fades out to reveal the live screen.
    */
   homeLoading = true;
+  serviceAccess: DriverServiceAccess | null = null;
+  serviceAccessFailed = false;
+  private serviceAccessRequest?: Subscription;
   private homeLoadStart = Date.now();
   private profileReady = false;
   private mapReady = false;
@@ -301,10 +305,20 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
     this.greetingInProgress = true;
     this.hasInitialOverviewFramed = false;
     this.refresh();
+    this.loadServiceAccess();
     void this.loadActiveFixedVehicleState();
     this.startSyncTimer();
     this.setupBannerSubscription();
     this.loadBanners();
+  }
+
+  loadServiceAccess(): void {
+    this.serviceAccessRequest?.unsubscribe();
+    this.serviceAccessFailed = false;
+    this.serviceAccessRequest = this.api.get<DriverServiceAccess>('/drivers/me/service-access').subscribe({
+      next: access => { this.serviceAccess = access; },
+      error: () => { this.serviceAccess = null; this.serviceAccessFailed = true; },
+    });
   }
 
   // ── App Banners handlers ────────────────────────────────────────────────
@@ -602,6 +616,7 @@ export class DashboardPage implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.serviceAccessRequest?.unsubscribe();
     void this.resumeListener?.then(handle => handle.remove());
     this.stopSyncTimer();
     this.stopFixedManifestPolling();

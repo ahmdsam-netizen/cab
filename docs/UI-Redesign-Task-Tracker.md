@@ -1,8 +1,37 @@
 # Customer and Driver UI Redesign — Task Tracker
 
-Last updated: 2026-11-05 (Asia/Calcutta)
+Last updated: 2026-11-07 (Asia/Calcutta)
 
 ## Start here
+
+- Driver splash logo (2026-11-07). The driver splash now uses the same
+  DreamCabs logo asset as the customer splash. Verified that the logo
+  loaded alongside the driver tagline in the local browser. The driver
+  Angular template check passed. Next, confirm the splash on a phone.
+
+- Customer Home location loader (2026-11-07). Home now shows the driver
+  app’s dark radar screen while it obtains location and loads available
+  rides. A failed request shows Retry location. Angular compilation and
+  all 26 Home tests passed in headless Chrome. In the local ChatGPT browser,
+  reload showed the radar loader at 455 × 681 and then opened Sopore Home.
+  Increased spacing in both apps and verified 13 px of clearance between
+  the fully expanded ring and the title in the local browser.
+  Next, verify the transition with device GPS on a physical phone.
+
+- Driver registration stand selection (2026-11-07). The client confirmed
+  one operating city and exactly two active stands at signup. Admins can
+  review the pending driver's selections and later assign multiple cities
+  and stands. The signup form and API enforce the initial selection, and
+  registration retries preserve admin assignments. The driver Angular
+  template check and the dummy-driver MySQL test passed, including invalid
+  selections, admin review, and later multi-city and multi-stand edits.
+  Nine of ten targeted backend tests passed. A separate Fixed departure
+  test returned 422 with a Private vehicle fixture. The local browser demo
+  used an isolated OTP fixture. One stand blocked submission, two disabled
+  the third option, and the completed dummy signup reached Account under
+  review. The demo database confirmed driver #1 with Demo Operating City,
+  Central Demo Stand, and Market Demo Stand. Next, verify signup on a
+  physical phone before releasing the backend and driver app together.
 
 - Customer Home location button (2026-11-05). Tapping it immediately
   centers the map on the last device fix while requesting a fresh one.

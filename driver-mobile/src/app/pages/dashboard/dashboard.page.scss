@@ -784,7 +784,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 28px;
+    // The 100px ring extends 55px below this box at its largest scale.
+    margin-bottom: 68px;
   }
 
   .loc-radar-ring {
@@ -1703,6 +1704,26 @@
 .home-duty-copy strong { display: block; font-size: 20px; line-height: 1.2; font-weight: 700; }
 .home-duty-copy small { display: block; font-size: 11px; line-height: 1.4; margin-top: 3px; opacity: .9; }
 .home-summaries { order: 2; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.home-service-access {
+  order: 6;
+  padding: 14px;
+  border: 1px solid #e4eaf0;
+  border-radius: 14px;
+  background: #fff;
+  color: #0d1b2a;
+
+  .home-service-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; column-gap: 8px; }
+  h2 { margin: 0; font-size: 15px; font-weight: 750; }
+  dl { display: grid; gap: 8px; margin: 4px 0 0; }
+  dl > div { padding: 9px 12px; border-radius: 10px; background: #f1f5f9; }
+  dt, dd, p { font-size: 12px; line-height: 1.45; }
+  dt { display: flex; align-items: center; gap: 7px; font-weight: 700; }
+  dt ion-icon { color: #087f50; font-size: 16px; }
+  dt span { margin-inline-start: auto; padding: 1px 7px; border-radius: 10px; background: #e3f1eb; color: #087f50; }
+  dd { display: flex; flex-wrap: wrap; gap: 2px 6px; margin: 3px 0 0 23px; color: #52657d; overflow-wrap: anywhere; }
+  dd span + span::before { content: '· '; }
+  button { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0; border: 0; background: transparent; color: #087f50; font-size: 12px; font-weight: 700; }
+}
 .home-workspace .home-plan { order: 5; }
 .home-summaries .home-earnings { border: 1px solid #e4eaf0; background: #f5f8fa; padding: 14px; min-width: 0; }
 .home-summaries .home-card-title { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; color: #64748b; line-height: 1.4; }

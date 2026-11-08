@@ -321,14 +321,15 @@
           <h2 class="pg-card__title">Your Vehicle &amp; Service</h2>
         </div>
 
-        <!-- 1. Operating Cities (Bottom Sheet Trigger) -->
+        <!-- 1. Operating city and stands -->
         <div class="pf-field">
-          <span class="pf-field__label">Operating Cities <em>*</em></span>
-          <div class="pf-input pf-city-box dc-press" (click)="openCityModal()" [class.is-filled]="city_ids && city_ids.length">
+          <span class="pf-field__label">{{ hasDriverProfile && city_ids.length > 1 ? 'Operating Cities' : 'Operating City' }} <em>*</em></span>
+          <button type="button" class="pf-input pf-city-box dc-press" (click)="openCityModal()"
+            [disabled]="submitting || (hasDriverProfile && !!city_id)" [class.is-filled]="city_ids.length">
             <div class="pf-city-box__left">
               <ion-icon name="location-outline" class="pf-city-box__icon"></ion-icon>
               <span class="pf-city-box__text" *ngIf="city_ids && city_ids.length">{{ selectedCityNames }}</span>
-              <span class="pf-city-box__placeholder" *ngIf="!city_ids || !city_ids.length">Select your operating cities</span>
+              <span class="pf-city-box__placeholder" *ngIf="!city_ids.length">Select your operating city</span>
             </div>
             <div class="pf-city-box__right">
               <span class="pf-city-box__badge" *ngIf="city_ids && city_ids.length">
@@ -336,6 +337,27 @@
               </span>
               <ion-icon name="chevron-forward-outline" class="pf-city-box__chevron"></ion-icon>
             </div>
+          </button>
+        </div>
+
+        <div class="pf-field" *ngIf="!hasDriverProfile && city_id">
+          <span class="pf-field__label">Taxi Stands <em>*</em></span>
+          <p class="pf-field__hint" aria-live="polite">Choose two stands in this city. {{ selectedStandIds.length }} of 2 selected.</p>
+          <p *ngIf="standsLoading" role="status">Loading stands…</p>
+          <div *ngIf="standsLoadFailed">
+            <p role="alert">Could not load stands for this city.</p>
+            <ion-button fill="clear" (click)="loadRegistrationStands()">Retry</ion-button>
+          </div>
+          <p *ngIf="!standsLoading && !standsLoadFailed && registrationStands.length < 2" role="status">
+            This city needs at least two active stands before you can register. Contact the operator for help.
+          </p>
+          <div class="pf-model-list" *ngIf="registrationStands.length">
+            <label class="pf-model-item" *ngFor="let stand of registrationStands" [class.is-active]="selectedStandIds.includes(stand.id)">
+              <span class="pf-model-item__name">{{ stand.name }}</span>
+              <input type="checkbox" [checked]="selectedStandIds.includes(stand.id)"
+                [disabled]="submitting || (selectedStandIds.length === 2 && !selectedStandIds.includes(stand.id))"
+                (change)="toggleRegistrationStand(stand.id)" />
+            </label>
           </div>
         </div>
 
@@ -554,6 +576,48 @@
           </div>
         </div>
       </div>
+      <section class="pg-card pf-service-access" aria-labelledby="service-access-title">
+        <div class="pg-card__head">
+          <div class="pg-card__icon"><ion-icon name="map-outline" aria-hidden="true"></ion-icon></div>
+          <h2 class="pg-card__title" id="service-access-title">My Service Access</h2>
+        </div>
+        <p class="pf-service-access__note">Your operator manages these assignments.</p>
+        <p *ngIf="serviceAccessLoading" role="status">Loading assignments…</p>
+        <div *ngIf="serviceAccessFailed">
+          <p role="status">Could not load your assignments.</p>
+          <ion-button fill="clear" (click)="loadServiceAccess()">Retry</ion-button>
+        </div>
+        <ng-container *ngIf="!serviceAccessLoading && serviceAccess as access">
+          <ion-segment [(ngModel)]="serviceAccessTab" aria-label="Service assignments" class="pf-service-access__tabs">
+            <ion-segment-button id="service-stands-tab" value="stands" aria-controls="service-stands-panel">
+              <ion-label>Assigned stands <span>{{ access.stands.length }}</span></ion-label>
+            </ion-segment-button>
+            <ion-segment-button id="service-routes-tab" value="routes" aria-controls="service-routes-panel">
+              <ion-label>Fixed routes <span>{{ access.routes.length }}</span></ion-label>
+            </ion-segment-button>
+          </ion-segment>
+          <div class="pf-service-access__group" id="service-stands-panel" role="tabpanel"
+               aria-labelledby="service-stands-tab" [hidden]="serviceAccessTab !== 'stands'">
+            <ul *ngIf="access.stands.length; else noStands">
+              <li *ngFor="let stand of access.stands">
+                {{ stand.name }}
+                <small>{{ stand.city?.name }}<ng-container *ngIf="!stand.is_active"> · Inactive</ng-container></small>
+              </li>
+            </ul>
+            <ng-template #noStands><p>No stands assigned yet.</p></ng-template>
+          </div>
+          <div class="pf-service-access__group" id="service-routes-panel" role="tabpanel"
+               aria-labelledby="service-routes-tab" [hidden]="serviceAccessTab !== 'routes'">
+            <ul *ngIf="access.routes.length; else noRoutes">
+              <li *ngFor="let route of access.routes">
+                {{ route.name }}
+                <small>{{ route.scope === 'local' ? 'Local' : 'Outstation' }} · {{ route.origin_name }} → {{ route.dest_name }}</small>
+              </li>
+            </ul>
+            <ng-template #noRoutes><p>No Fixed routes available through your assigned stands.</p></ng-template>
+          </div>
+        </ng-container>
+      </section>
     </ng-container>
 
     <!-- ==================== TAB 3: VERIFICATION DOCUMENTS ==================== -->
@@ -791,8 +855,8 @@
       <div class="city-sheet-white__grab"></div>
       <div class="city-sheet-white__head">
         <div class="city-sheet-white__title-box">
-          <h2 class="city-sheet-white__title">Select Operating Cities</h2>
-          <p class="city-sheet-white__subtitle">Choose all cities where you want to provide rides</p>
+          <h2 class="city-sheet-white__title">Select Operating City</h2>
+          <p class="city-sheet-white__subtitle">Choose one city where you want to provide rides</p>
         </div>
         <button type="button" class="city-sheet-white__close dc-press" (click)="closeCityModal()">
           <ion-icon name="close"></ion-icon>
@@ -841,7 +905,7 @@
 
       <div class="city-sheet-white__footer">
         <button type="button" class="dc-cta city-sheet-white__done dc-press" (click)="closeCityModal()">
-          {{ (city_ids && city_ids.length) ? 'Apply (' + city_ids.length + ' Selected)' : 'Confirm Cities' }}
+          Confirm City
         </button>
       </div>
     </div>

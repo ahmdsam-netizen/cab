@@ -32,6 +32,10 @@ Customer-Route-Seat-Payment-Verification-2026-10-21.md.
 
 ## User decisions and constraints
 
+- 2026-11-07: use the driver app’s dark fetching-location screen on
+  Customer Home while it waits for location, with the green radar pin and
+  progress bar. Show the retry screen if the location request fails.
+
 - 2026-11-05: let operators upload service images alongside the existing
   names in Operator Settings. One image per service applies to Local and
   Outstation in every city.

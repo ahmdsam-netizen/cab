@@ -1989,3 +1989,23 @@ ion-modal.pf-city-modal-white {
 .pg-brandtitle.account-header-title { display: block; }
 .account-section-title { margin: 20px 2px 8px; font-size: 12px; font-weight: 700; color: #718592; text-transform: uppercase; letter-spacing: .5px; }
 .account-section-title + .account-links { margin-top: 0; }
+.pf-service-access {
+  overflow-wrap: anywhere;
+
+  &__note, &__group p, small { color: var(--ion-color-medium); font-size: 13px; }
+  &__group { margin-top: 16px; }
+  &__tabs { border-radius: 10px; background: #f1f5f9; }
+  ion-segment-button {
+    --color: #52657d;
+    --color-checked: #087f50;
+    --indicator-color: #e3f1eb;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: none;
+  }
+  ion-label span { margin-inline-start: 3px; }
+  ul { display: grid; gap: 6px; list-style: none; padding: 0; margin: 0; }
+  li { padding: 9px 12px; border-radius: 10px; background: #f1f5f9; color: #101a2c; font-size: 14px; font-weight: 600; }
+  small { display: block; margin-top: 3px; font-weight: 400; }
+}

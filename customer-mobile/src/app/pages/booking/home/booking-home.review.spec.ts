@@ -221,12 +221,12 @@ describe('Booking Home location regressions', () => {
     page.halfBanner = { title: 'Test offer', image_url: '' } as any;
     view.detectChanges();
     const root = view.nativeElement as HTMLElement;
-    const gate = root.querySelector('.bh-location-gate') as HTMLElement;
-    expect(gate.textContent).toContain('No location available');
-    expect(gate.querySelectorAll('button').length).toBe(1);
-    expect(gate.querySelector('button')!.disabled).toBeTrue();
+    const gate = root.querySelector('.loc-loader-overlay') as HTMLElement;
+    expect(gate.textContent).toContain('Fetching current location...');
+    expect(gate.querySelectorAll('.loc-radar-ring').length).toBe(3);
+    expect(root.querySelector('.bh-location-gate')).toBeNull();
     expect(root.querySelector('.bh-home-content')!.hasAttribute('inert')).toBeTrue();
-    expect(gate.querySelector('[aria-label*="Close"]')).toBeNull();
+    expect(gate.querySelector('button')).toBeNull();
   });
 
   it('shows promotional banners and switches to coupons in the shared section', () => {

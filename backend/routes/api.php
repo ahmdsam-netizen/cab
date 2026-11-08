@@ -226,6 +226,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/catalog/ride-types', [CatalogController::class, 'rideTypes']);
     Route::get('/catalog/vehicle-types', [CatalogController::class, 'vehicleTypes']);
     Route::get('/catalog/cities', [CatalogController::class, 'cities']);
+    Route::get('/catalog/cities/{city}/registration-stands', [DriversController::class, 'registrationStands']);
     Route::get('/catalog/cities/{city}/driver-ride-products', [CatalogController::class, 'driverRideProducts']);
     Route::get('/catalog/cities/{city}/vehicles', [CatalogController::class, 'cityVehicles']);
     Route::get('/catalog/fleets', [CatalogController::class, 'fleets']);
@@ -233,6 +234,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 });
 
 Route::middleware(['auth:sanctum', 'role:driver'])->group(function () {
+    Route::get('/drivers/me/service-access', [DriversController::class, 'serviceAccess']);
     Route::post('/drivers/documents', [DriversController::class, 'uploadDocument']);
     Route::delete('/drivers/documents/{document}', [DriversController::class, 'deleteDocument']);
     Route::get('/drivers/me/documents/{document}/file', [DriversController::class, 'meDocumentFile'])

@@ -1,19 +1,32 @@
 <ion-content [fullscreen]="true" class="bh-content">
 
-  <section class="bh-location-gate" *ngIf="!located" aria-labelledby="location-gate-title" [attr.aria-busy]="locationFetching">
+  <section class="loc-loader-overlay" *ngIf="!located && locationFetching" role="status">
+    <div class="loc-loader-card">
+      <div class="loc-radar-anim" aria-hidden="true">
+        <span class="loc-radar-ring r1"></span>
+        <span class="loc-radar-ring r2"></span>
+        <span class="loc-radar-ring r3"></span>
+        <div class="loc-radar-center"><ion-icon name="location"></ion-icon></div>
+      </div>
+      <h2 class="loc-loader-title">Fetching current location...</h2>
+      <p class="loc-loader-sub">Pinpointing your position on the map</p>
+      <div class="loc-loader-bar" aria-hidden="true"><div class="loc-loader-bar-fill"></div></div>
+    </div>
+  </section>
+
+  <section class="bh-location-gate" *ngIf="!located && !locationFetching" aria-labelledby="location-gate-title">
     <div class="bh-location-gate-card">
       <span class="bh-location-gate-icon"><ion-icon name="location-outline" aria-hidden="true"></ion-icon></span>
       <h1 id="location-gate-title">No location available</h1>
-      <p role="status">{{ locationFetching ? 'Finding your location and available rides. Home will refresh automatically when ready.' : locationMessage }}</p>
-      <ion-spinner *ngIf="locationFetching" name="crescent" aria-label="Finding location"></ion-spinner>
-      <button type="button" (click)="requestLocation()" [disabled]="locationFetching"><ion-icon name="refresh-outline" aria-hidden="true"></ion-icon>{{ locationFetching ? 'Finding your location…' : 'Retry location' }}</button>
+      <p role="status">{{ locationMessage }}</p>
+      <button type="button" (click)="requestLocation()"><ion-icon name="refresh-outline" aria-hidden="true"></ion-icon>Retry location</button>
       <small>Enable location permission and turn on your device’s location services to continue.</small>
     </div>
   </section>
   <div class="bh-home-content" [class.has-active-ride]="!!activeFixedRide" [class.is-sheet-expanded]="homeExpanded"
     [class.has-service-choices]="tiles.length > 0"
     [attr.inert]="!located ? '' : null" [attr.aria-hidden]="!located ? true : null">
-  <div class="bh-location-status" *ngIf="locationFetching" role="status">
+  <div class="bh-location-status" *ngIf="located && locationFetching" role="status">
     <ion-spinner name="crescent"></ion-spinner>
     <span>Finding your location…</span>
   </div>
