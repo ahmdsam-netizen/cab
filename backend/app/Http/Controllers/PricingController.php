@@ -17,6 +17,7 @@ use App\Services\GatewayFeeService;
 use App\Services\VehicleFamilyImageService;
 use App\Support\RideCatalog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PricingController extends Controller
 {
@@ -230,6 +231,36 @@ class PricingController extends Controller
                 rideTypeId: isset($data['ride_type_id']) ? (int) $data['ride_type_id'] : null,
                 vehicleTypeId: isset($data['vehicle_type_id']) ? (int) $data['vehicle_type_id'] : null,
             );
+
+        if (!$cityVehicleTypeId) {
+            // Intelligent fallback: if the passed city_id has no vehicles configured,
+            // check if the pickup coordinates fall inside an active city that does.
+            if (isset($data['pickup_lat'], $data['pickup_lng'])) {
+                $candidateCities = City::query()
+                    ->where('is_active', true)
+                    ->whereNotNull('boundary_polygon')
+                    ->whereExists(function ($sub) {
+                        $sub->select(DB::raw(1))
+                            ->from('city_vehicle_types')
+                            ->whereColumn('city_vehicle_types.city_id', 'cities.id');
+                    })
+                    ->get();
+
+                foreach ($candidateCities as $cand) {
+                    if ($dynamicPricingService->pointInPolygon((float) $data['pickup_lat'], (float) $data['pickup_lng'], (array) $cand->boundary_polygon)) {
+                        $cityVehicleTypeId = CityVehicleType::resolveId(
+                            cityId: $cand->id,
+                            rideTypeId: isset($data['ride_type_id']) ? (int) $data['ride_type_id'] : null,
+                            vehicleTypeId: isset($data['vehicle_type_id']) ? (int) $data['vehicle_type_id'] : null,
+                        );
+                        if ($cityVehicleTypeId) {
+                            $data['city_id'] = $cand->id;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
 
         if (!$cityVehicleTypeId) {
             return response()->json(['message' => 'No matching vehicle for this booking.'], 404);

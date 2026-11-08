@@ -19,7 +19,7 @@ def route_after_input(state: BookingAgentState) -> str:
 
 
 def route_after_matching(state: BookingAgentState) -> str:
-    if state.get("stage") == "EXHAUSTED":
+    if state.get("stage") in ["EXHAUSTED", "COLLECTING"]:
         return END
     return "fetch_departures"
 

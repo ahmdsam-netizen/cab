@@ -66,7 +66,7 @@ def test_api_chat_mixed_prompt_processed():
     resp = client.post(
         "/chat",
         json={
-            "message": "tell me a joke and I need to book a cab to Sopore with 2 bags",
+            "message": "tell me a joke and I need to book a cab from Batamaloo to Sopore with 2 bags",
             "thread_id": thread_id,
             "user_current_lat": 34.0718,
             "user_current_lng": 74.7925,

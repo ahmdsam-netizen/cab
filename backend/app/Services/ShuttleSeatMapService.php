@@ -53,6 +53,11 @@ class ShuttleSeatMapService
             ->orderBy('id')
             ->first();
 
+        $layout ??= VehicleSeatLayout::query()
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->first();
+
         if (!$layout) {
             throw new ReservationException(
                 'No seat layout is configured for this city. Ask the operator to design one.',

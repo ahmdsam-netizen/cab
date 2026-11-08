@@ -17,6 +17,7 @@ class BookingAgentState(TypedDict):
     drop_text: Optional[str]
     pickup_coords: Optional[Dict[str, float]]  # {"lat": float, "lng": float}
     drop_coords: Optional[Dict[str, float]]    # {"lat": float, "lng": float}
+    pickup_clarified: bool
     seats_requested: int
 
     # Route and station snapping

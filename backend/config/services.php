@@ -111,7 +111,7 @@ return [
 
     // Agentic AI Microservice (FastAPI + LangGraph) for conversational ride booking.
     'agent_service' => [
-        'base_url' => env('AGENT_SERVICE_URL', 'http://127.0.0.1:8105'),
+        'base_url' => env('AGENT_SERVICE_URL', 'http://host.docker.internal:8108'),
         'webhook_secret' => env('AGENT_SERVICE_WEBHOOK_SECRET', 'dreamcabs-agent-secret-key'),
         'timeout' => (float) env('AGENT_SERVICE_TIMEOUT', 15.0),
     ],

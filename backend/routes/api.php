@@ -4,6 +4,7 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\DriverPayoutController;
 use App\Http\Controllers\EmergencyContactsController;
 use App\Http\Controllers\SavedLocationsController;
+use App\Http\Controllers\PlacesSearchController;
 use App\Http\Controllers\SupportInfoController;
 use App\Http\Controllers\OperatorPublicController;
 use App\Http\Controllers\Auth\FirebaseAuthController;
@@ -89,6 +90,12 @@ Route::get('/', function () {
 
 Route::get('/health', HealthController::class);
 Route::get('/app-banners', [AppBannerController::class, 'index']);
+
+// Local place-search — fuzzy match against operator-seeded saved_locations.
+// Public (no auth) so the booking screen can call it before login and during
+// development when the Google Places API key is restricted / unavailable.
+// GET /api/places/search?q=hazratbal
+Route::get('/places/search', [PlacesSearchController::class, 'search'])->middleware('throttle:60,1');
 
 // Admin auth (email + password)
 Route::post('/admin/login', [AdminAuthController::class, 'login']);
@@ -696,8 +703,21 @@ Route::middleware(['auth:sanctum', 'role:admin', 'permission:finance'])->group(f
 
 // Agentic AI Microservice — conversational ride booking & status checks
 Route::get('/ai/status', [AgenticAiController::class, 'health']);
+Route::get('/agentic/health', [AgenticAiController::class, 'health']);
+Route::post('/agentic/chat', [AgenticAiController::class, 'chat'])->middleware('throttle:60,1');
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/ai/health', [AgenticAiController::class, 'health']);
     Route::post('/ai/chat', [AgenticAiController::class, 'chat'])->middleware('throttle:60,1');
+
+    // Agentic AI Rate Limiting & Conversation Quotas (Admin)
+    Route::get('/ai/rate-limits/config', [AgenticAiController::class, 'getRateLimitConfig']);
+    Route::post('/ai/rate-limits/config', [AgenticAiController::class, 'updateRateLimitConfig']);
+    Route::get('/ai/rate-limits/usage/{userId}', [AgenticAiController::class, 'getUserRateLimitUsage']);
+    Route::post('/ai/rate-limits/reset/{userId}', [AgenticAiController::class, 'resetUserRateLimit']);
+
+    // Agentic AI API Key & Provider Management (Admin)
+    Route::get('/ai/api-keys', [AgenticAiController::class, 'getApiKeyConfig']);
+    Route::post('/ai/api-keys', [AgenticAiController::class, 'updateApiKeyConfig']);
 });
 

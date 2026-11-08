@@ -14,7 +14,7 @@ class AgenticAiService
      */
     public function baseUrl(): string
     {
-        return rtrim((string) config('services.agent_service.base_url', 'http://127.0.0.1:8105'), '/');
+        return rtrim((string) config('services.agent_service.base_url', 'http://127.0.0.1:8108'), '/');
     }
 
     /**
@@ -62,9 +62,10 @@ class AgenticAiService
     /**
      * Send a conversational message / action to the LangGraph booking agent.
      */
-    public function chat(User $user, array $data, ?string $bearerToken = null): array
+    public function chat(?User $user, array $data, ?string $bearerToken = null): array
     {
-        $threadId = !empty($data['thread_id']) ? (string) $data['thread_id'] : "customer_{$user->id}";
+        $userId = $user ? $user->id : 'guest';
+        $threadId = !empty($data['thread_id']) ? (string) $data['thread_id'] : "customer_{$userId}";
 
         $payload = [
             'message' => (string) ($data['message'] ?? ''),
@@ -74,11 +75,14 @@ class AgenticAiService
             'user_current_lng' => isset($data['user_current_lng']) ? (float) $data['user_current_lng'] : null,
             'action' => $data['action'] ?? null,
             'selected_departure_id' => isset($data['selected_departure_id']) ? (int) $data['selected_departure_id'] : null,
+            'seats_requested' => isset($data['seats_requested']) ? (int) $data['seats_requested'] : null,
             'has_extra_luggage' => isset($data['has_extra_luggage']) ? (bool) $data['has_extra_luggage'] : null,
             'extra_luggage_count' => isset($data['extra_luggage_count']) ? (int) $data['extra_luggage_count'] : 0,
             'selected_seat_labels' => !empty($data['selected_seat_labels']) && is_array($data['selected_seat_labels'])
                 ? array_values($data['selected_seat_labels'])
                 : null,
+            'voice_mode' => isset($data['voice_mode']) ? (bool) $data['voice_mode'] : false,
+            'preferred_language' => $data['preferred_language'] ?? 'en',
         ];
 
         try {
@@ -93,7 +97,7 @@ class AgenticAiService
             Log::error('Agentic AI /chat error response', [
                 'status' => $response->status(),
                 'body' => $response->body(),
-                'user_id' => $user->id,
+                'user_id' => $userId,
             ]);
 
             return [
@@ -105,7 +109,7 @@ class AgenticAiService
         } catch (Throwable $e) {
             Log::error('Agentic AI /chat connection failed', [
                 'error' => $e->getMessage(),
-                'user_id' => $user->id,
+                'user_id' => $userId,
             ]);
 
             return [
@@ -158,6 +162,156 @@ class AgenticAiService
                 'error' => $e->getMessage(),
             ]);
             return null;
+        }
+    }
+
+    /**
+     * Get active rate limiting configuration from the agent microservice.
+     */
+    public function getRateLimitConfig(): array
+    {
+        try {
+            $response = Http::timeout(4.0)
+                ->acceptJson()
+                ->get("{$this->baseUrl()}/admin/rate-limits/config");
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            return [
+                'error' => 'Failed to fetch rate limit config: ' . $response->body(),
+                'status_code' => $response->status(),
+            ];
+        } catch (Throwable $e) {
+            return [
+                'error' => 'Agent service unreachable: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Dynamically update rate limiting configuration on the agent microservice.
+     */
+    public function updateRateLimitConfig(array $data): array
+    {
+        try {
+            $response = Http::timeout(4.0)
+                ->acceptJson()
+                ->post("{$this->baseUrl()}/admin/rate-limits/config", $data);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            return [
+                'error' => 'Failed to update rate limit config: ' . $response->body(),
+                'status_code' => $response->status(),
+            ];
+        } catch (Throwable $e) {
+            return [
+                'error' => 'Agent service unreachable: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Get current day usage metrics for a specific user ID.
+     */
+    public function getUserRateLimitUsage(string $userId): array
+    {
+        try {
+            $response = Http::timeout(4.0)
+                ->acceptJson()
+                ->get("{$this->baseUrl()}/admin/rate-limits/usage/{$userId}");
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            return [
+                'error' => 'Failed to fetch user usage: ' . $response->body(),
+                'status_code' => $response->status(),
+            ];
+        } catch (Throwable $e) {
+            return [
+                'error' => 'Agent service unreachable: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Reset rate limit usage counters for a specific user ID.
+     */
+    public function resetUserRateLimit(string $userId): array
+    {
+        try {
+            $response = Http::timeout(4.0)
+                ->acceptJson()
+                ->post("{$this->baseUrl()}/admin/rate-limits/reset/{$userId}");
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            return [
+                'error' => 'Failed to reset user rate limit: ' . $response->body(),
+                'status_code' => $response->status(),
+            ];
+        } catch (Throwable $e) {
+            return [
+                'error' => 'Agent service unreachable: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Get API key configuration and status from agent microservice.
+     */
+    public function getApiKeyConfig(): array
+    {
+        try {
+            $response = Http::timeout(4.0)
+                ->acceptJson()
+                ->get("{$this->baseUrl()}/admin/api-keys");
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            return [
+                'error' => 'Failed to fetch API key config: ' . $response->body(),
+                'status_code' => $response->status(),
+            ];
+        } catch (Throwable $e) {
+            return [
+                'error' => 'Agent service unreachable: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Update API key configuration on agent microservice.
+     */
+    public function updateApiKeyConfig(array $data): array
+    {
+        try {
+            $response = Http::timeout(4.0)
+                ->acceptJson()
+                ->post("{$this->baseUrl()}/admin/api-keys", $data);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            return [
+                'error' => 'Failed to update API key config: ' . $response->body(),
+                'status_code' => $response->status(),
+            ];
+        } catch (Throwable $e) {
+            return [
+                'error' => 'Agent service unreachable: ' . $e->getMessage(),
+            ];
         }
     }
 }

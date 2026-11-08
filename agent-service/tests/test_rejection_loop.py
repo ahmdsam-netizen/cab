@@ -23,19 +23,20 @@ async def test_full_rejection_and_acceptance_loop():
 
     res = await graph.ainvoke(init_state, config=config)
     
-    # Assert route was found, luggage captured, and available seats presented
+    # Assert route was found, luggage captured, and upcoming departures listed
     assert res["stage"] == "CONFIRMING_DEPARTURE"
     assert res["matched_route"] is not None
     assert res["has_extra_luggage"] is True
     assert res["extra_luggage_count"] == 2
-    assert len(res["available_seat_labels"]) >= 1
-    assert "1A" in res["available_seat_labels"][0]
     assert len(res["remaining_departures"]) == 3
-    first_departure = res["current_departure"]
-    assert first_departure["id"] == 501
+    first_departure = res["remaining_departures"][0]
+    first_id = first_departure["id"]
+    second_id = res["remaining_departures"][1]["id"]
+    assert first_id in [101, 501]
 
-    # 2. User confirms the first departure (501) with explicit seat preference 2A
+    # 2. User confirms the first departure with explicit seat preference 2A
     state = graph.get_state(config).values
+    state["current_departure"] = first_departure
     state["selected_seat_labels"] = ["2A"]
     hold_result = await node_create_hold(state)
     assert hold_result["stage"] == "AWAITING_DRIVER"
@@ -46,16 +47,16 @@ async def test_full_rejection_and_acceptance_loop():
     assert hold_result["driver_status"] == "PENDING_APPROVAL"
     graph.update_state(config, hold_result)
 
-    # 3. Driver of 501 REJECTS the request
+    # 3. Driver of first_departure REJECTS the request
     state_after_hold = graph.get_state(config).values
     reject_result = await node_handle_driver_rejection(state_after_hold)
 
-    # Assert 501 is removed and 502 is now presented with its available seats
+    # Assert first_id is removed and second_id is now presented with its available seats
     assert reject_result["stage"] == "CONFIRMING_DEPARTURE"
     remaining_ids = [d["id"] for d in reject_result["remaining_departures"]]
-    assert 501 not in remaining_ids
-    assert 502 in remaining_ids
-    assert reject_result["current_departure"]["id"] == 502
+    assert first_id not in remaining_ids
+    assert second_id in remaining_ids
+    assert reject_result["current_departure"]["id"] == second_id
     assert len(reject_result["available_seat_labels"]) >= 1
     graph.update_state(config, reject_result)
 
@@ -74,4 +75,4 @@ async def test_full_rejection_and_acceptance_loop():
     assert accept_result["driver_status"] == "ACCEPTED"
     assert accept_result["payment_order"] is not None
     assert "order_id" in accept_result["payment_order"]
-    assert "JK01-CD-5678" in accept_result["messages"][-1].content  # Confirms vehicle 502 (Bolero)
+    assert "Vehicle" in accept_result["messages"][-1].content

@@ -788,6 +788,22 @@ class ShuttleBookingService
 
         $cvt = $query->orderBy('display_order')->orderBy('id')->first();
         if (!$cvt) {
+            $cityId = $data['city_id'] ?? null;
+            if (!$cityId && isset($data['city_vehicle_type_id'])) {
+                $cityId = CityVehicleType::query()->where('id', $data['city_vehicle_type_id'])->value('city_id');
+            }
+            if ($cityId) {
+                $cvt = CityVehicleType::query()
+                    ->with('rideType:id,name')
+                    ->where('city_id', (int) $cityId)
+                    ->where('is_active', true)
+                    ->whereHas('rideType', fn ($q) => $q->where('mode', \App\Models\RideType::MODE_SHUTTLE))
+                    ->orderBy('display_order')
+                    ->orderBy('id')
+                    ->first();
+            }
+        }
+        if (!$cvt) {
             throw new ReservationException('Shuttle is not available for this vehicle in this city yet.', 404);
         }
 
