@@ -12,6 +12,8 @@ from models.schemas import (
     RateLimitConfigRequest,
     RateLimitConfigResponse,
     UserRateLimitUsageResponse,
+    ApiKeyConfigRequest,
+    ApiKeyConfigResponse,
 )
 from graph.workflow import booking_graph
 from graph.nodes import node_create_hold, node_handle_driver_acceptance, node_handle_driver_rejection
@@ -331,6 +333,85 @@ async def reset_user_rate_limit(user_id: str, x_admin_key: Optional[str] = Heade
     """Resets rate limiting usage metrics for a user (e.g. for customer support unblocking)."""
     rate_limiter.reset_user(user_id)
     return {"status": "success", "message": f"Rate limits reset for user {user_id}"}
+
+
+def _mask_key(key: Optional[str]) -> Optional[str]:
+    if not key:
+        return None
+    k = key.strip()
+    if len(k) <= 8:
+        return "****"
+    return k[:4] + "..." + k[-4:]
+
+
+@app.get("/admin/api-keys", response_model=ApiKeyConfigResponse)
+async def get_api_key_config(x_admin_key: Optional[str] = Header(None)):
+    """Returns currently loaded LLM provider and masked API keys."""
+    return ApiKeyConfigResponse(
+        openai_api_key_masked=_mask_key(settings.OPENAI_API_KEY),
+        gemini_api_key_masked=_mask_key(settings.GEMINI_API_KEY),
+        llm_provider=settings.LLM_PROVIDER,
+        status="configured" if (settings.OPENAI_API_KEY or settings.GEMINI_API_KEY) else "missing",
+    )
+
+
+@app.post("/admin/api-keys", response_model=ApiKeyConfigResponse)
+async def update_api_key_config(payload: ApiKeyConfigRequest, x_admin_key: Optional[str] = Header(None)):
+    """Dynamically updates API keys and provider in memory and persists to .env."""
+    import os
+
+    if payload.openai_api_key is not None:
+        key = payload.openai_api_key.strip()
+        settings.OPENAI_API_KEY = key if key else None
+        os.environ["OPENAI_API_KEY"] = key if key else ""
+
+    if payload.gemini_api_key is not None:
+        key = payload.gemini_api_key.strip()
+        settings.GEMINI_API_KEY = key if key else None
+        os.environ["GEMINI_API_KEY"] = key if key else ""
+
+    if payload.llm_provider is not None:
+        settings.LLM_PROVIDER = payload.llm_provider.strip().lower()
+
+    # Persist to agent-service/.env
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+    env_lines = []
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            env_lines = f.readlines()
+
+    def set_env_var(lines, key, val):
+        found = False
+        new_lines = []
+        for line in lines:
+            if line.startswith(f"{key}="):
+                new_lines.append(f"{key}={val}\n")
+                found = True
+            else:
+                new_lines.append(line)
+        if not found:
+            new_lines.append(f"{key}={val}\n")
+        return new_lines
+
+    if settings.OPENAI_API_KEY:
+        env_lines = set_env_var(env_lines, "OPENAI_API_KEY", settings.OPENAI_API_KEY)
+    if settings.GEMINI_API_KEY:
+        env_lines = set_env_var(env_lines, "GEMINI_API_KEY", settings.GEMINI_API_KEY)
+    if settings.LLM_PROVIDER:
+        env_lines = set_env_var(env_lines, "LLM_PROVIDER", settings.LLM_PROVIDER)
+
+    try:
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.writelines(env_lines)
+    except Exception:
+        pass
+
+    return ApiKeyConfigResponse(
+        openai_api_key_masked=_mask_key(settings.OPENAI_API_KEY),
+        gemini_api_key_masked=_mask_key(settings.GEMINI_API_KEY),
+        llm_provider=settings.LLM_PROVIDER,
+        status="configured" if (settings.OPENAI_API_KEY or settings.GEMINI_API_KEY) else "missing",
+    )
 
 
 if __name__ == "__main__":

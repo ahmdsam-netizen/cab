@@ -51,6 +51,15 @@ export interface UserRateLimitUsage {
   max_requests_per_minute: number;
 }
 
+export interface ApiKeyConfig {
+  openai_api_key?: string;
+  openai_api_key_masked?: string | null;
+  gemini_api_key?: string;
+  gemini_api_key_masked?: string | null;
+  llm_provider: string;
+  status?: string;
+}
+
 @Component({
   selector: 'app-admin-ai-assistant',
   standalone: true,
@@ -95,7 +104,143 @@ export interface UserRateLimitUsage {
 
           <div class="ai-alert ai-alert--warn" *ngIf="health && !health.online">
             <tm-icon name="alert-triangle" [size]="16" />
-            <span>Could not reach FastAPI Agent microservice at port 8105. Verify the service is running.</span>
+            <span>Could not reach FastAPI Agent microservice at port 8108. Verify the service is running.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- LLM Provider & API Keys Configuration Card -->
+      <div class="ai-card">
+        <div class="ai-card__head">
+          <div class="ai-card__title">
+            <tm-icon name="key" [size]="18" />
+            <h3>LLM Provider & API Keys Configuration</h3>
+          </div>
+          <button
+            type="button"
+            class="ai-btn ai-btn--subtle"
+            [disabled]="isLoadingApiKey"
+            (click)="loadApiKeyConfig()"
+          >
+            <tm-icon name="refresh" [size]="14" />
+            <span>{{ isLoadingApiKey ? 'Loading...' : 'Reload Config' }}</span>
+          </button>
+        </div>
+
+        <div class="ai-card__body">
+          <p class="ai-hint">
+            Configure your AI model provider and secret API keys for the LangGraph agent microservice.
+            Keys are securely loaded by the microservice and automatically masked in the UI.
+          </p>
+
+          <!-- Current Key Status Row -->
+          <div class="ai-status-row" style="margin-bottom: 16px;">
+            <div class="ai-meta-item">
+              <span class="ai-label">Active Provider:</span>
+              <span class="ai-val font-mono" style="text-transform: uppercase; font-weight: 700; color: #2563eb;">
+                {{ apiKeyConfig.llm_provider || 'OPENAI' }}
+              </span>
+            </div>
+
+            <div class="ai-meta-item">
+              <span class="ai-label">OpenAI Key:</span>
+              <span class="ai-val font-mono" [style.color]="apiKeyConfig.openai_api_key_masked ? '#16a34a' : '#dc2626'">
+                {{ apiKeyConfig.openai_api_key_masked ? apiKeyConfig.openai_api_key_masked : 'Not Set' }}
+              </span>
+            </div>
+
+            <div class="ai-meta-item">
+              <span class="ai-label">Gemini Key:</span>
+              <span class="ai-val font-mono" [style.color]="apiKeyConfig.gemini_api_key_masked ? '#16a34a' : '#64748b'">
+                {{ apiKeyConfig.gemini_api_key_masked ? apiKeyConfig.gemini_api_key_masked : 'Not Set' }}
+              </span>
+            </div>
+          </div>
+
+          <div class="ai-form">
+            <!-- Provider Selection -->
+            <div class="ai-field">
+              <label>Active LLM Provider</label>
+              <select class="ai-input" [(ngModel)]="selectedLlmProvider">
+                <option value="openai">OpenAI (GPT-4o / GPT-4o-mini) — Recommended</option>
+                <option value="google">Google Gemini (Gemini 1.5 Pro / Flash)</option>
+                <option value="mock">Mock / Rule-Based (Offline / Development)</option>
+              </select>
+              <span class="ai-input-desc">The primary language model provider used for conversational booking.</span>
+            </div>
+
+            <!-- OpenAI API Key -->
+            <div class="ai-field">
+              <label>OpenAI API Key</label>
+              <div class="ai-key-input-wrap">
+                <input
+                  [type]="showOpenAiKey ? 'text' : 'password'"
+                  class="ai-input font-mono"
+                  [(ngModel)]="newOpenAiApiKey"
+                  [placeholder]="apiKeyConfig.openai_api_key_masked ? 'Configured (' + apiKeyConfig.openai_api_key_masked + ') — enter new key to overwrite' : 'Enter OpenAI API Key (e.g. b6f6db475239... or sk-...)'"
+                />
+                <button
+                  type="button"
+                  class="ai-key-toggle-btn"
+                  (click)="showOpenAiKey = !showOpenAiKey"
+                  [title]="showOpenAiKey ? 'Hide key' : 'Show key'"
+                >
+                  <tm-icon [name]="showOpenAiKey ? 'lock' : 'eye'" [size]="14" />
+                </button>
+              </div>
+              <span class="ai-input-desc">
+                Current active key:
+                <strong class="font-mono">{{ apiKeyConfig.openai_api_key_masked || 'None' }}</strong>
+              </span>
+            </div>
+
+            <!-- Gemini API Key -->
+            <div class="ai-field">
+              <label>Google Gemini API Key (Optional)</label>
+              <div class="ai-key-input-wrap">
+                <input
+                  [type]="showGeminiKey ? 'text' : 'password'"
+                  class="ai-input font-mono"
+                  [(ngModel)]="newGeminiApiKey"
+                  [placeholder]="apiKeyConfig.gemini_api_key_masked ? 'Configured (' + apiKeyConfig.gemini_api_key_masked + ') — enter new key to overwrite' : 'Enter Gemini API Key (AIza...)'"
+                />
+                <button
+                  type="button"
+                  class="ai-key-toggle-btn"
+                  (click)="showGeminiKey = !showGeminiKey"
+                  [title]="showGeminiKey ? 'Hide key' : 'Show key'"
+                >
+                  <tm-icon [name]="showGeminiKey ? 'lock' : 'eye'" [size]="14" />
+                </button>
+              </div>
+              <span class="ai-input-desc">
+                Current active key:
+                <strong class="font-mono">{{ apiKeyConfig.gemini_api_key_masked || 'None' }}</strong>
+              </span>
+            </div>
+
+            <!-- Actions & Status Notifications -->
+            <div class="ai-actions">
+              <button
+                type="button"
+                class="ai-btn ai-btn--primary"
+                [disabled]="isSavingApiKey"
+                (click)="saveApiKeyConfig()"
+              >
+                <tm-icon name="key" [size]="14" />
+                <span>{{ isSavingApiKey ? 'Saving API Keys...' : 'Save API Key & Provider Settings' }}</span>
+              </button>
+
+              <div class="ai-save-success" *ngIf="apiKeySaveSuccess">
+                <tm-icon name="check" [size]="14" />
+                <span>API key settings saved and applied successfully!</span>
+              </div>
+            </div>
+
+            <div class="ai-alert ai-alert--warn" *ngIf="apiKeyError">
+              <tm-icon name="alert-triangle" [size]="16" />
+              <span>{{ apiKeyError }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -605,6 +750,36 @@ export interface UserRateLimitUsage {
       font-size: 11px;
       color: var(--tm-text-muted, #64748b);
     }
+    .ai-key-input-wrap {
+      display: flex;
+      align-items: center;
+      position: relative;
+      width: 100%;
+
+      .ai-input {
+        width: 100%;
+        padding-right: 42px;
+      }
+    }
+    .ai-key-toggle-btn {
+      position: absolute;
+      right: 8px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--tm-text-muted, #64748b);
+      padding: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: background 0.15s ease, color 0.15s ease;
+
+      &:hover {
+        color: var(--tm-text, #0f172a);
+        background: var(--tm-bg-subtle, #e2e8f0);
+      }
+    }
     .ai-save-success {
       display: inline-flex;
       align-items: center;
@@ -786,6 +961,20 @@ export class AdminAiAssistantComponent implements OnInit {
   health: AiHealthInfo | null = null;
   isCheckingHealth = false;
 
+  // API Key & Provider State
+  apiKeyConfig: ApiKeyConfig = {
+    llm_provider: 'openai',
+  };
+  selectedLlmProvider = 'openai';
+  newOpenAiApiKey = '';
+  newGeminiApiKey = '';
+  showOpenAiKey = false;
+  showGeminiKey = false;
+  isLoadingApiKey = false;
+  isSavingApiKey = false;
+  apiKeySaveSuccess = false;
+  apiKeyError = '';
+
   // Rate Limiting State
   rateLimitConfig: RateLimitConfig = {
     max_conversations_per_day: 5,
@@ -821,7 +1010,72 @@ export class AdminAiAssistantComponent implements OnInit {
 
   ngOnInit(): void {
     this.checkHealth();
+    this.loadApiKeyConfig();
     this.loadRateLimitConfig();
+  }
+
+  loadApiKeyConfig(): void {
+    this.isLoadingApiKey = true;
+    this.apiKeyError = '';
+    this.api.get<ApiKeyConfig>('/ai/api-keys').subscribe({
+      next: (cfg: ApiKeyConfig) => {
+        if (cfg) {
+          this.apiKeyConfig = { ...cfg };
+          if (cfg.llm_provider) {
+            this.selectedLlmProvider = cfg.llm_provider;
+          }
+        }
+        this.isLoadingApiKey = false;
+      },
+      error: (err: any) => {
+        this.apiKeyError = 'Failed to load API key config: ' + (err?.error?.error || err?.message);
+        this.isLoadingApiKey = false;
+      },
+    });
+  }
+
+  saveApiKeyConfig(): void {
+    this.isSavingApiKey = true;
+    this.apiKeySaveSuccess = false;
+    this.apiKeyError = '';
+
+    const payload: {
+      llm_provider: string;
+      openai_api_key?: string;
+      gemini_api_key?: string;
+    } = {
+      llm_provider: this.selectedLlmProvider,
+    };
+
+    if (this.newOpenAiApiKey.trim()) {
+      payload.openai_api_key = this.newOpenAiApiKey.trim();
+    }
+    if (this.newGeminiApiKey.trim()) {
+      payload.gemini_api_key = this.newGeminiApiKey.trim();
+    }
+
+    this.api.post<ApiKeyConfig>('/ai/api-keys', payload).subscribe({
+      next: (res: ApiKeyConfig) => {
+        if (res) {
+          this.apiKeyConfig = { ...res };
+          if (res.llm_provider) {
+            this.selectedLlmProvider = res.llm_provider;
+          }
+        }
+        this.newOpenAiApiKey = '';
+        this.newGeminiApiKey = '';
+        this.isSavingApiKey = false;
+        this.apiKeySaveSuccess = true;
+        this.checkHealth();
+        setTimeout(() => {
+          this.apiKeySaveSuccess = false;
+        }, 4000);
+      },
+      error: (err: any) => {
+        this.apiKeyError = 'Failed to save API key settings: ' + (err?.error?.error || err?.message);
+        this.isSavingApiKey = false;
+      },
+    });
   }
 
   loadRateLimitConfig(): void {

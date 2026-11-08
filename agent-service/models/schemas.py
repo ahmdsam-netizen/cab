@@ -66,3 +66,17 @@ class UserRateLimitUsageResponse(BaseModel):
     max_requests_per_day: int
     requests_last_minute: int
     max_requests_per_minute: int
+
+
+class ApiKeyConfigRequest(BaseModel):
+    openai_api_key: Optional[str] = Field(None, description="OpenAI API Key")
+    gemini_api_key: Optional[str] = Field(None, description="Gemini / Google AI API Key")
+    llm_provider: Optional[str] = Field(None, description="Active LLM provider: 'openai' or 'google'")
+
+
+class ApiKeyConfigResponse(BaseModel):
+    openai_api_key_masked: Optional[str] = None
+    gemini_api_key_masked: Optional[str] = None
+    llm_provider: str
+    status: str
+
