@@ -27,6 +27,10 @@ class BookingAgentState(TypedDict):
     # Luggage & Baggage details
     has_extra_luggage: bool
     extra_luggage_count: int
+    luggage_clarified: bool
+
+    # Input modality
+    input_type: Optional[str]  # "text" or "voice"
 
     # Seat Selection
     available_seat_labels: List[str]

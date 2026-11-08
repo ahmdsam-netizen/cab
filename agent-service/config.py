@@ -11,7 +11,16 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
     OPENAI_MODEL_NAME: str = "gpt-4o-mini"
+    GUARDRAIL_MODEL_NAME: str = "gpt-4o-mini"
+    GUARDRAIL_TIMEOUT_SEC: float = 3.0
     
+    # Rate limiting defaults (can be modified dynamically via Admin API)
+    RATE_LIMIT_ENABLED: bool = True
+    DEFAULT_MAX_CONVERSATIONS_PER_DAY: int = 5
+    DEFAULT_MAX_REQUESTS_PER_DAY: int = 100
+    DEFAULT_MAX_REQUESTS_PER_MINUTE: int = 25
+    ADMIN_API_KEY: str = "dreamcabs-admin-secret-key"
+
     # Default fallback coordinates (e.g. Srinagar center)
     DEFAULT_LAT: float = 34.0837
     DEFAULT_LNG: float = 74.7973

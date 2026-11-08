@@ -4,6 +4,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from models.state import BookingAgentState
 from tools.geocoding import geocode_location, snap_to_route_stops
 from tools.api_client import api_client
+from tools.guardrails import validate_and_filter_prompt
 from config import settings
 
 
@@ -44,16 +45,31 @@ def _parse_luggage_from_text(text: str) -> Dict[str, Any]:
     lower = text.lower().strip()
     has_luggage = False
     count = 0
+    clarified = False
 
-    bag_match = re.search(r"(\d+)\s*(?:bag|suitcase|luggage|trolley)", lower)
+    # Check explicit zero or no luggage patterns
+    no_luggage_patterns = [
+        r"\bno\s+(?:luggage|bag|bags|baggage|suitcase|suitcases)\b",
+        r"\bwithout\s+(?:luggage|bag|bags|baggage|suitcase)\b",
+        r"\bzero\s+(?:luggage|bag|bags|baggage|suitcase)\b",
+        r"\b0\s*(?:bag|bags|luggage|suitcase)\b",
+        r"\b(?:none|no|nope|don'?t have luggage|travelling light)\b",
+    ]
+    for pat in no_luggage_patterns:
+        if re.search(pat, lower):
+            return {"has_extra_luggage": False, "extra_luggage_count": 0, "clarified": True}
+
+    bag_match = re.search(r"(\d+)\s*(?:bag|bags|suitcase|suitcases|luggage|trolley)", lower)
     if bag_match:
         has_luggage = True
         count = int(bag_match.group(1))
+        clarified = True
     elif any(k in lower for k in ["luggage", "baggage", "suitcase", "heavy bag", "extra bag"]):
         has_luggage = True
         count = 1
+        clarified = True
 
-    return {"has_extra_luggage": has_luggage, "extra_luggage_count": count}
+    return {"has_extra_luggage": has_luggage, "extra_luggage_count": count, "clarified": clarified}
 
 
 def _parse_seat_label_from_text(text: str, available_seats: List[str]) -> Optional[str]:
@@ -72,23 +88,38 @@ async def node_collect_input(state: BookingAgentState) -> Dict[str, Any]:
     messages = state.get("messages", [])
     last_text = messages[-1].content if messages else ""
 
+    # Security & Context Guardrail validation
+    if last_text:
+        guardrail_res = await validate_and_filter_prompt(last_text)
+        if not guardrail_res.is_safe or not guardrail_res.is_in_context or not guardrail_res.filtered_text:
+            return {
+                "stage": "COLLECTING",
+                "messages": [AIMessage(content=guardrail_res.rejection_message or "Such types of queries are not meant to be dealt here.")],
+            }
+        last_text = guardrail_res.filtered_text
+
     pickup_text = state.get("pickup_text")
     drop_text = state.get("drop_text")
-
-    # Parse locations
-    parsed = _parse_locations_from_text(last_text)
-    if parsed["drop"] and not drop_text:
-        drop_text = parsed["drop"]
-    if parsed["pickup"] and not pickup_text:
-        pickup_text = parsed["pickup"]
+    luggage_clarified = state.get("luggage_clarified", False)
+    has_luggage = state.get("has_extra_luggage", False)
+    luggage_count = state.get("extra_luggage_count", 0)
 
     # Parse luggage
     luggage_info = _parse_luggage_from_text(last_text)
-    has_luggage = state.get("has_extra_luggage") or luggage_info["has_extra_luggage"]
-    luggage_count = state.get("extra_luggage_count") or luggage_info["extra_luggage_count"]
+    if luggage_info["clarified"]:
+        luggage_clarified = True
+        has_luggage = luggage_info["has_extra_luggage"]
+        luggage_count = luggage_info["extra_luggage_count"]
 
-    # If user provided just a single place when asked where to go
-    if not drop_text and last_text and not parsed["pickup"] and not parsed["drop"]:
+    # Parse locations
+    parsed = _parse_locations_from_text(last_text)
+    if parsed["drop"]:
+        drop_text = parsed["drop"]
+    if parsed["pickup"]:
+        pickup_text = parsed["pickup"]
+
+    # If user provided a standalone place when asked where to go (and didn't just answer luggage)
+    if not drop_text and last_text and not parsed["pickup"] and not parsed["drop"] and not luggage_info["clarified"]:
         drop_text = last_text.strip()
 
     # Default pickup to user's current GPS location if not explicitly provided
@@ -101,6 +132,19 @@ async def node_collect_input(state: BookingAgentState) -> Dict[str, Any]:
     else:
         pickup_coords = geocode_location(pickup_text, fallback_lat=user_lat, fallback_lng=user_lng)
 
+    # Check for missing parameters and prompt accordingly
+    if not drop_text and not luggage_clarified:
+        return {
+            "pickup_text": pickup_text,
+            "pickup_coords": pickup_coords,
+            "drop_text": None,
+            "has_extra_luggage": False,
+            "extra_luggage_count": 0,
+            "luggage_clarified": False,
+            "stage": "COLLECTING",
+            "messages": [AIMessage(content="Where would you like to travel to? Also, please let me know if you have any luggage (e.g. 'To Sopore with 2 bags' or 'To Sopore, no luggage').")],
+        }
+
     if not drop_text:
         return {
             "pickup_text": pickup_text,
@@ -108,8 +152,21 @@ async def node_collect_input(state: BookingAgentState) -> Dict[str, Any]:
             "drop_text": None,
             "has_extra_luggage": has_luggage,
             "extra_luggage_count": luggage_count,
+            "luggage_clarified": luggage_clarified,
             "stage": "COLLECTING",
-            "messages": [AIMessage(content="Where would you like to travel to? (You can also mention if you have any luggage, e.g. 'To Sopore with 2 bags').")],
+            "messages": [AIMessage(content="Where would you like to travel to?")],
+        }
+
+    if not luggage_clarified:
+        return {
+            "pickup_text": pickup_text,
+            "pickup_coords": pickup_coords,
+            "drop_text": drop_text,
+            "has_extra_luggage": False,
+            "extra_luggage_count": 0,
+            "luggage_clarified": False,
+            "stage": "COLLECTING",
+            "messages": [AIMessage(content=f"Got it, travelling to {drop_text}! Are you carrying any luggage or extra bags? (Please reply e.g. '2 bags', or 'No luggage').")],
         }
 
     drop_coords = geocode_location(drop_text, fallback_lat=user_lat, fallback_lng=user_lng)
@@ -121,6 +178,7 @@ async def node_collect_input(state: BookingAgentState) -> Dict[str, Any]:
         "drop_coords": drop_coords,
         "has_extra_luggage": has_luggage,
         "extra_luggage_count": luggage_count,
+        "luggage_clarified": True,
         "seats_requested": state.get("seats_requested") or 1,
         "stage": "MATCHING_ROUTE",
     }
