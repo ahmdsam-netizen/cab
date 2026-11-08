@@ -147,7 +147,7 @@ export class AdminRealtimeService {
   private config(): ReverbConfig {
     const apiBase = this.apiBase();
     let defaultHost = environment.reverbHost || 'dreamcabs.in';
-    let defaultScheme: 'http' | 'https' = environment.reverbScheme || 'https';
+    let defaultScheme: 'http' | 'https' = environment.reverbScheme === 'http' ? 'http' : 'https';
     let defaultPort = environment.reverbPort || (defaultScheme === 'https' ? 443 : 8080);
     let defaultKey = environment.reverbAppKey || '4jsb8ggrbvcriyaskojh';
 
