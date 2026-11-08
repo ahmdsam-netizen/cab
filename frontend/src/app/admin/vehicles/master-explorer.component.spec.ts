@@ -54,7 +54,7 @@ describe('Master route explorer', () => {
   });
   it('defaults to route sets without the All Routes, scope or area wrappers', () => {
     expect(page.grouping).toBe('route-set');
-    expect(page.rows.filter(row => row.depth === 0).map(row => row.node.name)).toEqual(['Airport', 'Shared', 'Ungrouped routes']);
+    expect(page.rows.filter(row => row.depth === 0).map(row => row.node.name)).toEqual(['Airport', 'Shared', 'Routes without a stand']);
     expect(page.rows.every(row => row.depth === 0)).toBeTrue();
     expect(page.selected).toBeUndefined();
   });

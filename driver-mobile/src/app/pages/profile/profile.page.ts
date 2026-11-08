@@ -1,6 +1,8 @@
+import { DRIVER_MAP_STYLE } from '../../core/driver-map';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Platform, ViewDidEnter, ViewWillLeave } from '@ionic/angular';
+import { AlertController, Platform, ViewDidEnter, ViewWillLeave } from '@ionic/angular';
+import { PushService } from '../../core/push.service';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { forkJoin, of, Subscription } from 'rxjs';
@@ -11,6 +13,7 @@ import { DriverOnboardingDraftService } from '../../core/driver-onboarding-draft
 import { GeolocationService } from '../../core/geolocation.service';
 import { PlacesService, PlaceSuggestion } from '../../core/places.service';
 import { ApprovedDriverGuard } from '../../core/approved-driver.guard';
+import { DriverServiceAccess } from '../../core/driver-service-access';
 
 declare const google: any;
 
@@ -20,11 +23,12 @@ type ServiceMode = 'private' | 'fixed' | 'shuttle';
 type LabelType = 'text' | 'number' | 'date' | 'url';
 
 interface CityOpt { id: number; name: string; country_code: string | null; }
+interface StandOpt { id: number; name: string; }
 interface VehicleTypeOpt { id: number; name: string; description: string | null; image_url: string | null; }
 interface CityVehicleOpt { id: number; display_name: string; max_people: number; luggage_capacity: number; vehicle_type_id: number; ride_type_id: number | null; image_url?: string | null; }
 interface FleetOpt { id: number; name: string; city_id: number | null; }
 interface DocumentLabelDef { id: number; label: string; label_type: LabelType; mandatory: boolean; sort_order: number; }
-interface RideModeOption { id: number; scope: ServiceScope; mode: ServiceMode; name: string; image_url: string | null; sort_order: number; }
+interface RideModeOption { id: number; scope: ServiceScope; mode: ServiceMode; name: string; display_name?: string | null; image_url: string | null; sort_order: number; }
 interface RideScopeOption { id: number; scope: ServiceScope; name: string; sort_order: number; modes: RideModeOption[]; }
 interface CatalogDoc {
   id: number;
@@ -72,10 +76,44 @@ export class ProfilePage implements OnInit, OnDestroy {
 
   // Tab segment switcher: 'profile' | 'vehicle' | 'documents'
   activeSegment: 'profile' | 'vehicle' | 'documents' = 'profile';
+  editingProfile = false;
+  accountWallet: number | null = null;
+  serviceAccess: DriverServiceAccess | null = null;
+  serviceAccessTab: 'stands' | 'routes' = 'stands';
+  serviceAccessLoading = false;
+  serviceAccessFailed = false;
+
+  get showAccountOverview(): boolean {
+    return !this.onboarding && this.activeSegment === 'profile' && !this.editingProfile;
+  }
+
+  backToAccount(): void {
+    this.activeSegment = 'profile'; this.editingProfile = false;
+  }
+
+  editAccountProfile(): void {
+    this.activeSegment = 'profile'; this.editingProfile = true;
+  }
+
+  openAccountPage(path: string): void { void this.router.navigateByUrl(path); }
+
+  async signOutAccount(): Promise<void> {
+    const alert = await this.alerts.create({ header: 'Log out?', message: 'You will need to sign in again to access your driver account.', buttons: [{ text: 'Cancel', role: 'cancel' }, { text: 'Log out', role: 'confirm' }] });
+    await alert.present();
+    if ((await alert.onDidDismiss()).role !== 'confirm') return;
+    try { await this.push.unregister(); } catch { /* best-effort */ }
+    this.api.post('/me/logout', {}).subscribe({ next: () => void this.finishAccountLogout(), error: () => void this.finishAccountLogout() });
+  }
+
+  private async finishAccountLogout(): Promise<void> {
+    await this.auth.logout();
+    void this.router.navigateByUrl('/auth/login', { replaceUrl: true });
+  }
 
   // Personal Profile fields
   photoFile: File | null = null;
   photoPreview: string | null = null;
+  private photoDraftReady: Promise<void> = Promise.resolve();
   readonly defaultAvatar = 'assets/default-avatar.svg';
   name = '';
   email = '';
@@ -104,6 +142,12 @@ export class ProfilePage implements OnInit, OnDestroy {
   city_ids: number[] = [];
   cityModalOpen = false;
   citySearch = '';
+  hasDriverProfile = false;
+  registrationStands: StandOpt[] = [];
+  selectedStandIds: number[] = [];
+  standsLoading = false;
+  standsLoadFailed = false;
+  private standsRequest?: Subscription;
   selectedScopes: Set<'local' | 'outstation'> = new Set(['local']);
   service_scope: ServiceScope | null = null;
   service_mode: ServiceMode | null = null;
@@ -169,6 +213,8 @@ export class ProfilePage implements OnInit, OnDestroy {
     private geo: GeolocationService,
     private places: PlacesService,
     private platform: Platform,
+    private alerts: AlertController,
+    private push: PushService,
   ) {}
 
   get onboardingTitle(): string {
@@ -226,6 +272,7 @@ export class ProfilePage implements OnInit, OnDestroy {
 
   ionViewDidEnter(): void {
     this.refreshDocumentStep(false);
+    if (!this.onboarding && this.activeSegment === 'vehicle') this.loadServiceAccess();
     this.backSub = this.platform.backButton.subscribeWithPriority(99, () => {
       if (this.onboarding && this.onboardingStep !== 'profile') {
         this.handleOnboardingBack();
@@ -244,9 +291,10 @@ export class ProfilePage implements OnInit, OnDestroy {
       if (params['tab'] === 'documents') {
         this.activeSegment = 'documents';
       } else if (params['tab'] === 'vehicle') {
-        this.activeSegment = 'vehicle';
+        this.switchSegment('vehicle');
       } else if (params['tab'] === 'profile') {
         this.activeSegment = 'profile';
+        this.editingProfile = true;
       }
     });
 
@@ -270,13 +318,14 @@ export class ProfilePage implements OnInit, OnDestroy {
           this.addressSkipNextQueryEmit = true;
         }
       }
-      const draftPhoto = this.draft.getPhotoFile();
-      if (draftPhoto) {
-        this.photoFile = draftPhoto;
-        const reader = new FileReader();
-        reader.onload = () => { this.photoPreview = reader.result as string; };
-        reader.readAsDataURL(draftPhoto);
-      }
+      this.photoDraftReady = this.draft.getPhotoFile(me?.id ?? 0).then(draftPhoto => {
+        if (draftPhoto && !this.photoFile) {
+          this.photoFile = draftPhoto;
+          const reader = new FileReader();
+          reader.onload = () => { this.photoPreview = reader.result as string; };
+          reader.readAsDataURL(draftPhoto);
+        }
+      }).catch(() => { this.error = 'Could not restore your saved photo. Please select it again.'; });
     }
 
     void this.initDeviceInfo();
@@ -286,6 +335,7 @@ export class ProfilePage implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.routeSub?.unsubscribe();
+    this.standsRequest?.unsubscribe();
     if (this.addressDebounceTimer) clearTimeout(this.addressDebounceTimer);
     if (this.resendTimer) {
       clearInterval(this.resendTimer);
@@ -379,8 +429,27 @@ export class ProfilePage implements OnInit, OnDestroy {
 
   switchSegment(seg: 'profile' | 'vehicle' | 'documents'): void {
     this.activeSegment = seg;
+    if (seg === 'profile') this.editingProfile = false;
     this.error = null;
     this.message = null;
+    if (seg === 'vehicle' && !this.onboarding) this.loadServiceAccess();
+  }
+
+  loadServiceAccess(): void {
+    if (this.serviceAccessLoading) return;
+    this.serviceAccessLoading = true;
+    this.serviceAccessFailed = false;
+    this.api.get<DriverServiceAccess>('/drivers/me/service-access').subscribe({
+      next: access => {
+        this.serviceAccess = access;
+        this.serviceAccessLoading = false;
+      },
+      error: () => {
+        this.serviceAccess = null;
+        this.serviceAccessLoading = false;
+        this.serviceAccessFailed = true;
+      },
+    });
   }
 
   loadCatalogData(): void {
@@ -407,12 +476,14 @@ export class ProfilePage implements OnInit, OnDestroy {
   }
 
   reload(): void {
+    if (!this.onboarding) this.api.get<{ balance: number }>('/drivers/me/wallet').subscribe({ next: res => this.accountWallet = Number.isFinite(Number(res.balance)) && res.balance != null ? Number(res.balance) : null, error: () => this.accountWallet = null });
     this.error = null;
     this.message = null;
     this.busy = true;
 
     this.api.get<{
       driver: {
+        ride_type_id?: number | null;
         image_url?: string | null;
         city_id?: number | null;
         city_ids?: number[] | null;
@@ -434,6 +505,7 @@ export class ProfilePage implements OnInit, OnDestroy {
     }>('/drivers/me').subscribe({
       next: (res) => {
         this.profileLoaded = true;
+        this.hasDriverProfile = !!res.driver;
         this.registeredVehicleImageUrl = res.driver?.image_url ?? null;
         this.busy = false;
         if (res.user) {
@@ -454,6 +526,7 @@ export class ProfilePage implements OnInit, OnDestroy {
             this.city_ids = [res.driver.city_id];
           }
           this.city_id = this.city_ids[0] ?? res.driver.city_id ?? this.city_id;
+          this.ride_type_id = res.driver.ride_type_id ?? this.ride_type_id;
           this.vehicle_type_id = res.driver.vehicle_type_id ?? this.vehicle_type_id;
           this.city_vehicle_type_id = res.driver.city_vehicle_type_id ?? this.city_vehicle_type_id;
           this.fleet_id = res.driver.fleet_id ?? this.fleet_id;
@@ -471,6 +544,7 @@ export class ProfilePage implements OnInit, OnDestroy {
           this.service_mode = res.driver.service_mode ?? this.service_mode;
           this.driverApproved = res.driver.approval_status === 'approved';
 
+          if (this.onboarding && this.city_id) this.loadRegistrationRideModes(this.city_id);
           if (this.city_id && this.vehicle_type_id) this.loadCityVehicles();
         }
         this.refreshDocumentStep(false);
@@ -692,8 +766,8 @@ export class ProfilePage implements OnInit, OnDestroy {
     }
     const center = { lat, lng };
     this.addressMap = new google.maps.Map(this.addressMapEl.nativeElement, {
+      ...DRIVER_MAP_STYLE,
       center,
-      zoom: 16,
       disableDefaultUI: true,
       zoomControl: true,
     });
@@ -760,17 +834,28 @@ export class ProfilePage implements OnInit, OnDestroy {
     if (i && i.src.indexOf('default-avatar') === -1) i.src = this.defaultAvatar;
   }
 
-  onPhotoChange(ev: Event): void {
+  async onPhotoChange(ev: Event): Promise<void> {
     const input = ev.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
     if (!file) return;
+    if (!file.type.startsWith('image/') || file.size > 4 * 1024 * 1024) {
+      this.error = 'Choose an image of 4 MB or smaller.';
+      input.value = '';
+      return;
+    }
+    this.error = null;
     this.photoFile = file;
     const reader = new FileReader();
     reader.onload = () => { this.photoPreview = reader.result as string; };
     reader.readAsDataURL(file);
+    if (this.onboarding) {
+      try { await this.draft.setPhotoFile(file, this.auth.getUser()?.id ?? 0); }
+      catch { this.error = 'Could not keep your photo for later. Please select it again before continuing.'; }
+    }
   }
 
-  submitProfile(): void {
+  async submitProfile(): Promise<void> {
+    await this.photoDraftReady;
     this.error = null;
     const name = this.name.trim();
     const email = this.email.trim();
@@ -783,7 +868,9 @@ export class ProfilePage implements OnInit, OnDestroy {
     }
 
     if (this.onboarding) {
-      this.draft.setProfile({
+      this.busy = true;
+      try {
+      await this.draft.setProfile({
         name,
         email,
         dob: this.dob,
@@ -791,7 +878,11 @@ export class ProfilePage implements OnInit, OnDestroy {
         app_version: this.deviceInfo.app_version?.slice(0, 32),
         os_version: this.deviceInfo.os_version?.slice(0, 32),
         device_type: this.deviceInfo.device_type?.slice(0, 64),
-      }, this.photoFile);
+      }, this.photoFile, this.auth.getUser()?.id ?? 0);
+      } catch {
+        this.error = 'Could not save your registration draft. Please try again.';
+        return;
+      } finally { this.busy = false; }
       // Advance to step 2 (vehicle & service) — this is where registration is
       // actually submitted. Previously this just saved a local draft and stopped,
       // leaving the driver stuck on the profile screen.
@@ -835,19 +926,13 @@ export class ProfilePage implements OnInit, OnDestroy {
   }
 
   closeCityModal(): void {
+    if (!this.cityModalOpen) return;
     this.cityModalOpen = false;
-    this.onOnboardingCityChange();
+    if ((this.city_ids[0] ?? null) !== this.city_id) this.onOnboardingCityChange();
   }
 
   toggleCity(cityId: number): void {
-    if (!this.city_ids) this.city_ids = [];
-    const id = Number(cityId);
-    const idx = this.city_ids.indexOf(id);
-    if (idx >= 0) {
-      this.city_ids.splice(idx, 1);
-    } else {
-      this.city_ids.push(id);
-    }
+    this.city_ids = [Number(cityId)];
   }
 
   isCitySelected(cityId: number): boolean {
@@ -871,13 +956,7 @@ export class ProfilePage implements OnInit, OnDestroy {
 
   /** City chosen: reset dependent picks and load the city's ride products. */
   onOnboardingCityChange(): void {
-    if (Array.isArray(this.city_ids) && this.city_ids.length > 0) {
-      this.city_id = this.city_ids[0];
-    } else if (this.city_id && (!this.city_ids || !this.city_ids.length)) {
-      this.city_ids = [this.city_id];
-    } else {
-      this.city_id = null;
-    }
+    this.city_id = this.city_ids[0] ?? null;
 
     this.selectedRideKey = null;
     this.ride_type_id = null;
@@ -887,22 +966,57 @@ export class ProfilePage implements OnInit, OnDestroy {
     this.city_vehicle_type_id = null;
     this.cityVehicles = [];
     this.rideModes = [];
+    this.loadRegistrationStands();
     if (!this.city_id) return;
+    this.loadRegistrationRideModes(this.city_id);
+  }
 
-    this.api.get<{ scopes: RideScopeOption[] }>(`/catalog/cities/${this.city_id}/driver-ride-products`).pipe(
+  private loadRegistrationRideModes(cityId: number): void {
+    this.api.get<{ scopes: RideScopeOption[] }>(`/catalog/cities/${cityId}/driver-ride-products`).pipe(
       catchError(() => of({ scopes: [] as RideScopeOption[] })),
     ).subscribe({
       next: (res) => {
+        if (this.city_id !== cityId) return;
         const modes: Array<RideModeOption & { key: string }> = [];
         for (const sc of res.scopes ?? []) {
           for (const m of sc.modes ?? []) {
-            modes.push({ ...m, key: `${m.scope}:${m.mode}:${m.id}` });
+            modes.push({ ...m, name: m.display_name || m.name, key: `${m.scope}:${m.mode}:${m.id}` });
           }
         }
         this.rideModes = modes;
+        this.selectedRideKey = modes.find(mode => mode.id === this.ride_type_id && mode.mode === this.service_mode)?.key ?? null;
         this.syncServiceScopeFromSelection();
       },
     });
+  }
+
+  loadRegistrationStands(): void {
+    this.standsRequest?.unsubscribe();
+    this.registrationStands = [];
+    this.selectedStandIds = [];
+    this.standsLoading = false;
+    this.standsLoadFailed = false;
+    if (this.hasDriverProfile || !this.city_id) return;
+
+    this.standsLoading = true;
+    this.standsRequest = this.api.get<{ data: StandOpt[] }>(`/catalog/cities/${this.city_id}/registration-stands`).subscribe({
+      next: ({ data }) => {
+        this.registrationStands = data;
+        this.standsLoading = false;
+      },
+      error: () => {
+        this.standsLoadFailed = true;
+        this.standsLoading = false;
+      },
+    });
+  }
+
+  toggleRegistrationStand(id: number): void {
+    if (this.selectedStandIds.includes(id)) {
+      this.selectedStandIds = this.selectedStandIds.filter(standId => standId !== id);
+    } else if (this.selectedStandIds.length < 2) {
+      this.selectedStandIds = [...this.selectedStandIds, id];
+    }
   }
 
   toggleServiceScope(scope: 'local' | 'outstation'): void {
@@ -1007,12 +1121,17 @@ export class ProfilePage implements OnInit, OnDestroy {
   }
 
   /** Final step — submit the whole registration (profile + vehicle) to the server. */
-  submitRegistration(): void {
+  async submitRegistration(): Promise<void> {
+    await this.photoDraftReady;
     this.error = null;
     this.message = null;
 
     const chosenCityIds = this.city_ids && this.city_ids.length ? this.city_ids : (this.city_id ? [this.city_id] : []);
     if (!chosenCityIds.length) { this.error = 'Please select your operating city.'; return; }
+    if (!this.hasDriverProfile && (chosenCityIds.length !== 1 || this.selectedStandIds.length !== 2)) {
+      this.error = 'Select one operating city and exactly two stands.';
+      return;
+    }
     if (!this.ride_type_id || !this.service_scope || !this.service_mode) { this.error = 'Please select your service.'; return; }
     if (!this.vehicle_type_id) { this.error = 'Please select your vehicle type.'; return; }
     if (!this.city_vehicle_type_id) { this.error = 'Please select your vehicle.'; return; }
@@ -1036,6 +1155,7 @@ export class ProfilePage implements OnInit, OnDestroy {
     fd.append('city_vehicle_type_id', String(this.city_vehicle_type_id));
     fd.append('city_id', String(chosenCityIds[0]));
     chosenCityIds.forEach((cid) => fd.append('city_ids[]', String(cid)));
+    if (!this.hasDriverProfile) this.selectedStandIds.forEach(id => fd.append('stand_ids[]', String(id)));
     fd.append('service_scope', this.service_scope);
     fd.append('service_mode', this.service_mode);
     const vtName = this.selectedVehicleTypeOpt?.name;
@@ -1045,7 +1165,7 @@ export class ProfilePage implements OnInit, OnDestroy {
     fd.append('vehicle_reg_no', regNo);
     if (this.fleet_id) fd.append('fleet_id', String(this.fleet_id));
 
-    const photo = this.draft.getPhotoFile() || this.photoFile;
+    const photo = this.photoFile;
     if (photo) fd.append('photo', photo);
     if (this.deviceInfo.app_version) fd.append('app_version', this.deviceInfo.app_version.slice(0, 32));
     if (this.deviceInfo.os_version) fd.append('os_version', this.deviceInfo.os_version.slice(0, 32));
@@ -1053,10 +1173,13 @@ export class ProfilePage implements OnInit, OnDestroy {
 
     this.submitting = true;
     this.api.postForm<{ driver: unknown; user: AuthUser }>('/drivers/register', fd).subscribe({
-      next: (res) => {
-        this.submitting = false;
+      next: async (res) => {
+        this.hasDriverProfile = true;
         if (res.user) this.auth.updateUser(res.user);
-        this.draft.clear();
+        try { await this.draft.clear(this.auth.getUser()?.id ?? 0); }
+        catch { this.error = 'Registration saved, but the local draft could not be cleared.'; }
+        this.photoFile = null;
+        this.submitting = false;
         this.message = 'Last step! Upload your documents to get on the road.';
         this.onboardingStep = 'documents';
         this.refreshDocuments();

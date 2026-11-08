@@ -298,7 +298,7 @@ class AdminFixedDeparturesController
                     'driver_id' => $driverId,
                     'city_id' => $route->city_id,
                     'scope' => $route->scope ?: 'local',
-                    'city_vehicle_type_id' => $route->city_vehicle_type_id,
+                    'city_vehicle_type_id' => $dep->city_vehicle_type_id,
                     'ride_type_id' => $rideTypeId,
                     'route_id' => $route->id,
                     'route_departure_id' => $dep->id,

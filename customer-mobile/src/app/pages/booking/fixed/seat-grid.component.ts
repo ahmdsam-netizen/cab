@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { IonicModule } from '@ionic/angular';
 
 /**
  * The seat map, drawn as a top-view of the vehicle — a rounded hood with
@@ -25,11 +26,11 @@ export interface SeatCell {
   selector: 'app-seat-grid',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule],
+  imports: [CommonModule, IonicModule],
   template: `
     <!-- Car body (top view): rounded hood + headlights, like the admin designer. -->
-    <div class="body body--frame">
-      <div class="hood">
+    <div class="body body--frame" [class.body--compact]="compact">
+      <div class="hood" *ngIf="!compact">
         <span class="hood__light"></span>
         <span class="hood__glass"></span>
         <span class="hood__light"></span>
@@ -44,6 +45,7 @@ export interface SeatCell {
                 class="cell"
                 [class.cell--seat]="cell.kind === 'seat' && !isTaken(cell)"
                 [class.cell--taken]="cell.kind === 'seat' && isTaken(cell)"
+                [class.cell--held]="cell.status === 'HELD' && !isSelected(cell.label)"
                 [class.cell--blocked]="cell.kind === 'blocked' && !isDriver(cell)"
                 [class.cell--driver]="isDriver(cell)"
                 [class.cell--aisle]="cell.kind === 'aisle'"
@@ -54,7 +56,7 @@ export interface SeatCell {
                 (click)="pickCell(cell)"
               >
                 <span class="cell__lbl" *ngIf="cell.kind === 'seat'">{{ cell.label || '?' }}</span>
-                <span class="cell__wheel" *ngIf="isDriver(cell)" title="Driver">🚗</span>
+                <ion-icon class="cell__wheel" *ngIf="isDriver(cell)" name="person-outline" aria-hidden="true"></ion-icon>
                 <span class="cell__delta" *ngIf="cell.kind === 'seat' && cell.price_delta">
                   {{ (cell.price_delta > 0 ? '+' : '') }}₹{{ cell.price_delta }}
                 </span>
@@ -118,9 +120,16 @@ export interface SeatCell {
     .cell--selected { background: var(--dc-green) !important; border-color: #0e7a3d !important; color: #fff !important; box-shadow: 0 4px 12px rgba(18, 179, 91, .35); }
 
     .cell__delta { position: absolute; bottom: 3px; right: 4px; font-size: 9px; font-weight: 700; opacity: .8; }
+    .body--compact { border: 1px solid #e0e5ed; border-radius: 22px; padding: 14px; background: #fff; box-shadow: none; }
+    .body--compact .cell--seat:not(.cell--selected) { background: #f6f8fa; border-color: #e0e5ed; color: #172033; }
+    .body--compact .cell--driver { background: transparent; border-color: transparent; color: #64748b; }
+    .body--compact .cell--selected { background: #087f50 !important; box-shadow: none; }
+    .cell--held { background: repeating-linear-gradient(45deg, #fff8e7, #fff8e7 5px, #faedcc 5px, #faedcc 10px); border-color: #d7b45b; border-style: dashed; color: #896a22; }
+    .cell:focus-visible { outline: 2px solid #087f50; outline-offset: 2px; }
   `],
 })
 export class SeatGridComponent {
+  @Input() compact = false;
   @Input() cols = 1;
   @Input() rows = 1;
   @Input() cells: SeatCell[] = [];
@@ -168,6 +177,7 @@ export class SeatGridComponent {
     if (this.isDriver(cell)) return 'Driver';
     if (cell.kind !== 'seat') return null;
     if (this.isSelected(cell.label)) return `Seat ${cell.label}, selected`;
+    if (cell.status === 'HELD') return `Seat ${cell.label}, held`;
     if (this.isTaken(cell)) return `Seat ${cell.label}, taken`;
     return `Seat ${cell.label}, free`;
   }

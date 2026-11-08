@@ -1,7 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component } from '@angular/core';
 import { ApiService } from '../../core/api.service';
+import { AlertController } from '@ionic/angular';
+import { BookingService } from '../booking/booking.service';
 
 interface SupportInfo {
+  city_id?: number | null;
+  emergency_no: string | null;
   emergency_police_no: string | null;
   customer_support_no: string | null;
   driver_support_no: string | null;
@@ -19,10 +23,21 @@ interface Faq {
   styleUrls: ['./support.page.scss'],
   standalone: false,
 })
-export class SupportPage implements OnInit {
+export class SupportPage {
   loading = false;
   error: string | null = null;
   support: SupportInfo | null = null;
+  contactsCount: number | null = null;
+  contactsError = false;
+  private supportRequest = 0;
+  readonly issues = [
+    { label: 'Driver behaviour', icon: 'person-outline' },
+    { label: 'Overcharged', icon: 'card-outline' },
+    { label: 'Unsafe driving', icon: 'speedometer-outline' },
+    { label: 'Wrong pickup', icon: 'location-outline' },
+    { label: 'Lost item', icon: 'search-outline' },
+    { label: 'Refund delay', icon: 'sync-outline' },
+  ];
 
   readonly faqs: Faq[] = [
     {
@@ -47,21 +62,64 @@ export class SupportPage implements OnInit {
     },
   ];
 
-  constructor(private api: ApiService) {}
+  constructor(private api: ApiService, private alerts: AlertController, private booking: BookingService) {}
 
-  ngOnInit(): void {
-    this.load();
+  ionViewWillEnter(): void { this.load(); this.loadContacts(); }
+
+  loadContacts(): void {
+    this.contactsError = false;
+    this.contactsCount = null;
+    this.api.get<{ data: unknown[] }>('/me/emergency-contacts').subscribe({
+      next: res => { this.contactsCount = res.data?.length ?? 0; },
+      error: () => { this.contactsError = true; },
+    });
+  }
+
+  async emergency(): Promise<void> {
+    await this.confirmCall(this.support?.emergency_no, 'Call emergency services?');
+  }
+
+  async police(): Promise<void> {
+    await this.confirmCall(this.support?.emergency_police_no, 'Call police?');
+  }
+
+  private async confirmCall(phone: string | null | undefined, header: string): Promise<void> {
+    if (!phone) return;
+    const alert = await this.alerts.create({
+      header,
+      message: `This will open your phone to call ${phone}.`,
+      buttons: [{ text: 'Cancel', role: 'cancel' }, { text: 'Call', role: 'confirm' }],
+    });
+    await alert.present();
+    const result = await alert.onDidDismiss();
+    if (result.role === 'confirm') this.call(phone);
   }
 
   load(): void {
+    const request = ++this.supportRequest;
     this.loading = true;
     this.error = null;
-    this.api.get<SupportInfo>('/support-info').subscribe({
+    this.support = null;
+    const cityId = this.booking.supportCityId;
+    if (!cityId) {
+      this.error = 'Choose your city on Home to view its support contacts.';
+      this.loading = false;
+      return;
+    }
+    this.api.get<SupportInfo>(`/support-info?city_id=${cityId}`).subscribe({
       next: (res) => {
+        if (request !== this.supportRequest || this.booking.supportCityId !== cityId) return;
+        // Older API deployments may return a different city's fallback contacts.
+        if (cityId && Number(res.city_id) !== cityId) {
+          this.error = 'Support contacts are not configured for this city.';
+          this.loading = false;
+          return;
+        }
         this.support = res;
         this.loading = false;
       },
       error: (err) => {
+        if (request !== this.supportRequest || this.booking.supportCityId !== cityId) return;
         this.error = err?.error?.message || 'Could not load support info.';
         this.loading = false;
       },
@@ -77,25 +135,28 @@ export class SupportPage implements OnInit {
   }
 
   get effectivePhone(): string | null {
-    return this.support?.customer_support_no || this.support?.driver_support_no || null;
+    return this.support?.customer_support_no || null;
   }
 
   call(phone: string | null | undefined): void {
     if (!phone) return;
-    window.location.href = `tel:${phone}`;
+    this.openContactLink(`tel:${phone}`);
   }
 
   email(addr: string | null | undefined): void {
     if (!addr) return;
-    window.location.href = `mailto:${addr}`;
+    this.openContactLink(`mailto:${addr}`);
   }
 
-  report(): void {
-    const to = this.support?.support_email || '';
-    const subject = encodeURIComponent('Customer app - Report a problem');
+  report(issue = 'Report a problem'): void {
+    const to = this.support?.support_email;
+    if (!to) return;
+    const subject = encodeURIComponent(`Customer app - ${issue}`);
     const body = encodeURIComponent(
-      'Please describe the problem you are facing:\n\n\n- Sent from the DreamCabs customer app',
+      `Issue: ${issue}\nBooking ID:\nRide date:\nPlease describe what happened:\n\n\n- Sent from the DreamCabs customer app`,
     );
-    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+    this.openContactLink(`mailto:${to}?subject=${subject}&body=${body}`);
   }
+
+  private openContactLink(uri: string): void { window.location.href = uri; }
 }

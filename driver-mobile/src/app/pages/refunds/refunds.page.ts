@@ -23,7 +23,7 @@ type RangeFilter = 'all' | 'today' | 'week' | 'month';
 /**
  * "Trip refunds" — informational view for the driver: which passengers on
  * their fixed/shuttle trips were (or will be) refunded and why. Refunds are
- * paid by DreamCabs from company money, never from the driver.
+ * paid by Cabbies from company money, never from the driver.
  *
  * UI mirrors the Trip history page exactly: navy rounded header + a bottom-sheet
  * Filter modal (WHEN / STATUS pills).

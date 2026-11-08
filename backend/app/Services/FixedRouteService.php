@@ -62,11 +62,20 @@ class FixedRouteService
             ->when(isset($filters['dest_city_id']), fn ($q) => $q->where('dest_city_id', (int) $filters['dest_city_id']))
             ->when(!empty($filters['q']), function ($q) use ($filters) {
                 $term = '%' . str_replace(['%', '_'], ['\\%', '\\_'], trim((string) $filters['q'])) . '%';
-                $q->where(function ($inner) use ($term) {
-                    $inner->where('name', 'like', $term)
-                        ->orWhere('origin_name', 'like', $term)
-                        ->orWhere('dest_name', 'like', $term)
-                        ->orWhereHas('stops', fn ($stop) => $stop->where('name', 'like', $term));
+                $mode = $filters['search_by'] ?? 'all';
+                $q->where(function ($inner) use ($term, $mode) {
+                    if ($mode === 'destination') {
+                        $inner->where('dest_name', 'like', $term);
+                    } elseif ($mode === 'origin') {
+                        $inner->where('origin_name', 'like', $term);
+                    } elseif ($mode === 'stop') {
+                        $inner->whereHas('stops', fn ($stop) => $stop->where('name', 'like', $term));
+                    } else {
+                        $inner->where('name', 'like', $term)
+                            ->orWhere('origin_name', 'like', $term)
+                            ->orWhere('dest_name', 'like', $term)
+                            ->orWhereHas('stops', fn ($stop) => $stop->where('name', 'like', $term));
+                    }
                 });
             })
             ->orderBy('sort_order')
@@ -82,9 +91,10 @@ class FixedRouteService
         $mapped = $routes->map(fn (Route $route) => $this->shapeCustomerRoute($route, $userLat, $userLng, $images));
 
         if ($userLat !== null && $userLng !== null) {
-            $mapped = $mapped->sortBy(function ($r) {
-                return $r['distance_to_nearest_pickup'] ?? PHP_INT_MAX;
-            })->values();
+            $distanceKey = ($filters['sort_by'] ?? null) === 'nearest_pickup'
+                ? 'distance_to_nearest_pickup'
+                : 'distance_to_start';
+            $mapped = $mapped->sortBy(fn ($route) => $route[$distanceKey] ?? PHP_INT_MAX)->values();
         }
 
         return $mapped->take($limit)->values();
@@ -139,6 +149,44 @@ class FixedRouteService
 
         // No route_stops — stops aren't in the map; added when the admin finishes.
         return Route::query()->create($attrs);
+    }
+
+    public function copyAdminRoute(City $city, Route $route, string $name, bool $reverse, bool $isActive = false): Route
+    {
+        $this->availability->assertCityOwnsRoute($city, $route);
+
+        return DB::transaction(function () use ($city, $route, $name, $reverse, $isActive) {
+            $source = Route::query()->whereKey($route->id)->lockForUpdate()->firstOrFail();
+            $this->availability->assertCityOwnsRoute($city, $source);
+            $copy = $source->replicate()->unsetRelations();
+            $copy->name = $name;
+            $copy->is_active = $isActive;
+            if ($reverse) {
+                foreach ([['origin_name', 'dest_name'], ['origin_lat', 'dest_lat'], ['origin_lng', 'dest_lng'], ['origin_city_id', 'dest_city_id']] as [$origin, $destination]) {
+                    $copy->$origin = $source->$destination;
+                    $copy->$destination = $source->$origin;
+                }
+                $copy->path_polyline = is_array($source->path_polyline) ? array_reverse($source->path_polyline) : null;
+            }
+            $copy->save();
+            // Removed stops are history for the original route, not part of its current plan.
+            $stops = $source->stops()->orderBy('id')->get()->reject(
+                fn (RouteStop $stop) => stripos((string) $stop->unavailable_reason, 'removed from active route') !== false
+            )->values();
+            if ($reverse) $stops = $stops->reverse()->values();
+            foreach ($stops as $index => $stop) {
+                $newStop = $stop->replicate()->unsetRelations();
+                $newStop->route_id = $copy->id;
+                $newStop->seq = $index + 1;
+                if ($reverse) {
+                    $newStop->is_pickup = $stop->is_drop;
+                    $newStop->is_drop = $stop->is_pickup;
+                }
+                $newStop->save();
+            }
+            // Stands, schedules, departures and bookings remain on the original route.
+            return $copy->fresh(['stops']);
+        });
     }
 
     public function updateAdminRoute(City $city, Route $route, array $data): Route
@@ -230,6 +278,10 @@ class FixedRouteService
             }
         }
 
+        // The vehicle's starting location stays the first stop in route order,
+        // even when a later pickup is closer to the customer.
+        $startingStop = collect($stops)->sortBy('seq')->first();
+
         return [
             'id' => $route->id,
             'city_id' => $route->city_id,
@@ -254,6 +306,8 @@ class FixedRouteService
             'luggage_surcharge_amount' => (float) $route->luggage_surcharge_amount,
             'max_luggage_per_vehicle' => (int) $route->max_luggage_per_vehicle,
             'stops' => $stops,
+            'starting_stop' => $startingStop,
+            'distance_to_start' => $startingStop['distance_meters'] ?? null,
             'nearest_pickup_stop' => $nearestPickup,
             'distance_to_nearest_pickup' => $nearestPickup ? $nearestPickup['distance_meters'] : null,
             'image_url' => $image['image_url'],

@@ -1,3 +1,4 @@
+import { DriverTopbarComponent } from '../../shared/driver-topbar/driver-topbar.component';
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -8,7 +9,7 @@ import { ModeSelectModalModule } from '../../shared/mode-select-modal/mode-selec
 import { SubscriptionPromptModalModule } from '../../shared/subscription-prompt-modal/subscription-prompt-modal.module';
 
 @NgModule({
-  imports: [
+  imports: [DriverTopbarComponent, 
     CommonModule,
     FormsModule,
     IonicModule,

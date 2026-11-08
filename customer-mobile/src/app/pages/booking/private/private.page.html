@@ -2,7 +2,7 @@
   <ng-container *ngIf="waiting === 'idle'">
 
     <!-- Step 1 — pickup -->
-    <app-step-shell
+    <app-step-shell [reference]="true"
       *ngIf="step === 'pickup'"
       title="Where from?"
       subtitle="We'll collect you from this exact spot."
@@ -13,7 +13,7 @@
     </app-step-shell>
 
     <!-- Step 2 — drop -->
-    <app-step-shell
+    <app-step-shell [reference]="true"
       *ngIf="step === 'drop'"
       title="Where to?"
       [from]="fromLabel"
@@ -23,7 +23,7 @@
     </app-step-shell>
 
     <!-- Step 3 — choose car -->
-    <app-step-shell
+    <app-step-shell [reference]="true"
       *ngIf="step === 'car'"
       title="Choose your ride"
       [from]="fromLabel" [to]="toLabel"
@@ -63,7 +63,7 @@
     </app-step-shell>
 
     <!-- Step 4 — name your price -->
-    <app-step-shell
+    <app-step-shell [reference]="true"
       *ngIf="step === 'price'"
       title="What will you pay?"
       subtitle="Drivers nearby can take it or ask for more."
@@ -90,7 +90,7 @@
   </ng-container>
 
   <!-- Step 5a — searching -->
-  <app-step-shell
+  <app-step-shell [reference]="true"
     *ngIf="waiting === 'searching'"
     title="Asking drivers nearby"
     barLabel="Book a car"
@@ -106,7 +106,7 @@
   </app-step-shell>
 
   <!-- Step 5b — drivers answered -->
-  <app-step-shell
+  <app-step-shell [reference]="true"
     *ngIf="waiting === 'bids'"
     [title]="offers.length + (offers.length === 1 ? ' driver answered' : ' drivers answered')"
     subtitle="Tap one to ride with them."
@@ -117,9 +117,9 @@
     (primary)="cancel()">
 
     <div *ngFor="let o of offers; trackBy: trackByOffer" class="bk-opt pv-bid">
-      <span class="bk-opt__ic" [class.bk-badge--amber]="!takesYourPrice(o)" aria-hidden="true">{{ takesYourPrice(o) ? '✓' : '↑' }}</span>
+      <span class="bk-opt__ic" [class.bk-badge--amber]="!takesYourPrice(o)" aria-hidden="true"><ion-icon [name]="takesYourPrice(o) ? 'checkmark-outline' : 'trending-up-outline'"></ion-icon></span>
       <span class="bk-opt__main">
-        <span class="bk-opt__t">{{ o.driver_name || 'Driver' }}<span *ngIf="o.driver_rating"> · ★ {{ o.driver_rating }}</span></span>
+        <span class="bk-opt__t">{{ o.driver_name || 'Driver' }}<span class="pv-rating" *ngIf="o.driver_rating" [attr.aria-label]="'Rating ' + o.driver_rating"><ion-icon name="star" aria-hidden="true"></ion-icon> {{ o.driver_rating }}</span></span>
         <span class="bk-opt__s">{{ offerLine(o) }}</span>
       </span>
       <button class="pv-take" type="button" (click)="rideWith(o)">₹{{ o.amount }}</button>

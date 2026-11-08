@@ -1,5 +1,5 @@
 import { Component, OnDestroy } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 
@@ -52,9 +52,12 @@ export class ShuttleBookingsPage implements OnDestroy {
     private api: ApiService,
     private router: Router,
     private auth: AuthService,
+    private route: ActivatedRoute,
   ) {}
 
   ionViewWillEnter(): void {
+    const bookingId = Number(this.route.snapshot.queryParamMap.get('bookingId'));
+    this.expandedId = bookingId > 0 ? bookingId : null;
     this.refresh();
     this.ionViewWillLeave();
     this.poll = setInterval(() => { if (!this.loading && !this.payingId) this.refresh(true); }, 5000);

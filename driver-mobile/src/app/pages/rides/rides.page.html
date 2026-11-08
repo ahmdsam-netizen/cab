@@ -1,22 +1,20 @@
 <ion-header class="ion-no-border">
+  <app-driver-topbar></app-driver-topbar>
   <ion-toolbar class="pg-toolbar">
     <ion-buttons slot="start" *ngIf="!hasActiveTrip">
       <ion-back-button defaultHref="/tabs/dashboard"></ion-back-button>
     </ion-buttons>
-    <div class="pg-brandtitle" *ngIf="!hasActiveTrip">
-      <span class="b-white">Dream</span><span class="b-green">Cabs</span>
-    </div>
+    <ion-title *ngIf="!hasActiveTrip">Rides</ion-title>
     <ion-title *ngIf="hasActiveTrip">On a {{ activeTripKindLabel }}</ion-title>
     <ion-buttons slot="end" *ngIf="!hasActiveTrip">
-      <button class="pg-action" type="button" (click)="refreshAvailable()" aria-label="Reload">
-        <ion-icon name="refresh-outline" aria-hidden="true"></ion-icon>
-        Refresh
-      </button>
+      <ion-button class="dc-press" (click)="refreshAvailable()" aria-label="Reload">
+        <ion-icon name="refresh-outline" slot="icon-only"></ion-icon>
+      </ion-button>
     </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
-<ion-content [class.in-trip]="hasActiveTrip" class="dc-content">
+<ion-content [class.in-trip]="hasActiveTrip" [class.rides-idle-content]="!hasActiveTrip" class="dc-content pg-content">
 
   <!-- ════════════════════════════════════════════════════════════════
        ACTIVE TRIP — full-bleed driver workspace
@@ -254,13 +252,7 @@
        ════════════════════════════════════════════════════════════════ -->
   <ng-container *ngIf="!hasActiveTrip">
 
-    <!-- Driver gradient hero -->
-    <div class="pg-hero">
-      <h1 class="pg-title">Rides</h1>
-      <p class="pg-subtitle">Incoming ride requests near you.</p>
-    </div>
-
-    <div class="pg-body">
+    <div class="pg-body rides-idle-body">
 
       <!-- Inline errors / messages -->
       <div class="banner danger" *ngIf="error">

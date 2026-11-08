@@ -28,6 +28,73 @@
 /* DreamCabs shared page design system + app-wide subtle motion (dc- prefix) */
 @import "./theme/pages.scss";
 
+/* Keep touch, wheel and keyboard scrolling without visible scrollbar tracks. */
+html, body, ion-content::part(scroll), * {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar,
+ion-content::part(scroll)::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* The light page surface curves into the navy header at its upper corners. */
+.ion-page:has(> ion-header > app-driver-topbar) {
+  background: #0d1b2a;
+}
+ion-header:has(> app-driver-topbar) + ion-content {
+  border-radius: 20px 20px 0 0;
+  overflow: hidden;
+}
+
+/* These pages continue the navy header through their summary hero. */
+app-earnings ion-content.pg-content {
+  --background: #0d1b2a;
+  border-radius: 0;
+}
+app-earnings .ec-hero {
+  border-radius: 0;
+}
+app-earnings .earnings-content-surface {
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  overflow: hidden;
+  min-height: 100%;
+}
+app-earnings ion-content.earnings-scroll-content {
+  --background: #fff;
+  border-radius: 20px 20px 0 0;
+}
+
+/* Wallet and Notifications share the navy summary / rounded light body boundary. */
+app-wallet ion-content.pg-content {
+  --background: #0d1b2a;
+  border-radius: 0;
+}
+app-wallet .wl-hero {
+  border-radius: 0;
+}
+app-wallet .wallet-content-surface {
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  overflow: hidden;
+  min-height: 70vh;
+}
+
+app-driver-notifications ion-content.pg-content {
+  --background: #fff;
+  border-radius: 20px 20px 0 0;
+}
+app-driver-notifications .pg-hero {
+  border-radius: 0;
+}
+app-driver-notifications .pg-body {
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  min-height: 100%;
+}
+
 /**
  * Ionic Dark Mode
  * -----------------------------------------------------
@@ -185,6 +252,20 @@
   cursor: pointer;
   filter: drop-shadow(0 4px 10px rgba(13, 27, 42, 0.22));
 
+  &.is-near-driver {
+    transform: translateY(-72px);
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 16px;
+      left: -1px;
+      height: 56px;
+      border-left: 2px dotted #64748b;
+      pointer-events: none;
+    }
+  }
+
   .person-avatar-wrap {
     position: absolute;
     left: 0;
@@ -200,18 +281,30 @@
 
     .person-avatar-svg {
       display: block;
-      filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+      filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+    }
+
+    .person-dot-svg {
+      width: 22px;
+      height: 22px;
+      display: block;
+      filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.3));
     }
 
     .person-avatar-img {
       width: 36px;
       height: 36px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 2.5px solid #2563EB;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
-      background: #FFFFFF;
+      object-fit: contain;
       display: block;
+      filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+
+      &--avatar {
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2.5px solid #2563EB;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+        background: #FFFFFF;
+      }
     }
   }
 
@@ -319,3 +412,8 @@ ion-modal.document-requirements-modal .ion-page {
   position: relative;
   contain: content;
 }
+/* Match the active route's next-stop card, including a text label for clarity. */
+.fixed-driver-stop-marker.is-next-stop > span { box-shadow: 0 0 0 5px rgba(231, 72, 72, .22), 0 2px 8px #0003; }
+.fixed-driver-stop-marker .next-stop-marker-label { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 4px 8px; border-radius: 7px; background: #e74848; color: white; font-size: 11px; font-weight: 700; line-height: 1.2; box-shadow: 0 2px 5px #0002; }
+/* Text branding used in driver login, welcome and splash. */
+.cabbies-wordmark { display: inline-block; font-family: inherit; font-size: 38px; font-weight: 850; letter-spacing: -1.2px; line-height: 1.2; color: #12b35b; }

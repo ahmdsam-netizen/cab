@@ -1,7 +1,5 @@
-<ion-content [fullscreen]="true" [scrollY]="false" class="dash-content">
-
-  <!-- ===== Full-bleed live map (ViewChild #mapDiv — DO NOT rename) ===== -->
-  <div #mapDiv class="map-canvas"></div>
+<ion-header class="ion-no-border"><app-driver-topbar></app-driver-topbar></ion-header>
+<ion-content [fullscreen]="false" class="dash-content">
 
   <!-- ===== FULL-SCREEN LOCATION FETCHING LOADING OVERLAY =====
        Covers the dashboard until profile, map, and GPS position are ready. -->
@@ -23,54 +21,19 @@
     </div>
   </div>
 
-  <!-- ===== Floating driver top bar ===== -->
-  <header class="drv-topbar">
-    <!-- Menu / avatar = open drawer -->
-    <button class="drv-menu dc-press" (click)="openDrawer()" aria-label="Open menu">
-      <img class="drv-menu__img" [src]="avatarUrl || defaultAvatar" (error)="onAvatarError($event)" alt="" />
-      <span class="drv-menu__presence" *ngIf="isOnline"></span>
-    </button>
+  <main class="home-workspace">
+  <!-- ===== Driver Home ===== -->
 
-    <!-- Driver identity badge -->
-    <span class="drv-badge drv-topbar__badge">DRIVER</span>
 
-    <!-- Topbar right: Offer pill (if collapsed/dismissed) + Live status chip -->
-    <div class="drv-topbar__right">
-      <!-- Offer Pill Trigger (on the left of the Online status pill) -->
-      <button
-        class="dc-banner-floating-pill dc-banner-topbar-pill dc-anim-pop dc-press"
-        type="button"
-        *ngIf="showOfferPill"
-        (click)="reopenOfferBanner()"
-        aria-label="View promotional banner"
-      >
-        <span class="dc-banner-pill-pulse"></span>
-        <ion-icon name="gift-outline" class="dc-banner-pill-icon"></ion-icon>
-        <span class="dc-banner-pill-label">Offer</span>
-      </button>
+  <section class="home-greeting home-identity" aria-label="Driver identity">
+  <button class="drv-menu dc-press" (click)="navTo('/profile')" aria-label="Open profile"><img class="drv-menu__img" [src]="avatarUrl || defaultAvatar" (error)="onAvatarError($event)" alt="" /><span class="drv-menu__presence" *ngIf="isOnline"></span></button>
+    <div><h1>{{ firstName }}</h1><p *ngIf="homeVehicleIdentity"><ion-icon name="car-outline" aria-hidden="true"></ion-icon><span>{{ homeVehicleIdentity }}</span></p></div>
+  </section>
 
-      <!-- Live status chip -->
-      <ng-container *ngIf="driver; else pillSkeleton">
-        <div class="drv-status drv-topbar__status"
-             [class.is-warning]="isWalletBelowLimit && isApproved"
-             [class.is-offline]="!isOnline || !isApproved"
-             [ngClass]="{ 'is-review': !isApproved }">
-          <span class="drv-status__dot"></span>
-          <span *ngIf="!isApproved">Under review</span>
-          <span *ngIf="isApproved && isWalletBelowLimit">Low Balance</span>
-          <span *ngIf="isApproved && !isWalletBelowLimit">{{ isOnline ? 'Online' : 'Offline' }}</span>
-        </div>
-      </ng-container>
-      <ng-template #pillSkeleton>
-        <div class="drv-status drv-topbar__status drv-topbar__status--skeleton dc-skeleton"></div>
-      </ng-template>
-    </div>
-  </header>
-
-  <!-- ── Half Screen Floating Banner Card ── -->
+  <!-- ── Inline promotional banner card ── -->
   <aside
     class="dc-banner-half-card dc-anim-pop"
-    *ngIf="halfBanner && !isHalfBannerCollapsed"
+    *ngIf="showHalfBanner && halfBanner"
     role="complementary"
     aria-label="Promotional banner"
   >
@@ -106,7 +69,7 @@
   <!-- ── Full-Screen App Banner Overlay Modal (True Mobile Full Screen) ── -->
   <div
     class="dc-banner-fullscreen-modal dc-anim-fade"
-    *ngIf="fullScreenBanner && !isFullScreenDismissed"
+    *ngIf="fullScreenBanner && showFullScreenBanner"
     role="dialog"
     aria-modal="true"
     [attr.aria-label]="fullScreenBanner.title"
@@ -159,7 +122,7 @@
   </div>
 
   <!-- ===== Bottom driver sheet ===== -->
-  <div class="sheet" [class.is-online]="isApproved && isOnline" [class.is-warning]="isWalletBelowLimit && isApproved">
+  <section class="sheet" aria-label="Availability and ride controls" [class.is-online]="isApproved && isOnline" [class.is-warning]="isWalletBelowLimit && isApproved">
     <div class="sheet__handle"></div>
 
     <ng-container *ngIf="driver; else sheetSkeleton">
@@ -177,10 +140,6 @@
 
           <div class="sheet-body-anim" *ngIf="!isTransitioningState">
             <!-- Normal Ready to Drive -->
-            <div class="sheet__lead" *ngIf="!isWalletBelowLimit">
-              <span class="sheet__title">Ready to drive?</span>
-              <p class="sheet__hint">Go online to start receiving trip requests near you.</p>
-            </div>
 
             <!-- Full Warning Card when Below Limit -->
             <div class="sheet-warn-card" *ngIf="isWalletBelowLimit">
@@ -209,10 +168,10 @@
               </div>
             </div>
 
-            <button class="dc-cta sheet__go dc-press" *ngIf="!isWalletBelowLimit" (click)="goOnline()" [disabled]="toggling || !canGoOnline">
+            <button class="dc-cta sheet__go dc-press home-duty-switch" role="switch" aria-checked="false" aria-label="Go online" *ngIf="!isWalletBelowLimit" (click)="goOnline()" [disabled]="toggling || !canGoOnline">
               <ion-spinner name="crescent" *ngIf="isGoingOnline"></ion-spinner>
               <ion-icon name="power" *ngIf="!isGoingOnline"></ion-icon>
-              <span>{{ isGoingOnline ? 'Going online…' : 'Go Online' }}</span>
+              <span class="home-duty-copy"><strong>{{ isGoingOnline ? 'Going online…' : "You're offline" }}</strong><small>Ready when you are</small></span><span class="home-switch-track" aria-hidden="true"><span></span></span>
             </button>
 
             <button class="dc-cta sheet__go dc-press sheet__go--recharge" *ngIf="isWalletBelowLimit" (click)="openWalletTopup()">
@@ -224,8 +183,9 @@
 
         <!-- ONLINE -->
         <ng-container *ngIf="isOnline">
+          <button type="button" class="home-duty-switch home-duty-switch--on" role="switch" aria-checked="true" aria-label="Go offline" (click)="confirmGoOffline()" [disabled]="toggling || activeFixedVehicleOpen"><ion-icon name="navigate-outline" aria-hidden="true"></ion-icon><span class="home-duty-copy"><strong>{{ isGoingOffline ? 'Going offline…' : "You're online" }}</strong><small>{{ activeFixedVehicleOpen ? 'Your route is in progress' : 'Ready for your registered service' }}</small></span><span class="home-switch-track" aria-hidden="true"><span></span></span></button>
           <!-- Active Fixed Ride Card (When Boarding or Ride is active) -->
-          <div class="dash-active-fixed-card dc-press" *ngIf="activeFixedVehicleOpen" (click)="chooseFixedRouteForBoarding()">
+          <div class="dash-active-fixed-card" *ngIf="activeFixedVehicleOpen">
             <div class="dash-active-fixed-header">
               <div class="dash-active-fixed-title-row">
                 <span class="dash-active-fixed-badge">
@@ -249,17 +209,6 @@
             </button>
           </div>
 
-          <div class="drive-mode drive-mode--selected drive-mode--fixed" *ngIf="driveMode === 'fixed' && !activeFixedVehicleOpen">
-            <div class="drive-mode__copy">
-              <strong>Fixed Route Rides</strong>
-              <span>Choose the route you will provide service on.</span>
-            </div>
-            <button type="button" class="fixed-open-btn dc-press" (click)="chooseFixedRouteForBoarding()" [disabled]="toggling">
-              <ion-icon name="add-circle-outline"></ion-icon>
-              <span>Start taking rides</span>
-            </button>
-          </div>
-
           <div class="drive-mode drive-mode--selected" *ngIf="driveMode && driveMode !== 'fixed' && !activeFixedVehicleOpen">
             <div>
               <strong>Ready to receive rides</strong>
@@ -275,11 +224,6 @@
           </div>
 
           <!-- Go Offline Button (Hidden during Active Fixed Ride / Boarding) -->
-          <button class="dc-cta dc-cta--ghost sheet__stop dc-press" *ngIf="!activeFixedVehicleOpen" (click)="confirmGoOffline()" [disabled]="toggling">
-            <ion-spinner name="crescent" *ngIf="isGoingOffline"></ion-spinner>
-            <ion-icon name="stop-circle-outline" *ngIf="!isGoingOffline"></ion-icon>
-            <span>{{ isGoingOffline ? 'Going offline…' : 'Go Offline' }}</span>
-          </button>
         </ng-container>
       </ng-container>
 
@@ -304,57 +248,67 @@
       <div class="dc-skeleton sk-line"></div>
       <div class="dc-skeleton sk-block"></div>
     </ng-template>
-  </div>
+  </section>
 
-  <!-- ===== Drawer + scrim ===== -->
-  <div class="scrim" *ngIf="drawerOpen" (click)="closeDrawer()"></div>
+  <section class="home-plan" *ngIf="driver && !activeFixedVehicleOpen" aria-labelledby="home-plan-title">
+    <div class="home-card-heading"><span class="home-icon-tile"><ion-icon name="git-branch-outline" aria-hidden="true"></ion-icon></span><div><h2 id="home-plan-title">Today's route</h2><strong class="home-route-name">{{ !isApproved ? 'Awaiting approval' : 'Choose your route' }}</strong><p>{{ !isOnline ? 'Go online to start a route' : (registeredServiceLabel || 'Registered service') }}</p></div></div>
+    <button type="button" class="home-plan-action" [disabled]="!isApproved || !isOnline || toggling || !driveMode" (click)="driveMode === 'fixed' ? chooseFixedRouteForBoarding() : navTo('/tabs/rides')"><ion-icon name="navigate-outline" aria-hidden="true"></ion-icon>{{ driveMode === 'fixed' || registeredServiceMode === 'fixed' ? 'Choose / change route' : 'View ride requests' }}<ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></button>
+  </section>
 
-  <aside class="drawer" [class.is-open]="drawerOpen">
-    <!-- Driver identity header (green → navy hero) -->
-    <div class="drawer__header drv-hero">
-      <span class="drv-badge drawer__badge">DRIVER</span>
-      <div class="drawer__id" *ngIf="user as u">
-        <div class="drawer__avatar">
-          <img [src]="avatarUrl || defaultAvatar" (error)="onAvatarError($event)" alt="" />
-        </div>
-        <div class="drawer__who">
-          <strong>{{ u.name || 'Driver' }}</strong>
-          <span class="drawer__role">{{ (u.roles && u.roles.join(', ')) || u.role || 'Driver' }}</span>
-          <span class="drawer__chip" [class.is-on]="isOnline">
-            <span class="drawer__chipdot"></span>{{ isOnline ? 'Online' : 'Offline' }}
-          </span>
-        </div>
-      </div>
-    </div>
+  <section class="home-summaries" aria-label="Earnings and wallet">
+  <button type="button" class="home-earnings" (click)="navTo('/tabs/earnings')" aria-label="View this week's earnings">
+    <span class="home-card-title"><ion-icon name="bar-chart-outline" aria-hidden="true"></ion-icon>This week's earnings</span>
+    <strong class="home-earnings-amount">{{ earningsLoading ? 'Loading…' : (homeEarnings === null ? 'View earnings' : (homeEarnings | currency:earningsCurrency:'symbol':'1.0-2')) }}</strong>
+    <span class="home-earnings-note">{{ earningsUnavailable ? 'Tap to retry' : 'View breakdown' }}<ion-icon name="arrow-up-outline" aria-hidden="true"></ion-icon></span>
+  </button>
+  <button type="button" class="home-wallet home-earnings" (click)="navTo('/tabs/wallet')" aria-label="View wallet balance">
+    <span class="home-card-title"><ion-icon name="wallet-outline" aria-hidden="true"></ion-icon>Wallet balance</span>
+    <strong class="home-earnings-amount">{{ homeWalletBalance === null ? 'View wallet' : (homeWalletBalance | currency:'INR':'symbol':'1.0-2') }}</strong>
+    <span class="home-earnings-note">View wallet<ion-icon name="arrow-up-outline" aria-hidden="true"></ion-icon></span>
+  </button>
+  </section>
 
-    <!-- Navigation -->
-    <nav class="drawer__nav dc-stagger">
-      <ng-container *ngFor="let g of navGroups">
-        <p class="drawer__group">{{ g.title }}</p>
-        <button class="dc-row nav-row dc-press" *ngFor="let item of g.items" (click)="navTo(item.path)">
-          <span class="dc-row__icon" *ngIf="item.icon">
-            <ion-icon [name]="item.icon"></ion-icon>
-          </span>
-          <span class="dc-row__text" [style.paddingLeft]="item.icon ? null : '4px'">
-            <strong>{{ item.label }}</strong>
-            <small>{{ item.sub }}</small>
-          </span>
-          <ion-icon class="dc-row__chev" name="chevron-forward-outline"></ion-icon>
-        </button>
-      </ng-container>
-    </nav>
-
-    <!-- Footer -->
-    <div class="drawer__footer">
-      <button class="dc-row nav-row nav-row--danger dc-press" (click)="confirmSignOut()">
-        <span class="dc-row__icon dc-row__icon--danger">
-          <ion-icon name="log-out-outline"></ion-icon>
-        </span>
-        <span class="dc-row__text"><strong>Sign out</strong></span>
+  <section class="home-service-access" *ngIf="driver" aria-labelledby="home-service-access-title">
+    <div class="home-service-header">
+      <h2 id="home-service-access-title">Service overview</h2>
+      <button type="button" (click)="navTo('/profile?tab=vehicle')">
+        View details <ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon>
       </button>
     </div>
+    <dl *ngIf="serviceAccess as access; else serviceAccessStatus">
+      <div>
+        <dt><ion-icon name="business-outline" aria-hidden="true"></ion-icon> Cities <span>{{ access.cities.length }}</span></dt>
+        <dd><span *ngFor="let city of access.cities | slice:0:2">{{ city.name }}</span><span *ngIf="access.cities.length > 2">+{{ access.cities.length - 2 }} more</span><span *ngIf="!access.cities.length">None assigned</span></dd>
+      </div>
+      <div>
+        <dt><ion-icon name="location-outline" aria-hidden="true"></ion-icon> Stands <span>{{ access.stands.length }}</span></dt>
+        <dd><span *ngFor="let stand of access.stands | slice:0:2">{{ stand.name }}{{ stand.is_active ? '' : ' (inactive)' }}</span><span *ngIf="access.stands.length > 2">+{{ access.stands.length - 2 }} more</span><span *ngIf="!access.stands.length">None assigned</span></dd>
+      </div>
+      <div>
+        <dt><ion-icon name="git-branch-outline" aria-hidden="true"></ion-icon> Fixed routes <span>{{ access.routes.length }}</span></dt>
+        <dd><span *ngFor="let route of access.routes | slice:0:2">{{ route.name }}</span><span *ngIf="access.routes.length > 2">+{{ access.routes.length - 2 }} more</span><span *ngIf="!access.routes.length">None available</span></dd>
+      </div>
+    </dl>
+    <ng-template #serviceAccessStatus>
+      <p role="status">{{ serviceAccessFailed ? 'Could not load your assignments.' : 'Loading assignments…' }}</p>
+    </ng-template>
+  </section>
+
+  <section class="home-quick-access" aria-labelledby="home-quick-title">
+    <h2 id="home-quick-title">Quick access</h2>
+    <div>
+      <button type="button" (click)="navTo('/tabs/scheduled')"><span><ion-icon name="calendar-outline" aria-hidden="true"></ion-icon></span>Scheduled</button>
+      <button type="button" (click)="navTo('/tabs/history')"><span><ion-icon name="time-outline" aria-hidden="true"></ion-icon></span>History</button>
+      <button type="button" (click)="navTo('/profile?tab=documents')"><span><ion-icon name="document-text-outline" aria-hidden="true"></ion-icon></span>Documents</button>
+      <button type="button" (click)="navTo('/support')"><span><ion-icon name="headset-outline" aria-hidden="true"></ion-icon></span>Support</button>
+      <button type="button" (click)="reopenOfferBanner()" aria-label="Open available offers"><span><ion-icon name="gift-outline" aria-hidden="true"></ion-icon></span>Offers</button>
+    </div>
+  </section>
+  <aside class="home-readiness" *ngIf="driver">
+    <ion-icon [name]="homeNotice.icon" aria-hidden="true"></ion-icon><div><h2>{{ homeNotice.title }}</h2><p>{{ homeNotice.text }}</p><button type="button" *ngIf="homeNotice.path" (click)="navTo(homeNotice.path!)">{{ homeNotice.action }}<ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></button></div>
   </aside>
 
+  </main>
 
   <ion-modal class="route-picker-modal" [isOpen]="routePickerOpen" (didDismiss)="closeRoutePicker()">
     <ng-template>
@@ -414,3 +368,12 @@
   </ion-modal>
 
 </ion-content>
+
+<ion-footer class="home-footer ion-no-border">
+  <nav class="home-navigation" aria-label="Driver navigation">
+    <button type="button" class="is-current" aria-current="page" (click)="navTo('/tabs/dashboard')"><ion-icon name="home-outline" aria-hidden="true"></ion-icon><span>Home</span></button>
+    <button type="button" (click)="navTo('/tabs/rides')"><ion-icon name="car-outline" aria-hidden="true"></ion-icon><span>Trips</span></button>
+    <button type="button" (click)="navTo('/tabs/earnings')"><ion-icon name="bar-chart-outline" aria-hidden="true"></ion-icon><span>Earnings</span></button>
+    <button type="button" (click)="navTo('/profile')"><ion-icon name="person-outline" aria-hidden="true"></ion-icon><span>Profile</span></button>
+  </nav>
+</ion-footer>

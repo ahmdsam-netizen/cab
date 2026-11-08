@@ -1,3 +1,5 @@
+import { CUSTOMER_MAP_STYLE, fitCustomerMap } from '../../core/customer-map';
+import { NavigationRouteRenderer } from '../../core/navigation-route.helper';
 import { Component, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import { AlertController, ModalController, ToastController } from '@ionic/angular';
@@ -9,6 +11,7 @@ import { AuthService, AuthUser } from '../../core/auth.service';
 import {
   buildReusableCarMarkerElement,
   updateCarMarkerBearing,
+  updateCarMarkerImage,
   buildPassengerMarkerElement,
 } from '../../core/car-marker.helper';
 import { GeolocationService, LatLng, GeoFix } from '../../core/geolocation.service';
@@ -121,12 +124,16 @@ type NearbyDriver = {
   avatar_path?: string | null;
   rating_avg?: number;
   rating_count?: number;
+  image_url?: string | null;
+  map_marker_url?: string | null;
   vehicle?: {
     type?: string | null;
     brand?: string | null;
     model?: string | null;
     color?: string | null;
     reg_no?: string | null;
+    image_url?: string | null;
+    map_marker_url?: string | null;
   } | null;
   lat: number;
   lng: number;
@@ -315,6 +322,8 @@ export class CustomerBookPage implements OnDestroy {
 
   private map: any | null = null;
   private pickupMarker: any | null = null;
+  private bookingCamera = new NavigationRouteRenderer();
+  private followBookingLocation = true;
   private dropMarker: any | null = null;
   // Live "you" dot that follows the device as it moves (home-screen tracking).
   private selfMarker: any | null = null;
@@ -448,12 +457,14 @@ export class CustomerBookPage implements OnDestroy {
   }
 
   ionViewWillLeave(): void {
+    this.bookingCamera.clear();
     // Stop following the device while the page isn't visible (saves battery);
     // initMap() restarts the stream when the view re-enters.
     void this.stopSelfLocationStream();
   }
 
   ngOnDestroy(): void {
+    this.bookingCamera.clear();
     this.cleanupSearch();
     this.stopNearbyDriversPoll();
     this.stopDriverListPoll();
@@ -630,6 +641,7 @@ export class CustomerBookPage implements OnDestroy {
       scope?: 'local' | 'outstation' | null;
       mode?: 'private' | 'fixed' | 'shuttle' | null;
       name: string;
+      display_name?: string | null;
       image_url: string | null;
     };
     type ApiScope = {
@@ -647,7 +659,7 @@ export class CustomerBookPage implements OnDestroy {
           kind: p.kind,
           scope: p.scope ?? null,
           mode: p.mode ?? null,
-          label: p.name,
+          label: p.display_name || p.name,
           image_url: p.image_url,
           icon: this.iconForKind(p.kind),
         }));
@@ -661,7 +673,7 @@ export class CustomerBookPage implements OnDestroy {
             kind: m.kind,
             scope: m.scope ?? s.scope,
             mode: m.mode ?? null,
-            label: m.name,
+            label: m.display_name || m.name,
             image_url: m.image_url,
             icon: this.iconForKind(m.mode ?? m.kind),
           })),
@@ -728,10 +740,13 @@ export class CustomerBookPage implements OnDestroy {
       const div = document.getElementById('ride-map');
       if (!div) return;
 
-      const start = (await this.geo.getCurrentPosition()) ?? { lat: 28.6139, lng: 77.209 };
+      const fix = await this.geo.getCurrentPosition();
+      const start = fix ?? { lat: 28.6139, lng: 77.209 };
+      this.bookingCamera.clear();
+      this.followBookingLocation = true;
       this.map = new google.maps.Map(div, {
+        ...CUSTOMER_MAP_STYLE,
         center: start,
-        zoom: 15,
         disableDefaultUI: true,
         clickableIcons: false,
         // Required for AdvancedMarkerElement to render. DEMO_MAP_ID is
@@ -739,6 +754,7 @@ export class CustomerBookPage implements OnDestroy {
         // Cloud Console when going to production.
         mapId: 'DEMO_MAP_ID',
       });
+      this.map.addListener('dragstart', () => this.pauseBookingFollow());
 
       this.pickupMarker = new google.maps.marker.AdvancedMarkerElement({
         position: start,
@@ -771,22 +787,9 @@ export class CustomerBookPage implements OnDestroy {
       this.resolveCityForPickup();
       this.mapsReady = true;
 
-      // Live "you" dot — show it immediately at the current spot, then keep it
-      // following the device via the GPS watch. Detach any marker left over
-      // from a previous map (initMap re-runs each time the view re-enters).
       if (this.selfMarker) this.selfMarker.map = null;
-      this.selfMarker = new google.maps.marker.AdvancedMarkerElement({
-        position: this.selfPosition ?? start,
-        map: this.map,
-        title: 'You',
-        content: buildPassengerMarkerElement({
-          kind: 'pickup',
-          name: this.auth.getUser()?.name || 'You',
-          isLive: true,
-          avatarUrl: this.auth.resolveAvatarUrl(this.auth.getUser()),
-        }),
-        zIndex: 2,
-      });
+      this.selfMarker = null;
+      if (fix) this.onSelfPosition(fix as any);
       void this.startSelfLocationStream();
 
       this.startNearbyDriversPoll();
@@ -835,7 +838,7 @@ export class CustomerBookPage implements OnDestroy {
   }
 
   private renderNearbyDrivers(
-    drivers: { id: number; lat: number; lng: number; bearing_deg?: number | null }[]
+    drivers: { id: number; lat: number; lng: number; bearing_deg?: number | null; map_marker_url?: string | null; vehicle?: any }[]
   ): void {
     if (!this.map) return;
     const seen = new Set<number>();
@@ -847,6 +850,10 @@ export class CustomerBookPage implements OnDestroy {
         existing.position = pos;
         if (d.bearing_deg != null) {
           updateCarMarkerBearing(existing, d.bearing_deg);
+        }
+        const markerUrl = d.map_marker_url || d.vehicle?.map_marker_url;
+        if (markerUrl) {
+          updateCarMarkerImage(existing, markerUrl);
         }
       } else {
         const marker = new google.maps.marker.AdvancedMarkerElement({
@@ -891,7 +898,7 @@ export class CustomerBookPage implements OnDestroy {
           void this.stopSelfLocationStream();
           return;
         }
-        if (fix) this.onSelfPosition(fix);
+        if (fix) this.onSelfPosition(fix as any);
       },
     );
   }
@@ -915,15 +922,22 @@ export class CustomerBookPage implements OnDestroy {
         title: 'You',
         content: buildPassengerMarkerElement({
           kind: 'pickup',
-          name: this.auth.getUser()?.name || 'You',
-          isLive: true,
           avatarUrl: this.auth.resolveAvatarUrl(this.auth.getUser()),
         }),
         zIndex: 2,
       });
+    }
+    if (this.followBookingLocation && this.state === 'idle' && !this.drop) {
+      this.bookingCamera.follow(this.map, p, null, this.selfMarker);
     } else {
+      this.bookingCamera.clear();
       this.selfMarker.position = p;
     }
+  }
+
+  private pauseBookingFollow(): void {
+    this.followBookingLocation = false;
+    this.bookingCamera.clear();
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -975,6 +989,7 @@ export class CustomerBookPage implements OnDestroy {
   }
 
   private async updatePickupTo(lat: number, lng: number): Promise<void> {
+    this.pauseBookingFollow();
     const address = (await this.places.reverseGeocode(lat, lng)) ?? 'Selected location';
     this.pickup = { lat, lng, address };
     this.resolveCityForPickup();
@@ -1735,7 +1750,7 @@ export class CustomerBookPage implements OnDestroy {
     const bounds = new google.maps.LatLngBounds();
     bounds.extend(a);
     bounds.extend(b);
-    this.map.fitBounds(bounds, 90);
+    fitCustomerMap(this.map, bounds, 90);
   }
 
   /**
@@ -2248,7 +2263,11 @@ export class CustomerBookPage implements OnDestroy {
           const entry = {
             driver_id: d.driver_id,
             name: d.name ?? 'Driver',
-            vehicle: d.vehicle ? { brand: d.vehicle, model: '', color: '' } : null,
+            vehicle: typeof (d as any).vehicle === 'object' && (d as any).vehicle !== null
+              ? (d as any).vehicle
+              : (d.vehicle ? { brand: d.vehicle, model: '', color: '', map_marker_url: (d as any).map_marker_url } : null),
+            map_marker_url: (d as any).map_marker_url || (d as any).vehicle?.map_marker_url || null,
+            image_url: (d as any).image_url || (d as any).vehicle?.image_url || null,
             distance_km: d.distance_km ?? 0,
             eta_min: null,
             rating_avg: null,
@@ -2263,7 +2282,14 @@ export class CustomerBookPage implements OnDestroy {
       // Re-plot map markers using the accumulated driver list.
       const markerData = this.drivers
         .filter((d: any) => Number.isFinite(d.lat) && Number.isFinite(d.lng))
-        .map((d: any) => ({ id: d.driver_id, lat: d.lat, lng: d.lng, bearing_deg: 0 }));
+        .map((d: any) => ({
+          id: d.driver_id,
+          lat: d.lat,
+          lng: d.lng,
+          bearing_deg: d.bearing_deg ?? 0,
+          map_marker_url: d.map_marker_url || d.vehicle?.map_marker_url,
+          vehicle: d.vehicle,
+        }));
       if (markerData.length) this.renderNearbyDrivers(markerData);
 
       // Replace the backend's haversine distance with Google's road distance
@@ -2420,7 +2446,7 @@ export class CustomerBookPage implements OnDestroy {
     try {
       // Keep the ring visible by zooming out a touch as it grows.
       const bounds = this.searchCircle.getBounds?.();
-      if (bounds && this.map.fitBounds) this.map.fitBounds(bounds, 80);
+      if (bounds && this.map.fitBounds) fitCustomerMap(this.map, bounds, 80);
     } catch {}
   }
 

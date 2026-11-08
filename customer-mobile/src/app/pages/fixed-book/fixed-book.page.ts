@@ -1,3 +1,4 @@
+import { CUSTOMER_MAP_STYLE, fitCustomerMap } from '../../core/customer-map';
 import { Component, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AlertController, ToastController } from '@ionic/angular';
@@ -15,6 +16,7 @@ import {
 import {
   buildReusableCarMarkerElement,
   updateCarMarkerBearing,
+  updateCarMarkerImage,
   buildPassengerMarkerElement,
   buildStopMarkerElement,
 } from '../../core/car-marker.helper';
@@ -59,6 +61,8 @@ interface FixedRoute {
   booking_window_hours: number;
   waiting_time_per_stop_minutes: number;
   stops: FixedStop[];
+  starting_stop?: FixedStop | null;
+  distance_to_start?: number | null;
   nearest_pickup_stop?: {
     id: number;
     name: string;
@@ -97,6 +101,8 @@ interface FixedDeparture {
   vehicle_model?: string | null;
   vehicle_color?: string | null;
   vehicle_reg_no?: string | null;
+  map_marker_url?: string | null;
+  vehicle?: any;
 }
 
 interface SeatHold {
@@ -261,7 +267,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
   get nearbyRoutesCount(): number {
     if (!this.userCoords) return this.routes.length;
     return this.routes.filter(
-      (r) => r.distance_to_nearest_pickup != null && r.distance_to_nearest_pickup <= 1000,
+      (r) => r.distance_to_start != null && r.distance_to_start <= 1000,
     ).length;
   }
 
@@ -354,7 +360,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
       if (this.routeFilter !== 'all' && route.scope !== this.routeFilter) return false;
       if (!term) {
         if (this.radiusFilterActive && this.userCoords) {
-          return route.distance_to_nearest_pickup != null && route.distance_to_nearest_pickup <= 1000;
+          return route.distance_to_start != null && route.distance_to_start <= 1000;
         }
         return true;
       }
@@ -490,8 +496,8 @@ export class FixedBookPage implements OnInit, OnDestroy {
 
       const start = (await this.geo.getCurrentPosition()) ?? { lat: 28.6139, lng: 77.209 };
       this.fixedMap = new google.maps.Map(el, {
+        ...CUSTOMER_MAP_STYLE,
         center: start,
-        zoom: 15,
         disableDefaultUI: true,
         clickableIcons: false,
         mapId: 'DEMO_MAP_ID',
@@ -523,7 +529,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
     // Route line eliminated as requested: customer sees only pickup/drop pins and stops
     const bounds = new google.maps.LatLngBounds();
     path.forEach((point) => bounds.extend(point));
-    this.fixedMap.fitBounds(bounds, this.routeFitPadding());
+    fitCustomerMap(this.fixedMap, bounds, this.routeFitPadding());
     if (this.step === 'details') this.renderStopsOnMap();
     this.ensureVehicleMarker();
   }
@@ -771,8 +777,16 @@ export class FixedBookPage implements OnInit, OnDestroy {
   }
 
   private buildVehicleMarker(): HTMLElement {
+    const booking = this.currentMapBooking();
+    const markerUrl = (this.selectedDeparture as any)?.map_marker_url
+      || (this.selectedDeparture as any)?.vehicle?.map_marker_url
+      || (booking as any)?.map_marker_url
+      || (booking as any)?.vehicle?.map_marker_url
+      || null;
+
     return buildReusableCarMarkerElement({
-      label: this.departureDriverName(this.selectedDeparture) || 'Fixed Cab',
+
+      markerUrl,
     });
   }
 
@@ -981,12 +995,21 @@ export class FixedBookPage implements OnInit, OnDestroy {
   }
 
   private annotateRoutesWithProximity(): void {
-    if (!this.userCoords) return;
     for (const r of this.routes) {
+      r.starting_stop = r.stops?.length
+        ? r.stops.reduce((first, stop) => stop.seq < first.seq ? stop : first)
+        : null;
+      r.distance_to_start = null;
+      if (!this.userCoords) continue;
+      r.nearest_pickup_stop = null;
+      r.distance_to_nearest_pickup = null;
+      for (const stop of r.stops || []) stop.is_nearest_pickup = false;
       if (!r.stops?.length) continue;
       let minD = Infinity;
       let nearest: any = null;
       for (const s of r.stops) {
+        s.distance_meters = null;
+        s.walk_minutes = null;
         if (s.lat != null && s.lng != null && s.lat !== 0 && s.lng !== 0) {
           const d = this.distanceMeters(this.userCoords.lat, this.userCoords.lng, s.lat, s.lng);
           s.distance_meters = d;
@@ -1005,6 +1028,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
           }
         }
       }
+      r.distance_to_start = r.starting_stop?.distance_meters ?? null;
       if (nearest) {
         r.nearest_pickup_stop = nearest;
         r.distance_to_nearest_pickup = minD;
@@ -1013,6 +1037,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
         }
       }
     }
+    this.routes.sort((a, b) => (a.distance_to_start ?? Infinity) - (b.distance_to_start ?? Infinity));
   }
 
   recalculateNearbyStops(): void {
@@ -1791,7 +1816,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
       this.fixedVehicleMarker = new google.maps.marker.AdvancedMarkerElement({
         position: this.fixedVehiclePosition,
         map: this.fixedMap,
-        title: this.departureDriverName(this.selectedDeparture),
+        title: 'Driver',
         content: this.buildVehicleMarker(),
         zIndex: 10,
       });
@@ -1800,6 +1825,15 @@ export class FixedBookPage implements OnInit, OnDestroy {
 
     this.fixedVehicleMarker.position = this.fixedVehiclePosition;
     this.fixedVehicleMarker.map = this.fixedMap;
+    const booking = this.currentMapBooking();
+    const markerUrl = (this.selectedDeparture as any)?.map_marker_url
+      || (this.selectedDeparture as any)?.vehicle?.map_marker_url
+      || (booking as any)?.map_marker_url
+      || (booking as any)?.vehicle?.map_marker_url
+      || null;
+    if (markerUrl) {
+      updateCarMarkerImage(this.fixedVehicleMarker, markerUrl);
+    }
   }
 
   private isLiveTrackingStatus(status: string): boolean {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Models\City;
+use App\Models\OperatorSetting;
 use App\Models\RideType;
 use App\Support\RideCatalog;
 use Illuminate\Http\Request;
@@ -96,7 +97,7 @@ class AdminCityRideProductsController
             $rideType->save();
 
             return response()->json([
-                'mode' => RideCatalog::shapeMode($rideType, $scope, (bool) $rideType->{$column}, (int) $rideType->sort_order),
+                'mode' => RideCatalog::shapeMode($rideType, $scope, (bool) $rideType->{$column}, (int) $rideType->sort_order, OperatorSetting::query()->find(1)),
                 'scopes' => RideCatalog::tree(onlyActive: false),
                 'message' => 'Ride option updated.',
             ]);

@@ -223,6 +223,71 @@ class FixedAdminRecoveryActionsTest extends TestCase
         $this->assertSame('REFUNDED', $second->fresh()->refund_status);
     }
 
+    public function test_all_rides_cancel_updates_fixed_departure_and_mobile_bookings(): void
+    {
+        $this->assertAllRidesCancellation(false);
+    }
+
+    public function test_all_rides_cancel_can_reconcile_a_previously_cancelled_trip(): void
+    {
+        $this->assertAllRidesCancellation(true);
+    }
+
+    public function test_fixed_vehicle_cancel_also_updates_the_all_rides_trip(): void
+    {
+        $this->assertAllRidesCancellation(false, true);
+    }
+
+    private function assertAllRidesCancellation(bool $tripAlreadyCancelled, bool $vehicleScreen = false): void
+    {
+        $driver = User::factory()->create();
+        $driver->addRole('driver');
+        $rideTypeId = DB::table('ride_types')->insertGetId([
+            'name' => 'Cancel Sync Fixed', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $trip = Trip::query()->create([
+            'customer_id' => null, 'ride_type_id' => $rideTypeId, 'scope' => 'local',
+            'pickup_lat' => 34.0, 'pickup_lng' => 74.0, 'drop_lat' => 34.1, 'drop_lng' => 74.1,
+            'city_id' => $this->cityId, 'driver_id' => $driver->id,
+            'route_id' => $this->route->id, 'route_departure_id' => $this->departure->id,
+            'status' => $tripAlreadyCancelled ? 'CANCELLED' : 'EN_ROUTE_DROP',
+        ]);
+        $this->departure->update(['trip_id' => $trip->id, 'driver_id' => $driver->id, 'status' => 'DEPARTED', 'seats_taken' => 2]);
+        $boarded = $this->createReservation(['trip_id' => $trip->id, 'status' => 'BOARDED', 'payment_reference' => 'pay_cancel_boarded']);
+        $waiting = $this->createReservation(['trip_id' => $trip->id, 'customer_id' => $this->secondCustomer->id, 'payment_reference' => 'pay_cancel_waiting']);
+        $gateway = Mockery::mock(RazorpayService::class);
+        $gateway->shouldReceive('refundPayment')->once()->with('pay_cancel_boarded', 12000, Mockery::type('array'))
+            ->andReturn(['id' => 'rfnd_boarded', 'status' => 'processed', 'amount' => 12000]);
+        $gateway->shouldReceive('refundPayment')->once()->with('pay_cancel_waiting', 12000, Mockery::type('array'))
+            ->andReturn(['id' => 'rfnd_waiting', 'status' => 'processed', 'amount' => 12000]);
+        $this->instance(RazorpayService::class, $gateway);
+
+        Sanctum::actingAs($this->admin, ['act-as:admin']);
+        $endpoint = $vehicleScreen
+            ? "/api/admin/cities/{$this->cityId}/fixed-departures/{$this->departure->id}/cancel"
+            : "/api/admin/trips/{$trip->id}/cancel";
+        $this->postJson($endpoint, ['reason' => 'Operator cancelled fixed ride.'])
+            ->assertOk()->assertJsonPath($vehicleScreen ? 'departure.status' : 'trip.status', 'CANCELLED')
+            ->assertJsonPath('cancelled_passengers', 2);
+        $this->assertSame('CANCELLED', $trip->fresh()->status);
+        $this->assertSame('CANCELLED', $this->departure->fresh()->status);
+        $this->assertFalse((bool) $this->departure->fresh()->visible_to_customers);
+        $this->assertSame(0, $this->departure->fresh()->seats_taken);
+        foreach ([$boarded, $waiting] as $booking) {
+            $this->assertSame('CANCELLED', $booking->fresh()->status);
+            $this->assertSame('REFUNDED', $booking->fresh()->refund_status);
+        }
+        // A repeat request must not send another refund or release capacity twice.
+        $this->postJson($endpoint, ['reason' => 'Retry cancellation.'])->assertStatus(422);
+        $this->assertSame(0, $this->departure->fresh()->seats_taken);
+
+        Sanctum::actingAs($this->customer, ['act-as:customer']);
+        $this->getJson("/api/fixed/bookings/{$boarded->id}")->assertOk()->assertJsonPath('booking.status', 'CANCELLED');
+        Sanctum::actingAs($driver, ['act-as:driver']);
+        $vehicles = $this->getJson('/api/fixed/driver/vehicles')->assertOk()->json('data');
+        $this->assertFalse(collect($vehicles)->contains(fn ($vehicle) => $vehicle['id'] === $this->departure->id && in_array($vehicle['status'], ['FORMING', 'DISPATCHED', 'DEPARTED'], true)));
+    }
+
     public function test_admin_can_record_manual_refund_resolution_without_calling_razorpay(): void
     {
         $reservation = $this->createReservation(['payment_reference' => 'pay_manual_resolution', 'refund_status' => 'APPROVED', 'refund_amount' => 120]);

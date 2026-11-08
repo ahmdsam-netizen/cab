@@ -281,7 +281,7 @@ const SCOPE_OPTIONS: { label: string; value: RouteScope }[] = [
           <span class="wstep__sep">→</span>
           <button type="button" class="wstep" [class.is-active]="wizardStep === 5" [class.is-done]="form.city_vehicle_type_id != null" (click)="goToStep(5)">
             <span class="wstep__num">5</span>
-            <span class="wstep__lbl">Group & Drivers</span>
+            <span class="wstep__lbl">Stand & Drivers</span>
           </button>
           <span class="wstep__sep">→</span>
           <button type="button" class="wstep" [class.is-active]="wizardStep === 6" (click)="goToStep(6)">
@@ -364,6 +364,7 @@ const SCOPE_OPTIONS: { label: string; value: RouteScope }[] = [
             </label>
 
             <!-- Origin Loading Indicator -->
+            <p class="muted small">To rename this point, edit the text and continue. Press Enter to search for a different location.</p>
             <div class="location-setting-loader" *ngIf="isSettingOrigin">
               <div class="spinner-sm"></div>
               <span>Adding the origin, please wait...</span>
@@ -405,6 +406,7 @@ const SCOPE_OPTIONS: { label: string; value: RouteScope }[] = [
             </label>
 
             <!-- Destination Loading Indicator -->
+            <p class="muted small">To rename this point, edit the text and continue. Press Enter to search for a different location.</p>
             <div class="location-setting-loader" *ngIf="isSettingDest">
               <div class="spinner-sm"></div>
               <span>Adding the destination, please wait...</span>
@@ -684,8 +686,10 @@ const SCOPE_OPTIONS: { label: string; value: RouteScope }[] = [
           <!-- STEP 5: ASSIGN VEHICLE, GROUP & DRIVERS -->
           <div class="wstep-content" *ngIf="wizardStep === 5">
             <div class="wstep-lead">
-              <h3>Assign Vehicle, Group & Drivers</h3>
-              <p>Attach this route to a vehicle model, route group, and assign local drivers.</p>
+              <h3>Assign Vehicle, Stand & Drivers</h3>
+              <p>Attach this route to a vehicle model, stand, and assign local drivers.</p>
+              <p *ngIf="editingId">Existing stand assignments are kept when you save. Remove assignments from Stands when needed.</p>
+              <p *ngIf="additionalStandNames">Also assigned to: {{ additionalStandNames }}</p>
             </div>
 
             <!-- 1. Vehicle Type Chips -->
@@ -711,14 +715,14 @@ const SCOPE_OPTIONS: { label: string; value: RouteScope }[] = [
             <!-- Vehicle Groups Loader -->
             <div class="vehicle-groups-loader" *ngIf="loadingVehicleGroups">
               <div class="spinner-sm"></div>
-              <span>Loading route groups and drivers for vehicle...</span>
+              <span>Loading stands and drivers for vehicle...</span>
             </div>
 
             <!-- Hidden until a vehicle is picked and loaded -->
             <ng-container *ngIf="form.city_vehicle_type_id && !loadingVehicleGroups">
               <!-- 2. Route Group Assignment Chips -->
               <div class="field" style="margin-top: 14px;">
-                <span class="field__lbl">2. Route Group Assignment <i>*</i></span>
+                <span class="field__lbl">2. Stand Assignment <i>*</i></span>
                 <div class="chips-grid">
                   <button type="button" class="chip-card" *ngFor="let g of vehicleFilteredGroups"
                     [class.is-selected]="form.assigned_group_id === g.id"
@@ -736,7 +740,7 @@ const SCOPE_OPTIONS: { label: string; value: RouteScope }[] = [
                     (click)="form.assigned_group_id = 'new'">
                     <span class="chip-icon">➕</span>
                     <div class="chip-info">
-                      <b class="chip-title">New Group</b>
+                      <b class="chip-title">New Stand</b>
                       <span class="chip-sub">Create bundle</span>
                     </div>
                     <tm-icon *ngIf="form.assigned_group_id === 'new'" name="check" [size]="16" class="chip-check text-green" />
@@ -745,7 +749,7 @@ const SCOPE_OPTIONS: { label: string; value: RouteScope }[] = [
               </div>
 
               <label class="field" *ngIf="form.assigned_group_id === 'new'" style="margin-top: 8px;">
-                <span class="field__lbl">New Group Name <i>*</i></span>
+                <span class="field__lbl">New Stand Name <i>*</i></span>
                 <input type="text" [(ngModel)]="form.new_group_name" placeholder="e.g. Sopore Express Corridor" />
               </label>
 
@@ -843,7 +847,7 @@ const SCOPE_OPTIONS: { label: string; value: RouteScope }[] = [
                   <span class="meta-val">{{ getVehicleDisplayName(form.city_vehicle_type_id) }}</span>
                 </div>
                 <div class="meta-item">
-                  <span class="meta-label">Group:</span>
+                  <span class="meta-label">Stand:</span>
                   <span class="meta-val">{{ getGroupDisplayName() }}</span>
                 </div>
                 <div class="meta-item">
@@ -875,7 +879,7 @@ const SCOPE_OPTIONS: { label: string; value: RouteScope }[] = [
             Next: Fare & Policy →
           </tm-button>
           <tm-button variant="green" *ngIf="wizardStep === 4" [disabled]="!form.name.trim() || form.seat_fare == null" (clicked)="goToStep(5)">
-            Next: Group & Drivers →
+            Next: Stand & Drivers →
           </tm-button>
           <tm-button variant="green" *ngIf="wizardStep === 5" (clicked)="goToStep(6)">
             Next: Review & Overview →
@@ -903,7 +907,7 @@ const SCOPE_OPTIONS: { label: string; value: RouteScope }[] = [
       <div slot="body">
         <p>Are you sure you want to save and publish route <b>"{{ form.name }}"</b> with <b>{{ form.stops.length + 2 }} total stops</b> at <b>₹{{ form.seat_fare }} per seat</b>?</p>
         <p *ngIf="form.assigned_group_id === 'new'" style="margin-top: 6px; color: var(--tm-green); font-weight: 700;">
-          A new route group "{{ form.new_group_name }}" will also be created.
+          A new stand "{{ form.new_group_name }}" will also be created.
         </p>
       </div>
       <div slot="footer">
@@ -1600,6 +1604,14 @@ export class FixedRoutesComponent implements OnInit, OnDestroy {
   removedStopsModalOpen = false;
   private pendingStopAvailabilityBody: Record<string, unknown> | null = null;
   private originalStopBookable = new Map<number, boolean>();
+  private originalAssignments: string | null = null;
+  private assignmentLoadVersion = 0;
+  private assignmentSignature(): string {
+    return JSON.stringify([this.form.assigned_group_id, this.form.new_group_name.trim(), [...this.form.assigned_driver_ids].sort((a, b) => a - b)]);
+  }
+  get additionalStandNames(): string {
+    return this.editingId ? this.groups.filter(group => group.route_ids.includes(this.editingId!) && group.id !== this.form.assigned_group_id).map(group => group.name).join(', ') : '';
+  }
   stopsPopoverRouteId: number | null = null;
   stopsPopoverLines: string[] = [];
   stopsPopoverX = 0;
@@ -1629,7 +1641,7 @@ export class FixedRoutesComponent implements OnInit, OnDestroy {
       case 2: return 'Set Destination';
       case 3: return 'Intermediate Stops';
       case 4: return 'Fare & Policy';
-      case 5: return 'Group & Drivers';
+      case 5: return 'Stand & Drivers';
       case 6: return 'Review & Publish';
     }
   }
@@ -1640,7 +1652,7 @@ export class FixedRoutesComponent implements OnInit, OnDestroy {
       case 2: return 'Click on the map or type in search to place the red Destination marker (B).';
       case 3: return 'Type landmark names to add stops, tap Auto-detect, or click along the road line.';
       case 4: return 'Configure passenger seat fare, platform commission, and luggage.';
-      case 5: return 'Select vehicle type, route group, and assigned drivers.';
+      case 5: return 'Select vehicle type, stand, and assigned drivers.';
       case 6: return 'Review high-level map overview and finalize.';
     }
   }
@@ -1812,7 +1824,7 @@ export class FixedRoutesComponent implements OnInit, OnDestroy {
     if (f.seat_fare == null || f.seat_fare <= 0) return false;
     if (f.scope === 'outstation' && (f.origin_city_id == null || f.dest_city_id == null)) return false;
     if (f.city_vehicle_type_id == null) return false;
-    if (f.assigned_group_id == null || (f.assigned_group_id === 'new' && !f.new_group_name.trim())) return false;
+    if ((!this.editingId && f.assigned_group_id == null) || (f.assigned_group_id === 'new' && !f.new_group_name.trim())) return false;
     return true;
   }
 
@@ -1967,10 +1979,12 @@ export class FixedRoutesComponent implements OnInit, OnDestroy {
 
   loadGroupsAndDrivers(): void {
     if (this.cityId == null) { this.groups = []; this.cityDrivers = []; return; }
+    const cityId = this.cityId, editingId = this.editingId, version = ++this.assignmentLoadVersion;
     
     // 1. Fetch Route Groups for this city
     this.api.get<{ data: any[] }>(`/admin/cities/${this.cityId}/route-groups`).subscribe({
       next: (res) => {
+        if (this.cityId !== cityId || this.editingId !== editingId || version !== this.assignmentLoadVersion) return;
         this.groups = (res?.data || []).map((g: any) => ({
           id: g.id,
           name: g.name,
@@ -1978,13 +1992,20 @@ export class FixedRoutesComponent implements OnInit, OnDestroy {
           route_ids: g.route_ids || [],
           driver_user_ids: g.driver_user_ids || [],
         }));
+        if (editingId && this.assignmentSignature() === this.originalAssignments) {
+          const assigned = this.groups.find(group => group.route_ids.includes(editingId));
+          this.form.assigned_group_id = assigned?.id ?? null;
+          this.form.assigned_driver_ids = [...(assigned?.driver_user_ids ?? [])];
+          this.originalAssignments = this.assignmentSignature();
+        }
       },
-      error: () => { this.groups = []; },
+      error: () => { if (this.cityId === cityId && version === this.assignmentLoadVersion) this.groups = []; },
     });
 
     // 2. Fetch Drivers giving service in this city
     this.api.get<{ data: any[] }>(`/admin/cities/${this.cityId}/route-group-drivers`).subscribe({
       next: (res) => {
+        if (this.cityId !== cityId || this.editingId !== editingId || version !== this.assignmentLoadVersion) return;
         const list = res?.data || [];
         if (list.length > 0) {
           this.cityDrivers = list.map((d: any) => ({
@@ -2000,6 +2021,7 @@ export class FixedRoutesComponent implements OnInit, OnDestroy {
         }
       },
       error: () => {
+        if (this.cityId !== cityId || version !== this.assignmentLoadVersion) return;
         this.fetchDriversFallback();
       },
     });
@@ -2038,7 +2060,7 @@ export class FixedRoutesComponent implements OnInit, OnDestroy {
 
   get vehicleFilteredGroups(): Array<{ id: number; name: string; vehicle_type_id?: number | null; route_ids: number[]; driver_user_ids: number[] }> {
     if (!this.form.city_vehicle_type_id) return [];
-    return this.groups.filter((g) => !g.vehicle_type_id || g.vehicle_type_id === this.form.city_vehicle_type_id);
+    return this.groups.filter((g) => !g.vehicle_type_id || g.vehicle_type_id === this.form.city_vehicle_type_id || (!!this.editingId && g.route_ids.includes(this.editingId)));
   }
 
   get vehicleFilteredDrivers(): Array<{ id: number; user_id?: number; name: string; phone?: string; city_vehicle_type_id?: number | null; vehicle_model?: string }> {
@@ -2162,14 +2184,17 @@ export class FixedRoutesComponent implements OnInit, OnDestroy {
   }
 
   getGroupDisplayName(): string {
+    if (this.editingId && this.assignmentSignature() === this.originalAssignments) {
+      return this.groups.filter(group => group.route_ids.includes(this.editingId!)).map(group => group.name).join(', ') || 'No stand (Independent Route)';
+    }
     if (this.form.assigned_group_id === 'new') {
-      return `New Group: "${this.form.new_group_name.trim() || 'Untitled'}"`;
+      return `New Stand: "${this.form.new_group_name.trim() || 'Untitled'}"`;
     }
     if (typeof this.form.assigned_group_id === 'number') {
       const g = this.groups.find((x) => x.id === this.form.assigned_group_id);
       return g ? g.name : `#${this.form.assigned_group_id}`;
     }
-    return 'Ungrouped (Independent Route)';
+    return 'No stand (Independent Route)';
   }
 
   toggleDriverAssignment(driverId: number): void {
@@ -2656,8 +2681,8 @@ export class FixedRoutesComponent implements OnInit, OnDestroy {
         this.toast.error('Please select a vehicle model.');
         return;
       }
-      if (this.form.assigned_group_id == null || (this.form.assigned_group_id === 'new' && !this.form.new_group_name.trim())) {
-        this.toast.error('Please select a route group or create a new group.');
+      if ((!this.editingId && this.form.assigned_group_id == null) || (this.form.assigned_group_id === 'new' && !this.form.new_group_name.trim())) {
+        this.toast.error('Please select a stand or create a new stand.');
         return;
       }
     }
@@ -2780,6 +2805,7 @@ export class FixedRoutesComponent implements OnInit, OnDestroy {
   }
 
   openCreate(): void {
+    this.originalAssignments = null;
     this.pendingEditRouteId = null;
     this.editingId = null;
     this.originalStopBookable.clear();
@@ -2861,20 +2887,22 @@ export class FixedRoutesComponent implements OnInit, OnDestroy {
       assigned_driver_ids: [],
     };
     this.removedStops = (r.stops || []).slice(1, -1).filter((s) => this.isRemovedStop(s)).map((s) => ({ ...s }));
+    this.originalAssignments = this.assignmentSignature();
     this.roadPath = (r.path_polyline || []).map((p) => ({ lat: p[0], lng: p[1] }));
     this.computePathDistance();
     this.pathLocked = this.roadPath.length > 0;
     this.pathMode = 'road';
     this.clearAlternatives();
     this.directionsDisabled = false;
-    this.wizardStep = 6;
-    this.tool = 'path';
+    this.wizardStep = 1;
+    this.tool = 'origin';
     this.open = true;
     this.loadGroupsAndDrivers();
     this.scheduleMapInit();
   }
 
   closeEditor(): void {
+    this.assignmentLoadVersion++;
     this.open = false;
     this.discardConfirmOpen = false;
     this.saveConfirmOpen = false;
@@ -2950,6 +2978,8 @@ export class FixedRoutesComponent implements OnInit, OnDestroy {
       is_pickup: true, is_drop: true, is_active: true,
       is_temporarily_unavailable: false, unavailable_reason: null,
     }));
+    this.originalAssignments = this.editingId ? this.assignmentSignature() : null;
+    this.loadGroupsAndDrivers();
     this.roadPath = (draft.path || []).map((p) => ({ lat: p[0], lng: p[1] }));
     this.computePathDistance();
     this.pathLocked = this.roadPath.length > 0;
@@ -4734,7 +4764,7 @@ export class FixedRoutesComponent implements OnInit, OnDestroy {
         const createdRoute = res?.route ?? (res as any)?.data;
         const routeId = this.editingId || createdRoute?.id;
 
-        if (routeId && this.cityId != null) {
+        if (routeId && this.cityId != null && (!this.editingId || this.assignmentSignature() !== this.originalAssignments)) {
           if (this.form.assigned_group_id === 'new' && this.form.new_group_name.trim()) {
             try {
               const groupRes = await firstValueFrom(
@@ -4777,21 +4807,8 @@ export class FixedRoutesComponent implements OnInit, OnDestroy {
             }
           }
 
-          // Clean up this route from any other group it might have previously belonged to
-          for (const otherG of this.groups) {
-            if (otherG.id !== this.form.assigned_group_id && otherG.route_ids?.includes(routeId)) {
-              const remRouteIds = otherG.route_ids.filter((id) => id !== routeId);
-              try {
-                await firstValueFrom(
-                  this.api.patch(`/admin/cities/${this.cityId}/route-groups/${otherG.id}`, {
-                    name: otherG.name,
-                    city_vehicle_type_id: otherG.vehicle_type_id,
-                    route_ids: remRouteIds,
-                  })
-                );
-              } catch {}
-            }
-          }
+          // Routes can belong to multiple stands. Removing memberships belongs
+          // to stand management, never an unrelated route/name edit.
         }
 
         this.saving = false;

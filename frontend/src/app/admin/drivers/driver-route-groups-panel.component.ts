@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { ToastService } from '../../core/toast.service';
+import { IconComponent } from '../../ui/icon/icon.component';
 
 interface GroupOpt { id: number; name: string; city_id?: number; city_name?: string; is_active: boolean; vehicle_set_names?: string[]; matches_vehicle_set?: boolean; }
 interface EffRoute { id: number; name: string; origin_name: string; dest_name: string; scope: string; is_active: boolean; }
@@ -16,28 +17,80 @@ interface Payload { assigned_group_ids: number[]; groups: GroupOpt[]; effective_
 @Component({
   selector: 'app-driver-route-groups-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, IconComponent],
   template: `
-    <section class="drg">
+    <section class="drg" [class.drg--readonly]="readOnly">
       <header class="drg__head">
         <h3>Fixed route access</h3>
-        <span class="drg__sub">Routes are granted by route groups across this driver's registered operating cities.</span>
+        <span class="drg__sub">This driver's stand assignments determine which fixed routes they can serve.</span>
       </header>
 
-      <p *ngIf="loading" role="status">Loading route assignments…</p><p *ngIf="loadFailed" role="alert">Could not load assignments. Close and try again.</p><div class="drg__body" *ngIf="!loading && !loadFailed">
+      <p *ngIf="loading" role="status">Loading route assignments…</p>
+      <p *ngIf="loadFailed" role="alert">Could not load assignments. Close and try again.</p>
+      @if (!loading && !loadFailed) {
+        @if (readOnly) {
+          <div class="drg__cards">
+            <section class="drg__card" *ngIf="assignedGroups as stands">
+              <h4><tm-icon name="map-marker" [size]="16" aria-hidden="true" /> Assigned stands <span>{{ stands.length }}</span></h4>
+              <p class="drg__empty" *ngIf="!stands.length">No stands assigned.</p>
+              <ul class="drg__items" *ngIf="stands.length">
+                <li class="drg__route" *ngFor="let stand of stands">
+                  <strong>{{ stand.name }}</strong>
+                  <small *ngIf="stand.city_name">{{ stand.city_name }}</small>
+                  <small class="drg__paused" *ngIf="!stand.is_active">Route access paused</small>
+                </li>
+              </ul>
+            </section>
+            <section class="drg__card drg__card--routes">
+              <h4><tm-icon name="road" [size]="16" aria-hidden="true" /> Accessible routes <span>{{ effective.length }}</span></h4>
+              <p class="drg__empty" *ngIf="!effective.length">No fixed routes available.</p>
+              @if (effective.length) {
+                <div class="drg__tabs" role="tablist" aria-label="Route scope"
+                     (keydown.arrowleft)="switchRouteTab($event, localTab, outstationTab)"
+                     (keydown.arrowright)="switchRouteTab($event, localTab, outstationTab)">
+                  <button #localTab type="button" role="tab" [id]="'drg-local-' + driverId"
+                          [attr.aria-controls]="'drg-routes-' + driverId"
+                          [attr.aria-selected]="scopeFilter === 'local'" [tabIndex]="scopeFilter === 'local' ? 0 : -1"
+                          (click)="scopeFilter = 'local'">Local <span>{{ localCount }}</span></button>
+                  <button #outstationTab type="button" role="tab" [id]="'drg-outstation-' + driverId"
+                          [attr.aria-controls]="'drg-routes-' + driverId"
+                          [attr.aria-selected]="scopeFilter === 'outstation'" [tabIndex]="scopeFilter === 'outstation' ? 0 : -1"
+                          (click)="scopeFilter = 'outstation'">Outstation <span>{{ outstationCount }}</span></button>
+                </div>
+                <div role="tabpanel" [id]="'drg-routes-' + driverId" tabindex="0"
+                     [attr.aria-labelledby]="'drg-' + scopeFilter + '-' + driverId">
+                  @if (filteredEffective.length) {
+                    <ul class="drg__items">
+                      <li class="drg__route" *ngFor="let route of filteredEffective">
+                        <ng-container *ngTemplateOutlet="routeDetails; context: { $implicit: route }" />
+                      </li>
+                    </ul>
+                  } @else {
+                    <p class="drg__empty">No {{ scopeFilter }} routes available.</p>
+                  }
+                </div>
+              }
+            </section>
+          </div>
+        } @else {
+          <ng-container *ngTemplateOutlet="assignmentEditor" />
+        }
+      }
+      <ng-template #assignmentEditor>
+        <div class="drg__body">
         <div class="drg__col">
-          <div class="drg__label">Route groups</div>
-          <div class="drg__empty" *ngIf="!groups.length">No route groups found in this driver's cities yet.</div>
+          <div class="drg__label">Stands</div>
+          <div class="drg__empty" *ngIf="!groups.length">No stands found in this driver's cities yet.</div>
           <label class="drg__grp" *ngFor="let g of groups">
             <input type="checkbox" [disabled]="saving" [checked]="assigned.has(g.id)" (change)="toggle(g.id)" />
             <span>
               <strong>{{ g.name }}</strong>
               <small class="drg__city" *ngIf="g.city_name">· {{ g.city_name }}</small>
-              <small class="drg__city" *ngIf="!g.is_active">· Inactive group: route access paused</small>
+              <small class="drg__city" *ngIf="!g.is_active">· Inactive stand: route access paused</small>
               <small class="drg__city" *ngIf="g.vehicle_set_names?.length">· {{ g.vehicle_set_names?.join(', ') }}{{ g.matches_vehicle_set ? ' · Matches driver vehicle' : '' }}</small>
             </span>
           </label>
-          <button class="drg__save" [disabled]="saving || !driverId" (click)="save()">{{ saving ? 'Saving…' : 'Save route groups' }}</button>
+          <button class="drg__save" [disabled]="saving || !driverId" (click)="save()">{{ saving ? 'Saving…' : 'Save stands' }}</button>
         </div>
 
         <div class="drg__col">
@@ -50,19 +103,25 @@ interface Payload { assigned_group_ids: number[]; groups: GroupOpt[]; effective_
             </div>
           </div>
           <div class="drg__empty" *ngIf="!filteredEffective.length">
-            {{ effective.length ? 'No routes match the selected scope filter.' : 'No routes — assign a group to give this driver work.' }}
+            {{ effective.length ? 'No routes match the selected scope filter.' : 'No routes — assign a stand to give this driver work.' }}
           </div>
           <div class="drg__route" *ngFor="let r of filteredEffective">
-            <div class="drg__route-top">
-              <strong>{{ r.name }}</strong>
-              <span class="drg__badge" [class.is-outstation]="r.scope === 'outstation'" [class.is-local]="r.scope === 'local'">
-                {{ r.scope | uppercase }}
-              </span>
-            </div>
-            <small>{{ r.origin_name }} → {{ r.dest_name }}</small>
+            <ng-container *ngTemplateOutlet="routeDetails; context: { $implicit: r }" />
           </div>
         </div>
       </div>
+      </ng-template>
+      <ng-template #routeDetails let-route>
+        <div class="drg__route-top">
+          <strong>{{ readOnly ? (route.name.trim() || routeEndpoints(route)) : route.name }}</strong>
+          <span *ngIf="!readOnly" class="drg__badge" [class.is-outstation]="route.scope === 'outstation'" [class.is-local]="route.scope === 'local'">
+            {{ route.scope | uppercase }}
+          </span>
+        </div>
+        <small *ngIf="!readOnly || (route.name.trim() && route.name.trim() !== routeEndpoints(route))">
+          {{ routeEndpoints(route) }}
+        </small>
+      </ng-template>
     </section>
   `,
   styles: [`
@@ -70,6 +129,24 @@ interface Payload { assigned_group_ids: number[]; groups: GroupOpt[]; effective_
     .drg__head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
     .drg__head h3 { margin: 0; font-size: 15px; font-weight: 800; color: var(--tm-text); }
     .drg__sub { font-size: 12px; color: var(--tm-text-muted); }
+    .drg--readonly { border: 0; padding: 0; margin-top: 0; }
+    .drg--readonly .drg__head { margin-bottom: 14px; }
+    .drg__cards { display: grid; gap: 12px; }
+    .drg__card { min-width: 0; padding: 12px; border: 1px solid var(--tm-line); border-radius: 12px; background: var(--tm-canvas); }
+    .drg__card h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; font-size: 13px; color: var(--tm-text); }
+    .drg__card h4 tm-icon { color: var(--tm-green-deep); }
+    .drg__card h4 span { margin-left: auto; padding: 2px 6px; border-radius: var(--tm-radius-pill); background: var(--tm-surface); color: var(--tm-text-muted); font-size: 11px; }
+    .drg__card .drg__empty { margin: 0; }
+    .drg__tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; margin-bottom: 10px; border-radius: 8px; background: var(--tm-canvas-2); }
+    .drg__tabs button { padding: 7px 4px; border: 0; border-radius: 6px; background: transparent; color: var(--tm-text-muted); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .drg__tabs button[aria-selected='true'] { background: var(--tm-surface); color: var(--tm-text); }
+    .drg__tabs span { margin-inline-start: 4px; }
+    .drg__items { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin: 0; padding: 0; list-style: none; }
+    .drg__items .drg__route { margin: 0; background: var(--tm-surface); overflow-wrap: anywhere; }
+    .drg__card--routes .drg__route-top { align-items: flex-start; gap: 8px; }
+    .drg__card--routes .drg__route-top strong { min-width: 0; }
+    .drg__card--routes .drg__badge { flex-shrink: 0; }
+    .drg__route .drg__paused { color: #b45309; }
     .drg__body { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     @media (max-width: 640px) { .drg__body { grid-template-columns: 1fr; } }
     .drg__header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
@@ -93,6 +170,7 @@ interface Payload { assigned_group_ids: number[]; groups: GroupOpt[]; effective_
 })
 export class DriverRouteGroupsPanelComponent implements OnChanges {
   @Input() driverId!: number;
+  @Input() readOnly = false;
   @Output() saved = new EventEmitter<void>();
 
   groups: GroupOpt[] = [];
@@ -102,6 +180,21 @@ export class DriverRouteGroupsPanelComponent implements OnChanges {
   loading = false;
   loadFailed = false;
   scopeFilter: 'all' | 'local' | 'outstation' = 'all';
+
+  get assignedGroups(): GroupOpt[] {
+    return this.groups.filter(group => this.assigned.has(group.id));
+  }
+
+  routeEndpoints(route: EffRoute): string {
+    return `${route.origin_name} → ${route.dest_name}`;
+  }
+
+  switchRouteTab(event: Event, localTab: HTMLButtonElement, outstationTab: HTMLButtonElement): void {
+    event.preventDefault();
+    const nextTab = this.scopeFilter === 'local' ? outstationTab : localTab;
+    nextTab.click();
+    nextTab.focus();
+  }
 
   get localCount(): number {
     return this.effective.filter((r) => r.scope === 'local').length;
@@ -130,6 +223,7 @@ export class DriverRouteGroupsPanelComponent implements OnChanges {
         if (this.driverId !== driverId) return; this.loading = false;
         this.groups = [...(res?.groups || [])].sort((a, b) => Number(!!b.matches_vehicle_set) - Number(!!a.matches_vehicle_set));
         this.effective = res?.effective_routes || [];
+        if (this.readOnly) this.scopeFilter = this.localCount ? 'local' : 'outstation';
         this.assigned = new Set<number>(res?.assigned_group_ids || []);
       },
       error: () => { if (this.driverId !== driverId) return; this.loading = false; this.loadFailed = true; },
@@ -137,21 +231,22 @@ export class DriverRouteGroupsPanelComponent implements OnChanges {
   }
 
   toggle(id: number): void {
+    if (this.readOnly) return;
     if (this.assigned.has(id)) this.assigned.delete(id);
     else this.assigned.add(id);
   }
 
   save(): void {
-    if (!this.driverId || this.saving || this.loading || this.loadFailed) return;
+    if (this.readOnly || !this.driverId || this.saving || this.loading || this.loadFailed) return;
     this.saving = true;
     this.api.put<Payload>(`/admin/drivers/${this.driverId}/route-groups`, { group_ids: Array.from(this.assigned) }).subscribe({
       next: (res) => {
         this.saving = false;
         this.effective = res?.effective_routes || [];
         this.assigned = new Set<number>(res?.assigned_group_ids || []);
-        this.toast.success('Route groups updated.'); this.saved.emit();
+        this.toast.success('Stands updated.'); this.saved.emit();
       },
-      error: (e) => { this.saving = false; this.toast.error(e?.error?.message || 'Could not update route groups.'); },
+      error: (e) => { this.saving = false; this.toast.error(e?.error?.message || 'Could not update stands.'); },
     });
   }
 }

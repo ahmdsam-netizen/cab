@@ -180,6 +180,8 @@ class FixedNearbyPickupPointsTest extends TestCase
         $firstRoute = $data[0];
         $this->assertNull($firstRoute['nearest_pickup_stop']);
         $this->assertNull($firstRoute['distance_to_nearest_pickup']);
+        $this->assertSame('Sopore Main Stand', $firstRoute['starting_stop']['name']);
+        $this->assertNull($firstRoute['distance_to_start']);
 
         foreach ($firstRoute['stops'] as $stop) {
             $this->assertNull($stop['distance_meters']);
@@ -188,7 +190,7 @@ class FixedNearbyPickupPointsTest extends TestCase
         }
     }
 
-    public function test_customer_routes_prioritizes_routes_by_nearest_pickup_stop_proximity(): void
+    public function test_customer_routes_prioritizes_first_stop_before_limiting_results(): void
     {
         $cityId = DB::table('cities')->insertGetId([
             'name' => 'Srinagar',
@@ -232,9 +234,9 @@ class FixedNearbyPickupPointsTest extends TestCase
             'route_id' => $routeFar->id,
             'seq' => 2,
             'name' => 'Lal Chowk',
-            'lat' => 34.0750,
-            'lng' => 74.8100,
-            'is_pickup' => false,
+            'lat' => 34.0755,
+            'lng' => 74.8105,
+            'is_pickup' => true,
             'is_drop' => true,
             'is_active' => true,
             'is_temporarily_unavailable' => false,
@@ -287,7 +289,7 @@ class FixedNearbyPickupPointsTest extends TestCase
         $customer->addRole('customer');
         Sanctum::actingAs($customer, ['act-as:customer']);
 
-        // User is at Lal Chowk: near Route B (~70 meters away)
+        // Route A passes closer to the user, but its starting stop is far away.
         $response = $this->getJson("/api/fixed/routes?city_id={$cityId}&lat=34.0755&lng=74.8105")
             ->assertOk();
 
@@ -298,6 +300,14 @@ class FixedNearbyPickupPointsTest extends TestCase
         $this->assertSame($routeNear->id, $data[0]['id']);
         $this->assertSame('Lal Chowk to Dal Lake Shuttle Corridor', $data[0]['name']);
         $this->assertSame($routeFar->id, $data[1]['id']);
+        $this->assertSame('Anantnag Bus Stand', $data[1]['starting_stop']['name']);
+        $this->assertSame('Lal Chowk', $data[1]['nearest_pickup_stop']['name']);
+        $this->assertGreaterThan(1000, $data[1]['distance_to_start']);
+
+        $limited = $this->getJson("/api/fixed/routes?city_id={$cityId}&lat=34.0755&lng=74.8105&limit=1")
+            ->assertOk()->json('data');
+        $this->assertCount(1, $limited);
+        $this->assertSame($routeNear->id, $limited[0]['id']);
     }
 
     public function test_drop_only_and_unavailable_stops_are_not_selected_as_nearest_pickup(): void

@@ -1,7 +1,7 @@
-<ion-content [fullscreen]="true">
+<ion-content [fullscreen]="true" [scrollY]="false" class="fb-booking-content">
 
   <!-- Step 1 — route -->
-  <app-step-shell
+  <app-step-shell [reference]="true" [fareLabel]="route != null ? ('₹' + route.flat_fare + ' / seat') : ''"
     *ngIf="step === 'route'"
     title="Choose your route"
     subtitle="A set line with set stops. You pay for one seat."
@@ -14,8 +14,13 @@
       <ion-icon name="chevron-down-outline" class="fb-city-pill__arrow"></ion-icon>
     </button>
     <label class="bk-field fb-search-field">
-      <input class="bk-field__input" type="search" placeholder="Search routes or stops"
+      <input class="bk-field__input" type="search" [placeholder]="searchPlaceholder"
              autocomplete="off" [ngModel]="search" (ngModelChange)="onSearchChange($event)" maxlength="80" />
+      <select class="fb-search-mode" [(ngModel)]="searchMode" (ngModelChange)="onSearchModeChange()" aria-label="Search by">
+        <option value="destination">Destination</option>
+        <option value="origin">Origin</option>
+        <option value="stop">Stop</option>
+      </select>
       <button *ngIf="search" type="button" class="fb-search-clear-btn" (click)="clearSearch()" aria-label="Clear search">
         <ion-icon name="close-circle-sharp"></ion-icon>
       </button>
@@ -48,7 +53,7 @@
     <div class="fb-location-control">
       <button type="button" class="fb-location-button dc-press" [disabled]="locating" (click)="refreshLocation()"><ion-icon name="locate-outline"></ion-icon>{{ locating ? 'Finding your location…' : (userCoords ? 'Refresh location' : 'Use current location') }}</button>
       <p class="fb-location-note" *ngIf="locationMessage" role="status">{{ locationMessage }}</p>
-      <p class="fb-location-note" *ngIf="userCoords">Distance is measured directly to the pickup stop.<span *ngIf="locationAccuracy != null && locationAccuracy > 50"> Your GPS location is approximate.</span></p>
+      <p class="fb-location-note" *ngIf="userCoords">Distance is measured directly to the first stop, where the vehicle starts.<span *ngIf="locationAccuracy != null && locationAccuracy > 50"> Your GPS location is approximate.</span></p>
     </div>
 
     <!-- Active Search Scope Indicator (when searching) -->
@@ -79,12 +84,10 @@
       <button *ngFor="let r of visibleRoutes; trackBy: trackByRoute" class="bk-opt fb-route-opt dc-press" type="button" (click)="pickRoute(r)">
         <span class="bk-opt__ic" [class.bk-opt__ic--photo]="!!r.image_url">
           <img *ngIf="r.image_url" [src]="r.image_url" class="fb-vehicle-image" alt="Route vehicle" (error)="r.image_url = null" />
-          <span *ngIf="!r.image_url" aria-hidden="true">🚌</span>
+          <ion-icon *ngIf="!r.image_url" name="bus-outline" aria-hidden="true"></ion-icon>
         </span>
         <span class="bk-opt__main">
-          <span class="bk-opt__t">{{ r.name }}</span>
           <span class="bk-opt__s">
-            <span class="fb-route-endpoints">{{ r.origin_name }} → {{ r.dest_name }}</span>
             <span class="fb-route-stops-tag">{{ (r.stops || []).length }} {{ (r.stops || []).length === 1 ? 'stop' : 'stops' }}</span>
           </span>
         </span>
@@ -92,10 +95,15 @@
           <span class="fb-route-fare-val">₹{{ r.flat_fare }}</span>
           <small class="fb-route-fare-unit">a seat</small>
         </span>
+        <span class="fb-route-corridor" [attr.aria-label]="'Origin: ' + r.origin_name + '. Destination: ' + r.dest_name">
+          <span class="fb-route-place"><span class="fb-route-place-label">Origin</span><span class="fb-route-place-name">{{ r.origin_name }}</span></span>
+          <ion-icon class="fb-route-place-arrow" name="arrow-forward-outline" aria-hidden="true"></ion-icon>
+          <span class="fb-route-place"><span class="fb-route-place-label">Destination</span><span class="fb-route-place-name">{{ r.dest_name }}</span></span>
+        </span>
         <span class="fb-route-bottom">
-          <span class="fb-route-nearest" *ngIf="r.nearest_pickup_stop">
+          <span class="fb-route-nearest" *ngIf="r.starting_stop">
             <ion-icon name="walk-outline"></ion-icon>
-            <span class="fb-route-nearest__txt">Nearest: <b>{{ r.nearest_pickup_stop.name }}</b> ({{ formatDistance(r.nearest_pickup_stop.distance_meters) }})</span>
+            <span class="fb-route-nearest__txt">Starts at: <b>{{ r.starting_stop.name }}</b><ng-container *ngIf="r.distance_to_start != null"> ({{ formatDistance(r.distance_to_start) }})</ng-container></span>
           </span>
           <ion-icon name="chevron-forward-outline" class="fb-route-arrow" aria-hidden="true"></ion-icon>
         </span>
@@ -110,10 +118,10 @@
       <!-- Case 1: Search returned 0 results -->
       <ng-container *ngIf="search.trim()">
         <p class="fb-empty-title">
-          No routes matching "<b>{{ search.trim() }}</b>"
+          No routes with a matching {{ searchMode }} for "<b>{{ search.trim() }}</b>"
         </p>
         <p class="fb-empty-sub">
-          We couldn't find any routes or stops in {{ selectedCityName }} matching your search.
+          We couldn't find a route with that {{ searchMode }} in {{ selectedCityName }}.
         </p>
         <button type="button" class="fb-switch-city-btn dc-press" (click)="clearSearch()">
           <ion-icon name="close-circle-outline"></ion-icon>
@@ -121,13 +129,13 @@
         </button>
       </ng-container>
 
-      <!-- Case 2: Radius filter active, but 0 routes within 1 km (while routes exist in city) -->
+      <!-- Case 2: No route starts within 1 km (while routes exist in city). -->
       <ng-container *ngIf="!search.trim() && radiusFilterActive && userCoords && scopedRoutes.length">
         <p class="fb-empty-title">
-          No pickup stops within 1 km
+          No routes start within 1 km
         </p>
         <p class="fb-empty-sub">
-          There are {{ scopedRoutes.length }} {{ routeScope === 'all' ? '' : routeScope }} routes in {{ selectedCityName }} further from your current spot.
+          There are {{ scopedRoutes.length }} {{ routeScope === 'all' ? '' : routeScope }} routes in {{ selectedCityName }}. Select All routes to see their starting stops.
         </p>
         <button type="button" class="fb-switch-city-btn dc-press" (click)="setRadiusFilter(false)">
           <ion-icon name="layers-outline"></ion-icon>
@@ -160,10 +168,10 @@
   </app-step-shell>
 
   <!-- Step 2 — departure -->
-  <app-step-shell
+  <app-step-shell [reference]="true" [fareLabel]="route != null ? ('₹' + route.flat_fare + ' / seat') : ''"
     *ngIf="step === 'departure'"
     title="Choose a departure"
-    [barLabel]="route?.name || 'Share a seat'"
+    [barLabel]="route?.name || hold?.route_name || 'Share a seat'"
     [step]="2" [total]="total"
     (back)="back()">
     <!-- Skeleton Loading Cards (when loading departures) -->
@@ -182,7 +190,7 @@
               [class.bk-opt--on]="departure?.id === d.id" (click)="pickDeparture(d)">
         <span class="bk-opt__ic" [class.bk-opt__ic--photo]="!!d.image_url">
           <img *ngIf="d.image_url" [src]="d.image_url" class="fb-vehicle-image" [alt]="d.vehicle_name || 'Vehicle'" (error)="d.image_url = null" />
-          <span *ngIf="!d.image_url" aria-hidden="true">🚐</span>
+          <ion-icon *ngIf="!d.image_url" name="car-outline" aria-hidden="true"></ion-icon>
         </span>
         <span class="bk-opt__main">
           <span class="bk-opt__t">{{ departLabel(d) }}</span>
@@ -201,15 +209,17 @@
   </app-step-shell>
 
   <!-- Step 3 — stops + luggage -->
-  <app-step-shell
+  <app-step-shell [reference]="true" [fareLabel]="route != null ? ('₹' + route.flat_fare + ' / seat') : ''"
     *ngIf="step === 'details'"
     title="Stops & luggage"
-    [barLabel]="route?.name || 'Share a seat'"
+    [barLabel]="route?.name || hold?.route_name || 'Share a seat'"
     [step]="3" [total]="total"
     cta="Next"
     [disabled]="!detailsReady"
     (back)="back()"
     (primary)="goToSeats()">
+
+    <ng-container *ngTemplateOutlet="tripSummary"></ng-container>
 
     <!-- Nearest Pickup Point Recommendation Card -->
     <div class="fb-nearest-card dc-press" *ngIf="nearestPickupStop" (click)="pickBoard(nearestPickupStop.id)">
@@ -241,7 +251,7 @@
     <p class="bk-lab">Board at</p>
     <button *ngFor="let s of boardStops; trackBy: trackByStop" class="bk-opt fb-stop-opt" type="button"
             [class.bk-opt--on]="boardStopId === s.id" (click)="pickBoard(s.id)">
-      <span class="bk-opt__ic">🔵</span>
+      <span class="bk-opt__ic"><ion-icon name="location-outline" aria-hidden="true"></ion-icon></span>
       <span class="bk-opt__main">
         <span class="bk-opt__t">
           {{ s.name }}
@@ -257,13 +267,13 @@
     <p class="bk-lab">Drop at</p>
     <button *ngFor="let s of dropStops; trackBy: trackByStop" class="bk-opt" type="button"
             [class.bk-opt--on]="dropStopId === s.id" (click)="pickDrop(s.id)">
-      <span class="bk-opt__ic">⬛</span>
+      <span class="bk-opt__ic"><ion-icon name="flag-outline" aria-hidden="true"></ion-icon></span>
       <span class="bk-opt__main"><span class="bk-opt__t">{{ s.name }}</span></span>
       <span class="bk-tick" *ngIf="dropStopId === s.id">✓</span>
     </button>
 
     <div class="bk-opt" *ngIf="route?.luggage_surcharge_amount">
-      <span class="bk-opt__ic">🧳</span>
+      <span class="bk-opt__ic"><ion-icon name="bag-handle-outline" aria-hidden="true"></ion-icon></span>
       <span class="bk-opt__main">
         <span class="bk-opt__t">Extra luggage</span>
         <span class="bk-opt__s">+₹{{ route?.luggage_surcharge_amount }} each</span>
@@ -277,15 +287,19 @@
   </app-step-shell>
 
   <!-- Step 4 — seats -->
-  <app-step-shell
+  <app-step-shell [reference]="true" [fareLabel]="route != null ? ('₹' + route.flat_fare + ' / seat') : ''"
     *ngIf="step === 'seats'"
-    title="Pick your seats"
-    [barLabel]="route?.name || 'Share a seat'"
+    [compactTitle]="true"
+    title="Seat selection"
+    [barLabel]="route?.name || hold?.route_name || 'Share a seat'"
     [step]="4" [total]="total"
-    [cta]="'Book ' + (selected.length || 0) + ' Seat' + ((selected.length || 0) > 1 ? 's' : '') + ' · ₹' + seatFare"
-    [disabled]="!selected.length || busy"
+    [cta]="busy ? 'Requesting…' : ('Request ' + selected.length + ' seat' + (selected.length === 1 ? '' : 's') + ' · ₹' + finalTotal)"
+    dockHint="Driver approval is required before payment."
+    [disabled]="!selected.length || busy || couponBusy"
     (back)="back()"
     (primary)="bookSeats()">
+
+    <ng-container *ngTemplateOutlet="tripSummary"></ng-container>
 
     <p class="bk-sub" *ngIf="loading">Loading seats…</p>
     <p class="bk-note bk-note--warn" *ngIf="error && !loading">{{ error }}</p>
@@ -299,11 +313,12 @@
       </div>
 
       <ng-container *ngIf="hasSeats">
-        <p class="bk-sub">Tap a seat to pick it. Green is yours; hatched is already taken.</p>
+        <h2 class="fb-section-title">Choose your seat</h2>
 
         <!-- The same car the operator designed in admin, seat for seat. -->
         <div class="fx-carwrap">
           <app-seat-grid
+            [compact]="true"
             [rows]="seatMap.layout.rows"
             [cols]="seatMap.layout.cols"
             [cells]="seatMap.cells"
@@ -313,25 +328,34 @@
 
         <!-- Legend: the two states that need a word — taken and yours. -->
         <div class="fx-legend">
+          <span class="fx-legend__i"><i class="fx-swatch"></i>Available</span>
           <span class="fx-legend__i"><i class="fx-swatch fx-swatch--on"></i>Your seat</span>
+          <span class="fx-legend__i"><i class="fx-swatch fx-swatch--held"></i>Held</span>
           <span class="fx-legend__i"><i class="fx-swatch fx-swatch--off"></i>Taken</span>
+          <span class="fx-legend__i"><ion-icon name="person-outline" aria-hidden="true"></ion-icon>Driver</span>
         </div>
 
         <div class="fx-seatfoot">
           <span class="bk-sub">{{ seatsFree }} seat{{ seatsFree === 1 ? '' : 's' }} free · pick up to {{ maxSeats }}</span>
-          <button class="fx-refresh" type="button" (click)="refreshSeats()" [disabled]="loading">↻ Refresh</button>
+          <button class="fx-refresh" type="button" (click)="refreshSeats()" [disabled]="loading"><ion-icon name="refresh-outline" aria-hidden="true"></ion-icon> Refresh</button>
         </div>
 
-        <div class="bk-note" *ngIf="selected.length">Selected {{ selected.length }} seat{{ selected.length > 1 ? 's' : '' }} · ₹{{ seatFare }}. Tap "Book Seats" to request driver approval.</div>
+        <div class="fb-selection" *ngIf="selected.length"><ion-icon name="checkmark-circle-outline" aria-hidden="true"></ion-icon><div><strong>{{ selected.join(', ') }}</strong><span>{{ selected.length }} seat{{ selected.length === 1 ? '' : 's' }} selected · ₹{{ finalTotal }}<ng-container *ngIf="luggage"> including luggage</ng-container></span></div></div>
+        <section class="bk-money fb-seat-total" *ngIf="selected.length" aria-label="Fare summary">
+          <div class="bk-money__row"><span>Seat fare × {{ selected.length }}</span><span>₹{{ seatFare }}</span></div>
+          <div class="bk-money__row" *ngIf="luggageTotal"><span>Luggage × {{ luggage }}</span><span>₹{{ luggageTotal }}</span></div>
+          <div class="bk-money__row" *ngIf="coupon?.discount"><span>Discount</span><span>−₹{{ coupon?.discount }}</span></div>
+          <div class="bk-money__row bk-money__tot"><span>Total</span><span>₹{{ finalTotal }}</span></div>
+        </section>
       </ng-container>
     </ng-container>
   </app-step-shell>
 
   <!-- Step 4.5 — awaiting driver approval -->
-  <app-step-shell
+  <app-step-shell [reference]="true" [fareLabel]="route != null ? ('₹' + route.flat_fare + ' / seat') : ''"
     *ngIf="step === 'awaiting_approval'"
     title="Waiting for driver approval"
-    [barLabel]="route?.name || 'Share a seat'"
+    [barLabel]="route?.name || hold?.route_name || 'Share a seat'"
     [step]="4" [total]="total"
     cta="Cancel Request"
     (back)="cancelAwaitingApproval()"
@@ -421,47 +445,46 @@
   </app-step-shell>
 
   <!-- Step 5 — review + pay -->
-  <app-step-shell
+  <app-step-shell [reference]="true" [fareLabel]="route != null ? ('₹' + route.flat_fare + ' / seat') : ''"
     *ngIf="step === 'review'"
-    title="Review & pay"
-    [barLabel]="route?.name || 'Share a seat'"
+    [compactTitle]="true"
+    title="Payment & offers"
+    [barLabel]="route?.name || hold?.route_name || 'Share a seat'"
     [step]="5" [total]="total"
-    [cta]="busy ? 'Working…' : ('Pay ₹' + finalTotal)"
-    [disabled]="busy"
+    [cta]="busy ? 'Working…' : 'Make payment · ₹' + finalTotal"
+    [disabled]="busy || cancellingHold || couponBusy || !selected.length || !hold || (hold.status !== 'ACCEPTED' && hold.status !== 'HELD')"
+    [secondaryLabel]="cancellingHold ? 'Cancelling…' : 'Cancel ride'"
+    [secondaryDisabled]="busy || cancellingHold || couponBusy"
+    (secondary)="cancelReviewRide()"
     (back)="back()"
     (primary)="pay()">
 
-    <div class="fb-accepted-banner" *ngIf="hold?.status === 'ACCEPTED'">
-      <ion-icon name="checkmark-circle"></ion-icon>
-      <div>
-        <strong>Driver accepted your request!</strong>
-        <span>Please complete payment before the 5-minute timer expires.</span>
+    <ng-container *ngTemplateOutlet="tripSummary"></ng-container>
+
+    <div dock-bottom class="fb-payment-status">
+      <div class="fb-timer-wrap" *ngIf="hold?.expires_at">
+        <app-hold-timer [expiresAt]="hold?.expires_at || null" (expired)="onHoldExpired()"></app-hold-timer>
+      </div>
+      <div class="fb-accepted-banner" *ngIf="hold?.status === 'ACCEPTED'">
+        <ion-icon name="checkmark-circle" aria-hidden="true"></ion-icon>
+        <div><strong>Driver accepted your request!</strong><span>Complete payment before your seat hold expires.</span></div>
       </div>
     </div>
 
-    <div class="fb-timer-wrap" *ngIf="hold?.expires_at">
-      <app-hold-timer [expiresAt]="hold?.expires_at || null" (expired)="onHoldExpired()"></app-hold-timer>
-    </div>
-
-    <label class="bk-field">
-      <input class="bk-field__input" type="text" placeholder="Coupon code" [(ngModel)]="couponTitle" />
-      <button *ngIf="!coupon" class="fx-apply" type="button" (click)="applyCoupon()">Apply</button>
-      <button *ngIf="coupon" class="fx-apply" type="button" (click)="removeCoupon()">Remove</button>
-    </label>
-    <p class="bk-note bk-note--warn" *ngIf="couponError">{{ couponError }}</p>
-
+    <h2 class="fb-section-title">Payment &amp; offers</h2>
+    <div class="fb-payment-info"><ion-icon name="card-outline" aria-hidden="true"></ion-icon><div><strong>Choose how to pay</strong><span>Available methods are shown at checkout.</span></div></div>
+    <ng-container *ngTemplateOutlet="couponSection"></ng-container>
     <div class="bk-money">
       <div class="bk-money__row"><span>Seat fare × {{ selected.length }}</span><span>₹{{ seatFare }}</span></div>
       <div class="bk-money__row" *ngIf="luggageTotal"><span>Luggage × {{ luggage }}</span><span>₹{{ luggageTotal }}</span></div>
-      <div class="bk-money__row" *ngIf="coupon?.coupon"><span>{{ coupon?.coupon?.title }}</span><span>−₹{{ coupon?.discount }}</span></div>
-      <div class="bk-money__row bk-money__tot"><span>You pay</span><span>₹{{ finalTotal }}</span></div>
+      <div class="bk-money__row" *ngIf="hold ? hold.discount_amount : coupon?.discount"><span>{{ coupon?.coupon?.title || 'Discount' }}</span><span>−₹{{ hold ? hold.discount_amount : coupon?.discount }}</span></div>
+      <div class="bk-money__row bk-money__tot"><span>Total</span><span>₹{{ finalTotal }}</span></div>
     </div>
-    <div class="bk-note">Seats are held for 5 minutes while you complete payment.</div>
     <p class="bk-note bk-note--warn" *ngIf="error">{{ error }}</p>
   </app-step-shell>
 
   <!-- Done — ticket -->
-  <app-step-shell
+  <app-step-shell [reference]="true" [fareLabel]="route != null ? ('₹' + route.flat_fare + ' / seat') : ''"
     *ngIf="step === 'done'"
     title="Booking Confirmed"
     [barLabel]="route?.name || 'Fixed Ride'"
@@ -501,6 +524,32 @@
       </div>
     </div>
   </app-step-shell>
+
+  <ng-template #couponSection>
+    <section class="fb-coupon-section" aria-label="Coupon">
+      <ng-container *ngIf="!hold || canEditHeldCoupon">
+        <button *ngIf="!coupon?.coupon && !hold?.discount_amount" class="fb-coupon-trigger" type="button" (click)="couponEditorOpen = !couponEditorOpen" [attr.aria-expanded]="couponEditorOpen" [disabled]="couponBusy || busy || cancellingHold"><ion-icon name="pricetag-outline" aria-hidden="true"></ion-icon><strong>Apply coupon</strong><ion-icon [name]="couponEditorOpen ? 'chevron-up-outline' : 'chevron-forward-outline'" aria-hidden="true"></ion-icon></button>
+        <label class="bk-field" *ngIf="couponEditorOpen">
+          <ion-icon name="pricetag-outline" aria-hidden="true"></ion-icon>
+          <input class="bk-field__input" type="text" aria-label="Coupon code" placeholder="Enter coupon code" [(ngModel)]="couponTitle" [readonly]="!!coupon || couponBusy" maxlength="128" />
+          <button *ngIf="!coupon" class="fx-apply" type="button" (click)="applyCoupon()" [disabled]="couponBusy || busy || !selected.length || (!hold && !departure) || !couponTitle.trim()">{{ couponBusy ? 'Applying…' : 'Apply' }}</button>
+          <button *ngIf="coupon" class="fx-apply" type="button" (click)="removeCoupon()">Remove</button>
+        </label>
+        <p class="fb-coupon-hint" *ngIf="couponEditorOpen && !selected.length">Choose your seats to apply a coupon.</p>
+      </ng-container>
+      <p class="bk-note bk-note--warn" *ngIf="couponError" role="alert">{{ couponError }}</p>
+      <div class="fb-coupon-applied" *ngIf="hold ? hold.discount_amount : coupon?.coupon"><ion-icon name="pricetag-outline" aria-hidden="true"></ion-icon><strong>{{ hold?.coupon_title || coupon?.coupon?.title ? (hold?.coupon_title || coupon?.coupon?.title) + ' applied' : 'Coupon applied' }}</strong><span>−₹{{ hold ? hold.discount_amount : coupon?.discount }}</span><button *ngIf="!hold || canEditHeldCoupon" class="fb-coupon-remove" type="button" aria-label="Remove coupon" [disabled]="couponBusy || busy || cancellingHold" (click)="removeCoupon()"><ion-icon name="close-outline" aria-hidden="true"></ion-icon></button></div>
+      <div class="fb-coupon-empty" *ngIf="hold && !canEditHeldCoupon && !hold.discount_amount"><ion-icon name="pricetag-outline" aria-hidden="true"></ion-icon><div><strong>No coupon applied</strong><span>Coupons cannot be changed after payment has started.</span></div></div>
+    </section>
+  </ng-template>
+
+  <ng-template #tripSummary>
+    <section class="fb-booking-summary" aria-label="Trip details">
+      <div class="fb-summary-stop"><i class="fb-summary-dot"></i><div><small>Board</small><strong>{{ boardStopId ? getStopName(boardStopId) : 'Choose pickup stop' }}</strong></div></div>
+      <div class="fb-summary-stop fb-summary-stop--drop"><i class="fb-summary-dot"></i><div><small>Drop</small><strong>{{ dropStopId ? getStopName(dropStopId) : 'Choose drop-off stop' }}</strong></div></div>
+      <div class="fb-summary-meta" *ngIf="departure"><span><ion-icon name="time-outline" aria-hidden="true"></ion-icon>{{ departLabel(departure) }}</span><span *ngIf="selected.length">{{ selected.join(', ') }}</span></div>
+    </section>
+  </ng-template>
 
   <app-payment-method-modal
     [open]="paymentModalOpen"

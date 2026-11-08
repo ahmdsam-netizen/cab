@@ -181,9 +181,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     },
     {
       key: 'route_groups',
-      title: 'Route Groups & Drivers',
+      title: 'Stands & Drivers',
       icon: 'users',
-      blurb: 'Group routes and assign drivers.',
+      blurb: 'Organize routes into stands and assign drivers.',
       cta: 'View departures',
       action: () => this.goWithReturn('/fixed-departures'),
     },

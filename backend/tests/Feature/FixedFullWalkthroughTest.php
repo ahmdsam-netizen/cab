@@ -56,6 +56,8 @@ class FixedFullWalkthroughTest extends TestCase
             'created_at' => now(), 'updated_at' => now(),
         ]);
         SeatLayoutFactory::standardErtiga6P($cityId, $vehicleTypeId);
+        $fixedRideId = DB::table('ride_types')->insertGetId(['name' => 'Walkthrough Fixed', 'mode' => 'fixed', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('city_vehicle_types')->where('id', $vehicleId)->update(['vehicle_type_id' => $vehicleTypeId, 'ride_type_id' => $fixedRideId]);
 
         $admin = User::factory()->create(['manager_all_cities' => true]);
         $admin->addRole('admin');
@@ -72,6 +74,9 @@ class FixedFullWalkthroughTest extends TestCase
         $driver->addRole('driver');
         Driver::query()->create([
             'user_id' => $driver->id,
+            'city_id' => $cityId,
+            'vehicle_type_id' => $vehicleTypeId,
+            'city_vehicle_type_id' => $vehicleId,
             'approval_status' => 'approved',
             'service_scope' => 'local',
             'service_mode' => 'fixed',

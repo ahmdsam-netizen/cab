@@ -1,3 +1,5 @@
+@use '../service-booking';
+
 /* "Book a car" — the parts unique to name-your-price. Everything structural
    comes from the shared StepShell and the .bk-* utilities. */
 
@@ -10,7 +12,7 @@
   background: var(--dc-surface);
   border: 2px solid var(--dc-green);
   border-radius: var(--dc-r-md);
-  box-shadow: 0 0 0 3px var(--dc-green-tint);
+  box-shadow: 0 0 0 1px var(--dc-green-tint);
 }
 .pv-price--bad { border-color: var(--dc-danger); box-shadow: 0 0 0 3px var(--dc-danger-tint); }
 .pv-price__cur { flex: none; font-size: 20px; font-weight: 700; color: var(--dc-ink-soft); }
@@ -72,3 +74,11 @@
 
 .bk-chip__img { width: 24px; height: 18px; object-fit: contain; margin-right: 4px; }
 .bk-opt__img { width: 32px; height: 24px; object-fit: contain; }
+
+.bk-chip { min-height: 44px; border-radius: 12px; gap: 6px; }
+.bk-chip__ic { font-size: 20px; }
+.pv-rating { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; font-size: 12px; color: var(--dc-ink-soft); }
+.pv-rating ion-icon { color: #c18a12; font-size: 13px; }
+.pv-bid { flex-wrap: wrap; }
+.pv-bid .bk-opt__main { min-width: 100px; }
+.pv-take { border-radius: 12px; }

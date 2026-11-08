@@ -995,11 +995,6 @@
     overflow-wrap: break-word;
     margin: 0;
 
-    .fb-route-endpoints {
-      font-weight: 600;
-      color: #334155;
-    }
-
     .fb-route-stops-tag {
       display: inline-flex;
       align-items: center;
@@ -1062,11 +1057,38 @@
   column-gap: 12px !important;
   row-gap: 4px !important;
 
-  .bk-opt__ic { grid-column: 1; grid-row: 1 / 3; }
+  .bk-opt__ic { grid-column: 1; grid-row: 1; }
   .bk-opt__main { grid-column: 2; grid-row: 1; }
   .bk-opt__r { grid-column: 3; grid-row: 1; }
+  .fb-route-corridor {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid #e8edf2;
+    border-radius: 12px;
+    background: #f7f9fb;
+  }
+  .fb-route-place { display: flex; flex-direction: column; min-width: 0; gap: 3px; }
+  .fb-route-place-label {
+    color: #758297;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .fb-route-place-name {
+    color: var(--dc-ink, #0D1B2A);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+  .fb-route-place-arrow { justify-self: center; color: #8390a1; font-size: 18px; }
   .fb-route-bottom {
-    grid-column: 2 / 4;
+    grid-column: 1 / -1;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -1153,20 +1175,21 @@
 
 /* ─── Search Field & Clear Button ─── */
 .fb-search-field {
-  position: relative;
   display: flex;
   align-items: center;
+  gap: 6px;
   min-height: 48px;
-  padding: 0 16px;
+  padding: 0 8px 0 16px;
   margin: 4px 0 16px;
   box-sizing: border-box;
 
   .bk-field__input {
     display: block;
-    width: 100%;
+    flex: 1 1 auto;
+    width: 1%;
     min-width: 0;
     margin: 0;
-    padding: 12px 32px 12px 0;
+    padding: 12px 0;
     box-sizing: border-box;
     font-size: 16px;
     line-height: 22px;
@@ -1175,14 +1198,27 @@
     &::-webkit-search-cancel-button { display: none; }
   }
 
+  .fb-search-mode {
+    flex: 0 0 auto;
+    max-width: 112px;
+    min-height: 36px;
+    padding: 0 18px 0 5px;
+    border: 0;
+    border-left: 1px solid #e3e8ee;
+    border-radius: 0;
+    background: transparent;
+    color: var(--dc-ink, #0d1b2a);
+    font-size: 12px;
+    font-weight: 650;
+  }
+
   .fb-search-clear-btn {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
+    flex: 0 0 auto;
+    width: 30px;
+    height: 36px;
     background: transparent;
     border: none;
-    padding: 4px;
+    padding: 0;
     margin: 0;
     color: var(--dc-ink-faint, #94A3B8);
     font-size: 20px;
@@ -1190,7 +1226,6 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    z-index: 2;
 
     &:hover,
     &:active {
@@ -1310,3 +1345,81 @@
   &:disabled { opacity: .6; }
 }
 
+
+/* Customer booking reference: shared shell plus live route/seat/payment content. */
+:host {
+  --dc-green: #087f50;
+  --dc-green-tint: #e5f3ec;
+  --dc-ink: #101828;
+  --dc-ink-soft: #64748b;
+  --dc-canvas: #f5f6f8;
+  --dc-surface: #fff;
+  --dc-hairline: #e6eaf0;
+  --dc-hairline-strong: #dce3eb;
+}
+.fb-booking-content { --background: #f5f6f8; }
+.bk-opt, .bk-field, .bk-money { border: 1px solid #e0e5ed; border-radius: 16px; box-shadow: 0 2px 5px #10182804; }
+.bk-opt--on { border-color: #087f50; box-shadow: 0 0 0 1px #087f50; background: #f0f9f4; }
+.bk-opt__ic ion-icon { font-size: 21px; }
+.fb-booking-summary { background: #fff; border: 1px solid #e0e5ed; border-radius: 16px; padding: 16px; }
+.fb-summary-stop { position: relative; display: flex; gap: 10px; padding: 0 0 20px; }
+.fb-summary-stop:first-child::after { content: ''; position: absolute; width: 1px; background: #dbe3eb; left: 5px; top: 14px; bottom: 0; }
+.fb-summary-stop--drop { padding-bottom: 0; }
+.fb-summary-dot { width: 11px; height: 11px; border: 2px solid #087f50; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+.fb-summary-stop--drop .fb-summary-dot { border-color: #d9a800; }
+.fb-summary-stop small { display: block; font-size: 10px; color: #64748b; text-transform: uppercase; margin-bottom: 3px; }
+.fb-summary-stop strong { font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.fb-summary-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding-top: 13px; border-top: 1px solid #e6eaf0; margin-top: 14px; color: #64748b; font-size: 11px; span { display: flex; align-items: center; gap: 5px; } }
+.fx-carwrap { flex: 0 0 auto; overflow: visible; padding: 8px 4px; justify-content: safe center; }
+.fx-legend { justify-content: center; flex-wrap: wrap; gap: 10px 14px; }
+.fx-legend__i { font-size: 10px; ion-icon { font-size: 16px; } }
+.fx-swatch { width: 13px; height: 13px; border-width: 1px; }
+.fx-refresh { display: inline-flex; align-items: center; gap: 5px; }
+.fb-selection, .fb-payment-info { display: flex; align-items: center; gap: 11px; padding: 14px; border: 1px solid #e0e5ed; border-radius: 15px; background: #fff; > ion-icon { font-size: 23px; color: #087f50; flex-shrink: 0; } strong { display: block; font-size: 13px; } span { display: block; color: #64748b; font-size: 11px; line-height: 1.6; margin-top: 3px; } }
+.fb-selection { background: #eaf6ef; border-color: #cce7d8; }
+.fb-section-title { font-size: 16px; font-weight: 750; margin: 6px 0 0; }
+.fb-coupon-applied { display: flex; align-items: center; gap: 8px; color: #087f50; padding: 13px; border: 1px solid #cce7d8; border-radius: 13px; background: #eaf6ef; font-size: 12px; span { margin-left: auto; font-weight: 700; } }
+.bk-money { padding: 16px; gap: 13px; }
+.bk-money__tot { border-top: 1px solid #e6eaf0; padding-top: 13px; font-size: 16px; }
+.fx-step button { width: 44px; height: 44px; }
+button:focus-visible, input:focus-visible { outline: 2px solid #087f50; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+.fx-swatch--held { background: #fff4d9; border-color: #d7b45b; border-style: dashed; }
+
+/* Compact booking composition from the supplied mobile reference. */
+.fb-booking-summary { padding: 13px 14px; border-radius: 14px; }
+.fb-summary-stop { gap: 8px; padding-bottom: 14px; }
+.fb-summary-stop--drop { padding-bottom: 0; }
+.fb-summary-stop small { font-size: 9px; margin-bottom: 1px; }
+.fb-summary-stop strong { font-size: 13px; line-height: 1.4; }
+.fb-summary-meta { padding-top: 9px; margin-top: 10px; font-size: 10px; }
+.fb-section-title { font-size: 15px; margin: 3px 0 0; }
+.fx-carwrap { padding: 2px 4px; }
+.fx-legend { padding: 0; gap: 8px 12px; }
+.fx-seatfoot { gap: 8px; .bk-sub { font-size: 11px; line-height: 1.5; margin: 0; } }
+.fx-refresh { min-height: 36px; font-size: 11px; padding: 6px 10px; }
+.fb-selection { padding: 10px 12px; border-radius: 12px; strong { font-size: 12px; } span { margin-top: 1px; font-size: 10px; } }
+.fb-seat-total { margin-bottom: 2px; }
+.fb-coupon-section { display: grid; gap: 8px; }
+.fb-coupon-section .bk-field { margin: 0; gap: 8px; }
+.fb-coupon-section ion-icon { color: #087f50; flex-shrink: 0; font-size: 19px; }
+.fb-coupon-hint { margin: 0 3px; font-size: 11px; color: #64748b; }
+.fb-coupon-empty { display: flex; align-items: center; gap: 10px; padding: 13px; border: 1px solid #e0e5ed; border-radius: 13px; background: #fff; strong { display: block; font-size: 12px; } span { display: block; font-size: 11px; color: #64748b; margin-top: 4px; } }
+.fx-apply:disabled { opacity: .5; }
+/* Match the compact green coupon row in the supplied booking reference. */
+.fb-coupon-trigger, .fb-coupon-applied { min-height: 46px; padding: 11px 13px; border: 1px solid #cce7d8; border-radius: 12px; background: #e5f3ec; color: #087f50; display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; font: inherit; font-size: 12px; box-shadow: none; }
+.fb-coupon-trigger { cursor: pointer; strong { flex: 1; color: #101828; font-size: 12px; } }
+.fb-coupon-applied strong { color: #101828; font-size: 12px; }
+.fb-coupon-applied > span { white-space: nowrap; }
+.fb-coupon-remove { border: 0; background: transparent; padding: 0; min-width: 32px; min-height: 32px; display: flex; align-items: center; justify-content: center; color: #087f50; }
+.fb-coupon-section .bk-field { border-radius: 12px; padding: 9px 12px; }
+.fb-payment-status { display: grid; gap: 4px; }
+.fb-payment-status .fb-timer-wrap { margin: 0; padding: 0; text-align: center; }
+.fb-payment-status .fb-accepted-banner { margin: 0; padding: 7px 10px; gap: 8px; border: 0; border-radius: 10px; justify-content: center; background: #edf8f2; box-shadow: none; }
+.fb-payment-status .fb-accepted-banner ion-icon { font-size: 18px; }
+.fb-payment-status .fb-accepted-banner strong { font-size: 11px; }
+.fb-payment-status .fb-accepted-banner span { font-size: 10px; line-height: 1.4; }
+.fb-payment-status { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.fb-payment-status .fb-timer-wrap { grid-column: 2; grid-row: 1; text-align: right; }
+.fb-payment-status .fb-accepted-banner { grid-column: 1; grid-row: 1; justify-content: flex-start; min-width: 0; padding: 4px 0; text-align: left; background: transparent; }
+.fb-payment-status .fb-accepted-banner > div { min-width: 0; }

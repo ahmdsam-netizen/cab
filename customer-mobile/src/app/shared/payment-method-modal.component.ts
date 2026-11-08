@@ -3,6 +3,7 @@ import {
   Component, EventEmitter, Input, OnChanges, Output, SimpleChanges,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { IonicModule } from '@ionic/angular';
 import { OperatorPaymentMethods, PaymentOptionsService } from '../core/payment-options.service';
 
 /** The customer's choice from the shared payment modal. */
@@ -20,7 +21,7 @@ export type PaymentChoice = 'online' | 'gpay' | 'cash';
   selector: 'app-payment-method-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule],
+  imports: [CommonModule, IonicModule],
   template: `
     <div class="pmm" *ngIf="open" (click)="onBackdrop($event)">
       <div class="pmm__sheet" (click)="$event.stopPropagation()">
@@ -32,25 +33,25 @@ export type PaymentChoice = 'online' | 'gpay' | 'cash';
 
         <ng-container *ngIf="!loading && methods as m">
           <button type="button" class="pmm__opt" *ngIf="m.online" [disabled]="busy" (click)="choose('online')">
-            <span class="pmm__ic">💳</span>
+            <ion-icon class="pmm__ic" name="card-outline" aria-hidden="true"></ion-icon>
             <span class="pmm__txt"><b>Pay online</b><small>Card, net-banking or wallet</small></span>
-            <span class="pmm__chev">›</span>
+            <ion-icon class="pmm__chev" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
           </button>
 
           <button type="button" class="pmm__opt" *ngIf="m.gpay" [disabled]="busy" (click)="choose('gpay')">
-            <span class="pmm__ic">📲</span>
+            <ion-icon class="pmm__ic" name="phone-portrait-outline" aria-hidden="true"></ion-icon>
             <span class="pmm__txt"><b>UPI / GPay</b><small>Pay by UPI app</small></span>
-            <span class="pmm__chev">›</span>
+            <ion-icon class="pmm__chev" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
           </button>
 
           <button type="button" class="pmm__opt pmm__opt--cash" *ngIf="m.cash" [disabled]="busy" (click)="choose('cash')">
-            <span class="pmm__ic">💵</span>
+            <ion-icon class="pmm__ic" name="cash-outline" aria-hidden="true"></ion-icon>
             <span class="pmm__txt">
               <b>Cash</b>
               <small *ngIf="depositAmount > 0">Pay ₹{{ depositAmount | number:'1.0-2' }} now, ₹{{ balanceAmount | number:'1.0-2' }} cash to the driver</small>
               <small *ngIf="depositAmount <= 0">Pay the driver in cash at drop-off</small>
             </span>
-            <span class="pmm__chev">›</span>
+            <ion-icon class="pmm__chev" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
           </button>
 
           <p class="pmm__none" *ngIf="!m.online && !m.gpay && !m.cash">No payment methods are available right now.</p>
@@ -73,11 +74,11 @@ export type PaymentChoice = 'online' | 'gpay' | 'cash';
     .pmm__opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px; margin-bottom: 10px; border: 1px solid var(--ion-border-color, #e6e9ee); border-radius: 12px; background: var(--ion-item-background, #fff); text-align: left; cursor: pointer; }
     .pmm__opt:active { background: #f4f6f9; }
     .pmm__opt[disabled] { opacity: .55; }
-    .pmm__ic { font-size: 22px; line-height: 1; }
+    .pmm__ic { flex: 0 0 24px; width: 24px; height: 24px; color: var(--dc-green, #087f50); }
     .pmm__txt { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
     .pmm__txt b { font-size: 15px; font-weight: 700; color: var(--ion-text-color, #16202a); }
     .pmm__txt small { font-size: 12px; color: #6b7683; }
-    .pmm__chev { font-size: 22px; color: #b7c0ca; }
+    .pmm__chev { flex: 0 0 18px; width: 18px; height: 18px; color: #b7c0ca; }
     .pmm__cancel { width: 100%; padding: 13px; margin-top: 2px; border: 0; border-radius: 12px; background: transparent; color: #6b7683; font-size: 15px; font-weight: 700; cursor: pointer; }
     .pmm__cancel[disabled] { opacity: .55; }
   `],

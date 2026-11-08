@@ -16,7 +16,6 @@ export class SideMenuComponent {
   /** Set when the avatar image URL fails to load → we show initials instead. */
   avatarBroken = false;
   private lastAvatarUrl: string | null = null;
-  ridesMenuOpen = true;
 
   constructor(
     public auth: AuthService,
@@ -45,6 +44,19 @@ export class SideMenuComponent {
       return name.charAt(0).toUpperCase();
     }
     return 'U';
+  }
+
+  maskedPhone(phone: string): string {
+    return phone.length > 4 ? '••••••' + phone.slice(-4) : phone;
+  }
+
+  async closeMenu(): Promise<void> {
+    await this.menuCtrl.close('customer-menu');
+  }
+
+  isTabActive(path: string): boolean {
+    const currentPath = (this.router.url || '').split(/[?#]/)[0].replace(/\/+$/, '');
+    return currentPath === path;
   }
 
   async signOut(): Promise<void> {
@@ -106,9 +118,5 @@ export class SideMenuComponent {
       cssClass: 'dc-ai-booking-modal',
     });
     await modal.present();
-  }
-
-  toggleRidesMenu(): void {
-    this.ridesMenuOpen = !this.ridesMenuOpen;
   }
 }

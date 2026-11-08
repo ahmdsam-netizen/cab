@@ -24,10 +24,15 @@ class FixedRoutesController extends Controller
             'dest_city_id' => ['nullable', 'integer', 'exists:cities,id'],
             'scope' => ['nullable', 'in:local,outstation'],
             'q' => ['nullable', 'string', 'max:80'],
+            'search_by' => ['nullable', 'in:destination,origin,stop,all'],
+            'sort_by' => ['nullable', 'in:nearest_pickup'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
             'lat' => ['nullable', 'numeric', 'between:-90,90'],
             'lng' => ['nullable', 'numeric', 'between:-180,180'],
         ]);
+
+        // Existing clients without search_by retain the previous broad search.
+        $data['search_by'] ??= 'all';
 
         return response()->json(['data' => $this->routes->customerRoutes($data)]);
     }

@@ -15,6 +15,32 @@
 }
 
 .nt-skeletons { display: flex; flex-direction: column; gap: 10px; }
+.nt-toolbar--header {
+  margin: 0;
+  flex-shrink: 0;
+  .nt-markall { min-height: 36px; color: #fff; }
+  .nt-markall[disabled] { color: #aeb8c2; }
+}
+.nt-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  .pg-title { margin: 0; min-width: 0; font-size: clamp(22px, 5.2vw, 28px); }
+  .nt-markall { white-space: nowrap; font-size: 12px; }
+}
+.pg-toolbar {
+  --padding-end: 16px;
+  ion-buttons[slot='end'] { margin: 0; }
+  ion-button[aria-label='Reload'] {
+    width: 44px;
+    height: 44px;
+    margin: 0;
+    --padding-start: 0;
+    --padding-end: 0;
+    ion-icon { width: 24px; height: 24px; font-size: 24px; }
+  }
+}
 .nt-list { display: flex; flex-direction: column; gap: 10px; }
 
 .nt-item {

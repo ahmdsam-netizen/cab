@@ -60,6 +60,11 @@ class FixedSeatHold extends Model
         return $this->belongsTo(User::class, 'customer_id');
     }
 
+    public function couponAssignment(): BelongsTo
+    {
+        return $this->belongsTo(CouponAssignment::class, 'coupon_assignment_id');
+    }
+
     /** The specific departure_seats this hold locks (link table rows). */
     public function heldSeats(): HasMany
     {

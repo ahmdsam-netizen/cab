@@ -33,6 +33,8 @@ interface FixedRoute {
   origin_name: string; dest_name: string;
   flat_fare: number; luggage_surcharge_amount: number;
   stops: FixedStop[];
+  starting_stop?: FixedStop | null;
+  distance_to_start?: number | null;
   nearest_pickup_stop?: {
     id: number;
     name: string;
@@ -63,6 +65,16 @@ interface SeatHold {
   seat_labels?: string[];
   board_stop_id?: number | null;
   drop_stop_id?: number | null;
+  route_id?: number;
+  route_name?: string | null;
+  board_stop_name?: string | null;
+  drop_stop_name?: string | null;
+  original_amount?: number;
+  discount_amount?: number;
+  extra_luggage_count?: number;
+  luggage_surcharge_amount?: number;
+  coupon_title?: string | null;
+  coupon_editable?: boolean;
 }
 interface CouponPreview { base_amount: number; discount: number; final_amount: number; coupon?: { title: string } | null; }
 interface Reservation { id: number; }
@@ -90,6 +102,10 @@ export class FixedBookPage implements OnInit, OnDestroy {
   cities: City[] = [];
   selectedCity: City | null = null;
   search = '';
+  searchMode: 'destination' | 'origin' | 'stop' = 'destination';
+  get searchPlaceholder(): string {
+    return `Search by ${this.searchMode}`;
+  }
   private searchTimer?: ReturnType<typeof setTimeout>;
   private routesSub?: Subscription;
   private routesRequestId = 0;
@@ -112,7 +128,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
   get nearbyRoutesCount(): number {
     if (!this.userCoords) return this.scopedRoutes.length;
     return this.scopedRoutes.filter(
-      (r) => r.distance_to_nearest_pickup != null && r.distance_to_nearest_pickup <= 1000,
+      (r) => r.distance_to_start != null && r.distance_to_start <= 1000,
     ).length;
   }
 
@@ -136,6 +152,9 @@ export class FixedBookPage implements OnInit, OnDestroy {
   couponTitle = '';
   coupon: CouponPreview | null = null;
   couponError: string | null = null;
+  couponBusy = false;
+  couponEditorOpen = false;
+  cancellingHold = false;
 
   paymentMethod: 'gpay' | 'all' = 'gpay';
 
@@ -182,8 +201,24 @@ export class FixedBookPage implements OnInit, OnDestroy {
     private audioAlert: AudioAlertService,
   ) {}
 
+  private requestedHomeRouteId: number | null = null;
+
   ionViewWillEnter(): void {
     this.checkActiveHold();
+    const id = Number(this.activatedRoute.snapshot.queryParamMap.get('routeId'));
+    this.requestedHomeRouteId = Number.isSafeInteger(id) && id > 0 ? id : null;
+    if (!this.loading && this.routes.length) this.openRequestedHomeRoute();
+  }
+
+  private openRequestedHomeRoute(): void {
+    if (!this.requestedHomeRouteId) return;
+    const id = this.requestedHomeRouteId;
+    this.requestedHomeRouteId = null;
+    // An existing seat hold keeps priority over starting another booking.
+    if (this.hold) return;
+    const route = this.routes.find(item => item.id === id);
+    if (route) this.pickRoute(route);
+    else this.error = 'This route is no longer available here. Please choose another route.';
   }
 
   async ngOnInit(): Promise<void> {
@@ -351,7 +386,11 @@ export class FixedBookPage implements OnInit, OnDestroy {
     this.loading = true;
     this.error = null;
     const params = new URLSearchParams();
-    if (this.search.trim()) params.set('q', this.search.trim());
+    if (this.search.trim()) {
+      params.set('q', this.search.trim());
+      params.set('search_by', this.searchMode);
+    }
+    if (this.routeScope !== 'all') params.set('scope', this.routeScope);
     if (this.cityId != null && this.cityId > 0) {
       params.set('city_id', String(this.cityId));
     }
@@ -367,6 +406,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
         this.annotateRoutesWithProximity();
         this.sortRoutesByProximity();
         this.loading = false;
+        this.openRequestedHomeRoute();
         this.cdr.markForCheck();
       },
       error: () => {
@@ -380,8 +420,8 @@ export class FixedBookPage implements OnInit, OnDestroy {
 
   private sortRoutesByProximity(): void {
     this.routes.sort((a, b) => {
-      const distA = a.distance_to_nearest_pickup ?? Infinity;
-      const distB = b.distance_to_nearest_pickup ?? Infinity;
+      const distA = a.distance_to_start ?? Infinity;
+      const distB = b.distance_to_start ?? Infinity;
       return distA - distB;
     });
   }
@@ -409,8 +449,13 @@ export class FixedBookPage implements OnInit, OnDestroy {
   }
 
   private annotateRoutesWithProximity(): void {
-    if (!this.userCoords) return;
     for (const r of this.routes) {
+      // Select by route order, never by proximity or a later stop's availability.
+      r.starting_stop = r.stops?.length
+        ? r.stops.reduce((first, stop) => stop.seq < first.seq ? stop : first)
+        : null;
+      r.distance_to_start = null;
+      if (!this.userCoords) continue;
       r.nearest_pickup_stop = null;
       r.distance_to_nearest_pickup = null;
       for (const stop of r.stops || []) stop.is_nearest_pickup = false;
@@ -418,6 +463,8 @@ export class FixedBookPage implements OnInit, OnDestroy {
       let minD = Infinity;
       let nearest: any = null;
       for (const s of r.stops) {
+        s.distance_meters = null;
+        s.walk_minutes = null;
         if (s.lat != null && s.lng != null && s.lat !== 0 && s.lng !== 0) {
           const d = this.calculateDistanceMeters(this.userCoords.lat, this.userCoords.lng, s.lat, s.lng);
           s.distance_meters = d;
@@ -436,6 +483,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
           }
         }
       }
+      r.distance_to_start = r.starting_stop?.distance_meters ?? null;
       if (nearest) {
         r.nearest_pickup_stop = nearest;
         r.distance_to_nearest_pickup = minD;
@@ -481,10 +529,10 @@ export class FixedBookPage implements OnInit, OnDestroy {
     const q = this.search.trim().toLowerCase();
     if (q) return this.scopedRoutes;
 
-    // Default view: if radius filter is active and user coordinates are available, only show routes within 1 km (1000m)
+    // Nearby routes must start within 1 km of the customer.
     if (this.radiusFilterActive && this.userCoords) {
       return this.scopedRoutes.filter(
-        (r) => r.distance_to_nearest_pickup != null && r.distance_to_nearest_pickup <= 1000,
+        (r) => r.distance_to_start != null && r.distance_to_start <= 1000,
       );
     }
 
@@ -503,6 +551,15 @@ export class FixedBookPage implements OnInit, OnDestroy {
     clearTimeout(this.searchTimer);
     this.routes = [];
     this.loading = true;
+    this.searchTimer = setTimeout(() => this.loadRoutes(), 300);
+    this.cdr.markForCheck();
+  }
+
+  onSearchModeChange(): void {
+    if (!this.search.trim()) return;
+    this.routesSub?.unsubscribe();
+    ++this.routesRequestId;
+    clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => this.loadRoutes(), 300);
     this.cdr.markForCheck();
   }
@@ -563,7 +620,10 @@ export class FixedBookPage implements OnInit, OnDestroy {
   }
 
   getStopName(id: number | null): string {
-    return this.route?.stops?.find((s) => s.id === id)?.name || 'Stop';
+    return this.route?.stops?.find((s) => s.id === id)?.name
+      || (id === this.hold?.board_stop_id ? this.hold?.board_stop_name : null)
+      || (id === this.hold?.drop_stop_id ? this.hold?.drop_stop_name : null)
+      || 'Stop';
   }
 
   pickBoard(id: number): void {
@@ -700,6 +760,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
         if (expiresAt <= now) return;
 
         this.hold = active;
+        this.luggage = active.extra_luggage_count ?? 0;
         if (active.board_stop_id) this.boardStopId = active.board_stop_id;
         if (active.drop_stop_id) this.dropStopId = active.drop_stop_id;
         if (active.seat_labels && active.seat_labels.length) {
@@ -789,6 +850,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
   }
 
   private async onHoldRejected(payload?: any): Promise<void> {
+    if (this.step !== 'awaiting_approval') return;
     this.stopApprovalWaiting();
     this.audioAlert.playDriverDeclined();
     this.hold = null;
@@ -923,44 +985,133 @@ export class FixedBookPage implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  onHoldExpired(): void {
-    this.hold = null;
-    this.step = 'seats';
-    this.loadSeatMap();
-    void this.toast('Seat hold expired. Please select seats again.', 'danger');
+  cancelReviewRide(): void {
+    if (this.busy || this.cancellingHold) return;
+    if (!this.hold) { this.resetBookingAndReturnHome(); return; }
+    const hold = this.hold;
+    this.cancellingHold = true;
+    this.error = null;
     this.cdr.markForCheck();
+    this.api.post<{ hold: SeatHold }>(`/fixed/seat-holds/${hold.id}/release`, {}).subscribe({
+      next: (res) => {
+        if (!['RELEASED', 'EXPIRED'].includes(res?.hold?.status || '')) {
+          this.cancellingHold = false;
+          this.error = 'Your seats could not be released. Please refresh your booking status and try again.';
+          this.cdr.markForCheck();
+          return;
+        }
+        this.stopApprovalWaiting();
+        this.resetBookingAndReturnHome();
+      },
+      error: (err) => {
+        this.cancellingHold = false;
+        this.error = err?.error?.message || 'Could not cancel your seat request. Please try again.';
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  private resetBookingAndReturnHome(replaceUrl = false): void {
+    this.error = null;
+    this.busy = false;
+    this.couponBusy = false;
+    this.cancellingHold = false;
+    this.hold = null;
+    this.selected = [];
+    this.route = null;
+    this.departure = null;
+    this.seatMap = null;
+    this.boardStopId = null;
+    this.dropStopId = null;
+    this.luggage = 0;
+    this.removeCoupon();
+    this.couponEditorOpen = false;
+    this.paymentModalOpen = false;
+    this.step = 'route';
+    this.cdr.markForCheck();
+    if (replaceUrl) void this.router.navigate(['/customer-tabs/go'], { replaceUrl: true });
+    else void this.router.navigate(['/customer-tabs/go']);
+  }
+
+  onHoldExpired(): void {
+    if (this.step !== 'review' || !this.hold) return;
+    if (this.hold.expires_at && new Date(this.hold.expires_at).getTime() > Date.now()) return;
+    this.stopApprovalWaiting();
+    this.resetBookingAndReturnHome(true);
+    void this.toast('Your seat hold expired. Please start a new booking.', 'danger');
   }
 
   // ---- step 5: review + pay --------------------------------------------
 
   get seatFare(): number {
+    if (this.hold && !this.route) return Math.max(0, (this.hold.original_amount ?? this.hold.amount) - this.luggageTotal);
     const base = (this.route?.flat_fare ?? 0) * this.selected.length;
     const deltas = this.selected.reduce((sum, l) => sum + (this.seatMap?.cells.find((c) => c.label === l)?.price_delta ?? 0), 0);
     return base + deltas;
   }
   get luggageTotal(): number {
+    if (this.hold && !this.route) return Number(this.hold.luggage_surcharge_amount ?? 0);
     return this.luggage * (this.route?.luggage_surcharge_amount ?? 0);
   }
   get grossTotal(): number {
     return this.seatFare + this.luggageTotal;
   }
   get finalTotal(): number {
+    if (this.hold) return Number(this.hold.amount);
     return this.coupon ? this.coupon.final_amount : this.grossTotal;
   }
 
   applyCoupon(): void {
-    if (!this.couponTitle.trim()) return;
+    if (this.hold) { this.updateHeldCoupon(this.couponTitle.trim()); return; }
+    if (this.couponBusy || !this.departure || !this.selected.length || !this.couponTitle.trim()) return;
     this.couponError = null;
-    this.api.post<CouponPreview>('/fixed/coupon-preview', this.payload(true)).subscribe({
-      next: (res) => { this.coupon = res; this.cdr.markForCheck(); },
-      error: (err) => { this.coupon = null; this.couponError = err?.error?.message || 'Coupon could not be applied.'; this.cdr.markForCheck(); },
+    this.couponBusy = true;
+    const payload = this.payload(true);
+    const stillMatches = () => JSON.stringify(payload) === JSON.stringify(this.payload(true)) && !this.hold;
+    this.api.post<CouponPreview>('/fixed/coupon-preview', payload).subscribe({
+      next: (res) => { this.couponBusy = false; if (stillMatches()) { this.coupon = res; this.couponEditorOpen = false; } this.cdr.markForCheck(); },
+      error: (err) => { this.couponBusy = false; if (stillMatches()) { this.coupon = null; this.couponError = err?.error?.message || 'Coupon could not be applied.'; } this.cdr.markForCheck(); },
     });
   }
-  removeCoupon(): void { this.couponTitle = ''; this.coupon = null; this.couponError = null; }
+  removeCoupon(): void {
+    if (this.hold) { this.updateHeldCoupon(null); return; }
+    this.couponTitle = ''; this.coupon = null; this.couponError = null;
+  }
+
+  get canEditHeldCoupon(): boolean {
+    return !!this.hold && this.hold.status === 'ACCEPTED' && this.hold.coupon_editable !== false;
+  }
+
+  private updateHeldCoupon(code: string | null): void {
+    if (!this.hold || !this.canEditHeldCoupon || this.couponBusy || this.busy || this.cancellingHold || code === '') return;
+    const id = this.hold.id;
+    this.couponBusy = true;
+    this.couponError = null;
+    this.cdr.markForCheck();
+    this.api.post<{ hold: SeatHold }>(`/fixed/seat-holds/${id}/coupon`, { coupon_title: code }).subscribe({
+      next: (res) => {
+        this.couponBusy = false;
+        if (this.hold?.id === id && res?.hold?.id === id) {
+          this.hold = res.hold;
+          this.coupon = null;
+          this.couponTitle = res.hold.coupon_title || '';
+          this.couponEditorOpen = false;
+        }
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.couponBusy = false;
+        if (this.hold?.id === id) this.couponError = err?.status === 404
+          ? 'Coupon updates are temporarily unavailable. Please try again later.'
+          : err?.error?.message || 'Could not update the coupon. Your current fare is unchanged.';
+        this.cdr.markForCheck();
+      },
+    });
+  }
 
   /** Opens the shared payment sheet so the rider picks Online / UPI / Cash. */
   pay(): void {
-    if (this.busy || !this.selected.length) return;
+    if (this.busy || this.couponBusy || this.cancellingHold || !this.selected.length || !this.hold || !['ACCEPTED', 'HELD'].includes(this.hold.status || '')) return;
     this.paymentModalOpen = true;
     this.cdr.markForCheck();
   }
@@ -1045,6 +1196,8 @@ export class FixedBookPage implements OnInit, OnDestroy {
       this.cdr.markForCheck();
       return;
     }
+    // A delayed order response must not reopen checkout after the timer returned Home.
+    if (this.hold?.id !== hold.id || this.step !== 'review') return;
     if (typeof Razorpay === 'undefined') {
       this.busy = false;
       await this.toast('Payment library not loaded. Check your connection.', 'danger');
@@ -1126,7 +1279,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
   ): void {
     this.api.post<{ reservation: Reservation; boarding_otp?: string }>(
       `/fixed/seat-holds/${hold.id}/confirm-payment`,
-      { board_stop_id: this.boardStopId, drop_stop_id: this.dropStopId, booking_channel: 'advance', ...payment },
+      { board_stop_id: hold.board_stop_id ?? this.boardStopId, drop_stop_id: hold.drop_stop_id ?? this.dropStopId, booking_channel: 'advance', ...payment },
       { 'Idempotency-Key': this.uuid() },
     ).subscribe({
       next: (res) => {

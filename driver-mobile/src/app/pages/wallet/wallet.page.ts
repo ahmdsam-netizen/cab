@@ -190,7 +190,7 @@ export class WalletPage implements OnInit {
       key: options.key_id,
       amount: options.amount_paise,
       currency: options.currency || 'INR',
-      name: 'Dream Cabs',
+      name: 'Cabbies',
       description: 'Wallet Recharge',
       order_id: options.order_id,
       prefill: {

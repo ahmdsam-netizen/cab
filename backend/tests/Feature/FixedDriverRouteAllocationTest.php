@@ -20,6 +20,7 @@ class FixedDriverRouteAllocationTest extends TestCase
     use RefreshDatabase;
 
     private int $cityId;
+    private int $vehicleTypeId;
 
     protected function setUp(): void
     {
@@ -33,6 +34,7 @@ class FixedDriverRouteAllocationTest extends TestCase
             'created_at' => now(), 'updated_at' => now(),
         ]);
         SeatLayoutFactory::standardErtiga6P($this->cityId, $vehicleTypeId);
+        $this->vehicleTypeId = $vehicleTypeId;
     }
 
     private function makeRoute(string $name, string $scope = 'local'): int
@@ -65,11 +67,16 @@ class FixedDriverRouteAllocationTest extends TestCase
     /** @return User the driver's user (online, fixed, local, in the city). */
     private function onlineFixedDriver(): User
     {
+        $vehicleId = DB::table('city_vehicle_types')->insertGetId(['city_id' => $this->cityId,
+            'vehicle_type_id' => $this->vehicleTypeId, 'display_name' => 'Ertiga', 'is_active' => true,
+            'max_people' => 6, 'luggage_capacity' => 2]);
         $user = User::factory()->create();
         $user->addRole('driver');
         $driver = Driver::query()->create([
             'user_id' => $user->id,
             'city_id' => $this->cityId,
+            'vehicle_type_id' => $this->vehicleTypeId,
+            'city_vehicle_type_id' => $vehicleId,
             'approval_status' => 'approved',
             'service_scope' => 'local',
             'service_mode' => 'fixed',

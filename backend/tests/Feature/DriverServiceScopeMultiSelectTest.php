@@ -29,6 +29,7 @@ class DriverServiceScopeMultiSelectTest extends TestCase
     private RideType $privateRideType;
     private CityVehicleType $cityVehicle;
     private PricingRule $pricingRule;
+    private array $registrationStandIds;
 
     protected function setUp(): void
     {
@@ -38,6 +39,10 @@ class DriverServiceScopeMultiSelectTest extends TestCase
             ['name' => 'MultiScope Test City'],
             ['country_code' => 'IN']
         );
+
+        $this->registrationStandIds = collect(['Signup Stand A', 'Signup Stand B'])->map(
+            fn ($name) => RouteGroup::create(['city_id' => $this->city->id, 'name' => $name, 'is_active' => true])->id
+        )->all();
 
         $this->vehicleType = VehicleType::firstOrCreate(
             ['name' => 'MultiScope Sedan'],
@@ -97,6 +102,7 @@ class DriverServiceScopeMultiSelectTest extends TestCase
         Sanctum::actingAs($user, ['act-as:driver']);
 
         $response = $this->postJson('/api/drivers/register', [
+            'stand_ids' => $this->registrationStandIds,
             'city_id' => $this->city->id,
             'city_ids' => [$this->city->id],
             'vehicle_type_id' => $this->vehicleType->id,
@@ -137,6 +143,7 @@ class DriverServiceScopeMultiSelectTest extends TestCase
         Sanctum::actingAs($user, ['act-as:driver']);
 
         $response = $this->postJson('/api/drivers/register', [
+            'stand_ids' => $this->registrationStandIds,
             'city_id' => $this->city->id,
             'city_ids' => [$this->city->id],
             'vehicle_type_id' => $this->vehicleType->id,

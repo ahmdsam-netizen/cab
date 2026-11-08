@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { finalize } from 'rxjs/operators';
 import { ApiService } from '../../core/api.service';
 
 type StatusFilter = 'all' | 'completed' | 'cancelled' | 'missed';
@@ -56,7 +57,6 @@ export class TripHistoryPage {
   filterOpen = false;
 
   constructor(private api: ApiService) {}
-
   openFilters(): void {
     this.filterOpen = true;
   }
@@ -86,13 +86,13 @@ export class TripHistoryPage {
   }
 
   refresh(): void {
-    this.loading = true;
+this.loading = true;
     this.error = null;
     const params = new URLSearchParams({
       status: this.status,
       payment: this.payment,
     }).toString();
-    this.api.get<{ data: { data?: TripRow[] } }>(`/driver/trips/history?${params}`).subscribe({
+    this.api.get<{ data: { data?: TripRow[] } }>(`/driver/trips/history?${params}`).pipe(finalize(() => this.loading = false)).subscribe({
       next: (res) => {
         const page = res.data;
         this.trips = page?.data ?? [];
@@ -128,11 +128,16 @@ export class TripHistoryPage {
    * filters. Trips with no date fall outside today/week/month buckets.
    */
   get filteredTrips(): TripRow[] {
-    if (this.range === 'all') return this.trips;
+    const trips = [...this.trips].sort((a, b) => {
+      const aDate = Date.parse(this.dateDisplay(a) || '') || 0;
+      const bDate = Date.parse(this.dateDisplay(b) || '') || 0;
+      return bDate - aDate || b.id - a.id;
+    });
+    if (this.range === 'all') return trips;
 
     const now = new Date();
 
-    return this.trips.filter((t) => {
+    return trips.filter((t) => {
       const raw = this.dateDisplay(t);
       if (!raw) return false;
 
@@ -148,7 +153,12 @@ export class TripHistoryPage {
       }
 
       const days = (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
-      if (this.range === 'week') return days >= 0 && days <= 7;
+      if (this.range === 'week') {
+        const start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+        start.setDate(start.getDate() - (start.getDay() + 6) % 7);
+        return d >= start && d <= now;
+      }
       if (this.range === 'month') return days >= 0 && days <= 30;
       return true;
     });
@@ -209,7 +219,16 @@ export class TripHistoryPage {
   fareDisplay(t: TripRow): string | null {
     const amount = t.final_fare ?? t.estimated_fare;
     if (amount == null) return null;
-    return `${amount} ${t.currency || 'INR'}`;
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: t.currency || 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount);
+  }
+
+  get completedFaresShown(): number {
+    return this.filteredTrips.filter(t => t.status === 'COMPLETED' && (!t.currency || t.currency === 'INR'))
+      .reduce((sum, t) => sum + Number(t.final_fare ?? t.estimated_fare ?? 0), 0);
+  }
+
+  get completedRidesShown(): number {
+    return this.filteredTrips.filter(t => t.status === 'COMPLETED').length;
   }
 
   dateDisplay(t: TripRow): string | null {

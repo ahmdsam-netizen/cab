@@ -51,7 +51,7 @@
 
         <div class="fb-empty" *ngIf="!visibleRoutes.length">
           <ion-icon name="git-branch-outline"></ion-icon>
-          <p *ngIf="!routeSearch && radiusFilterActive && userCoords && routes.length">No pickup stops within 1 km. <button type="button" class="fb-inline-link" (click)="setRadiusFilter(false)">View all {{ routes.length }} routes</button></p>
+          <p *ngIf="!routeSearch && radiusFilterActive && userCoords && routes.length">No routes start within 1 km. <button type="button" class="fb-inline-link" (click)="setRadiusFilter(false)">View all {{ routes.length }} routes</button></p>
           <p *ngIf="routeSearch || !radiusFilterActive || !userCoords || !routes.length">{{ error || 'No matching fixed routes found.' }}</p>
         </div>
 
@@ -65,9 +65,9 @@
               <span>{{ r.origin_name }} → {{ r.dest_name }}</span>
               <span class="fb-route-stops-tag">{{ (r.stops || []).length }} stops</span>
             </span>
-            <span class="fb-route-nearest" *ngIf="r.nearest_pickup_stop">
+            <span class="fb-route-nearest" *ngIf="r.starting_stop">
               <ion-icon name="walk-outline"></ion-icon>
-              <span class="fb-route-nearest__txt">Nearest: <b>{{ r.nearest_pickup_stop.name }}</b> ({{ formatDistance(r.nearest_pickup_stop.distance_meters) }})</span>
+              <span class="fb-route-nearest__txt">Starts at: <b>{{ r.starting_stop.name }}</b><ng-container *ngIf="r.distance_to_start != null"> ({{ formatDistance(r.distance_to_start) }})</ng-container></span>
             </span>
           </div>
           <div class="fb-card__right">

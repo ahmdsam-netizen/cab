@@ -13,9 +13,9 @@ interface VehicleSet { id: number; name: string; members: { id: number }[]; rout
   selector: 'app-vehicle-sets-editor', standalone: true,
   imports: [CommonModule, FormsModule, ButtonComponent, DrawerComponent],
   template: `
-    <tm-drawer [open]="true" title="Vehicle sets and shared groups" [width]="640" (closed)="closed.emit()">
+    <tm-drawer [open]="true" title="Vehicle sets and shared stands" [width]="640" (closed)="closed.emit()">
       <div slot="body" class="sets">
-        <p>Vehicles in a set share the groups selected here. Routes stay in one place. Choose each driver's groups separately when assigning the driver.</p>
+        <p>Vehicles in a set share the stands selected here. Routes stay in one place. Choose each driver's stands separately when assigning the driver.</p>
         <p *ngIf="loading">Loading vehicle sets…</p>
         <p *ngIf="loadError">Could not load vehicle sets. <button type="button" (click)="load()">Retry</button></p>
         <ng-container *ngIf="!loading && !loadError">
@@ -38,15 +38,15 @@ interface VehicleSet { id: number; name: string; members: { id: number }[]; rout
             <p *ngIf="!vehicles.length">No vehicles have been added in this city.</p>
           </fieldset>
           <fieldset [disabled]="saving">
-            <legend>Shared route groups</legend>
-            <p>All selected vehicles can use these groups. New groups created under a member vehicle are shared with its set automatically.</p>
+            <legend>Shared stands</legend>
+            <p>All selected vehicles can use these stands. New stands created under a member vehicle are shared with its set automatically.</p>
             <label class="choice" *ngFor="let group of groups">
               <input type="checkbox" [checked]="groupIds.has(group.id)" (change)="toggle(groupIds, group.id)" />
               <span>{{ group.name }} <small>{{ group.route_ids.length }} routes</small></span>
             </label>
-            <p *ngIf="!groups.length">Create route groups in the workspace, then select them here.</p>
+            <p *ngIf="!groups.length">Create stands in the workspace, then select them here.</p>
           </fieldset>
-          <p>Removing a vehicle or group from this set keeps existing driver assignments. Change those separately if needed.</p>
+          <p>Removing a vehicle or stand from this set keeps existing driver assignments. Change those separately if needed.</p>
           <tm-button variant="green" [disabled]="saving || !name.trim()" (clicked)="save()">{{ saving ? 'Saving…' : (selectedId ? 'Save set' : 'Create set') }}</tm-button>
         </ng-container>
       </div>

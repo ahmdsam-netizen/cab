@@ -139,7 +139,7 @@ interface TabDef { key: string; label: string; count?: number; }
       <app-return-to-setup></app-return-to-setup>
 
       <header class="ws__head" *ngIf="masterSection !== 'routes'">
-        <div class="vehicle-page-heading"><h1>{{ masterHeading }}</h1><p>{{ masterSection && masterSection !== 'vehicle-configuration' ? 'Manage ' + cityName + ' routes, route groups and driver allocations.' : 'Choose a vehicle to manage its routes, groups, drivers and fares.' }}</p></div>
+        <div class="vehicle-page-heading"><h1>{{ masterHeading }}</h1><p>{{ masterSection && masterSection !== 'vehicle-configuration' ? 'Manage ' + cityName + ' routes, stands and driver allocations.' : 'Choose a vehicle to manage its routes, stands, drivers and fares.' }}</p></div>
         <div class="vehicle-page-actions">
         <tm-button variant="outline" icon="cog" (clicked)="openTypes()">Vehicle types</tm-button>
         <tm-button variant="outline" [disabled]="cityId == null || loading" (clicked)="vehicleSetsOpen = true">Vehicle sets</tm-button>
@@ -158,7 +158,7 @@ interface TabDef { key: string; label: string; count?: number; }
 
       <div class="grid" *ngIf="cityId != null">
         @defer (when masterSection === 'routes') {
-          <app-route-operations *ngIf="masterSection === 'routes'" [cityId]="cityId!" [cityName]="cityName" [loading]="operationsLoading" [loadError]="operationsLoadError" [vehicles]="vehicles" [vehicleRows]="rows" [sets]="vehicleSets" [routes]="routes" [groups]="groups" [drivers]="cityDrivers" [fareModes]="fareRideTypes" [vehicleTypeOptions]="vehicleTypeOptions" [editId]="editId" [editField]="editField" [editValue]="editValue" (cellEdit)="handleOperationsCellEdit($event)" (action)="handleOperationsAction($event)" (refresh)="refresh()" />
+          <app-route-operations *ngIf="masterSection === 'routes'" [cityId]="cityId!" [cityName]="cityName" [countryCode]="operationsCountryCode" [loading]="operationsLoading" [loadError]="operationsLoadError" [vehicles]="vehicles" [vehicleRows]="rows" [sets]="vehicleSets" [routes]="routes" [groups]="groups" [drivers]="cityDrivers" [fareModes]="fareRideTypes" [vehicleTypeOptions]="vehicleTypeOptions" [editId]="editId" [editField]="editField" [editValue]="editValue" (cellEdit)="handleOperationsCellEdit($event)" (action)="handleOperationsAction($event)" (refresh)="refresh()" />
         } @placeholder { <p *ngIf="masterSection === 'routes'">Opening Routes workspace…</p> }
         <app-master-explorer *ngIf="masterSection && masterSection !== 'vehicle-configuration' && masterSection !== 'routes'" [section]="masterSection" [cityId]="cityId" [cityName]="cityName" [loading]="loading" [vehicles]="vehicles" [routes]="routes" [groups]="groups" [drivers]="cityDrivers" [groupCreating]="groupSaving" [groupCreatedVersion]="masterGroupCreatedVersion" (groupCreate)="createMasterInlineGroup($event)" (action)="handleMasterAction($event)" />
         <ng-container *ngIf="!masterSection || masterSection === 'vehicle-configuration'">
@@ -220,12 +220,12 @@ interface TabDef { key: string; label: string; count?: number; }
             </header>
             <div class="vehicle-summary-stats">
               <button type="button" (click)="openOperationsDrawer(v, 'all-routes', $event)"><b>{{ routesForVehicle(v).length }}</b><span>Routes</span></button>
-              <button type="button" (click)="openOperationsDrawer(v, 'groups', $event)"><b>{{ groupsForVehicle(v).length }}</b><span>Groups</span></button>
+              <button type="button" (click)="openOperationsDrawer(v, 'groups', $event)"><b>{{ groupsForVehicle(v).length }}</b><span>Stands</span></button>
               <button type="button" (click)="openOperationsDrawer(v, 'drivers', $event)"><b>{{ driversForVehicle(v).length }}</b><span>Drivers</span></button>
             </div>
             <div class="vehicle-summary-actions">
               <button type="button" class="btn-kb-primary" (click)="openOperationsDrawer(v, 'all-routes', $event)">Manage routes</button>
-              <button type="button" class="btn-kb-outline" (click)="openOperationsDrawer(v, 'groups', $event)">Groups &amp; drivers</button>
+              <button type="button" class="btn-kb-outline" (click)="openOperationsDrawer(v, 'groups', $event)">Stands &amp; drivers</button>
               <button type="button" class="btn-kb-outline" (click)="newRouteFor(v)">Add route</button>
             </div>
             <details class="vehicle-settings">
@@ -255,7 +255,7 @@ interface TabDef { key: string; label: string; count?: number; }
                 <th class="center">Seats</th>
                 <th class="center">Bags</th>
                 <th class="center" *ngFor="let rt of fareRideTypes">{{ rt.name }}</th>
-                <th>Fixed groups</th>
+                <th>Fixed stands</th>
                 <th>Seat layout</th>
                 <th>Drivers</th>
                 <th class="center">Status</th>
@@ -303,7 +303,7 @@ interface TabDef { key: string; label: string; count?: number; }
                       <button type="button" class="gchip" *ngFor="let g of groupsForVehicle(v).slice(0, 2)" (click)="openOperationsDrawer(v, 'groups', $event)">{{ g.name }}</button>
                       <button type="button" class="gchip more" *ngIf="groupsForVehicle(v).length > 2" (click)="openOperationsDrawer(v, 'groups', $event)">+{{ groupsForVehicle(v).length - 2 }}</button>
                     </span>
-                    <ng-template #noGrp><button type="button" class="addlink" (click)="openOperationsDrawer(v, 'groups', $event)">+ Group</button></ng-template>
+                    <ng-template #noGrp><button type="button" class="addlink" (click)="openOperationsDrawer(v, 'groups', $event)">+ Stand</button></ng-template>
                   </td>
                   <td>
                     <button type="button" class="linkcell" (click)="openLayoutsList(v, $event)">
@@ -354,12 +354,12 @@ interface TabDef { key: string; label: string; count?: number; }
     </div>
 
     <app-master-group-editor *ngIf="masterEditGroup as group" [group]="group" [cityId]="cityId!" [vehicleName]="selected?.display_name || ''" [routes]="masterEditRoutes" [drivers]="cityDrivers" (closed)="masterEditGroupId = null" (saved)="loadGroups()" (editRoute)="editMasterGroupRoute($event)" />
-    <tm-drawer *ngIf="masterSection" [open]="masterGroupCreateOpen" title="Create route group" [width]="520" (closed)="masterGroupCreateOpen = false">
-      <div slot="body" class="form"><label class="f"><span>Group name</span><input aria-label="Route group name" [(ngModel)]="groupName" placeholder="For example Airport Routes" /></label><p class="meta">Vehicle: {{ selected?.display_name }} · {{ cityName }}</p></div>
-      <div slot="footer"><tm-button variant="ghost" (clicked)="masterGroupCreateOpen = false">Cancel</tm-button><tm-button variant="green" [disabled]="groupSaving || !groupName.trim()" (clicked)="createGroup()">{{ groupSaving ? 'Creating…' : 'Create group' }}</tm-button></div>
+    <tm-drawer *ngIf="masterSection" [open]="masterGroupCreateOpen" title="Create stand" [width]="520" (closed)="masterGroupCreateOpen = false">
+      <div slot="body" class="form"><label class="f"><span>Stand name</span><input aria-label="Stand name" [(ngModel)]="groupName" placeholder="For example Airport Routes" /></label><p class="meta">Vehicle: {{ selected?.display_name }} · {{ cityName }}</p></div>
+      <div slot="footer"><tm-button variant="ghost" (clicked)="masterGroupCreateOpen = false">Cancel</tm-button><tm-button variant="green" [disabled]="groupSaving || !groupName.trim()" (clicked)="createGroup()">{{ groupSaving ? 'Creating…' : 'Create stand' }}</tm-button></div>
     </tm-drawer>
-    <tm-drawer *ngIf="masterSection" [open]="driverDrawerId !== null" [title]="(driverDrawerGroup?.name || 'Route group') + ' — Assign drivers'" [width]="560" (closed)="driverDrawerId = null">
-      <div slot="body" class="form"><p class="meta">Select the city drivers who should receive this group's routes.</p><label class="check" *ngFor="let driver of cityDrivers"><input type="checkbox" [checked]="pendingDriverIds.includes(driver.user_id)" (change)="togglePendingDriver(driver.user_id)" [disabled]="savingGroupDrivers" /><span>{{ driver.name }} · {{ driver.vehicle_reg_no || driver.vehicle_model || 'No registered car' }}</span></label><p class="meta" *ngIf="!cityDrivers.length">No drivers are available in this city.</p></div>
+    <tm-drawer *ngIf="masterSection" [open]="driverDrawerId !== null" [title]="(driverDrawerGroup?.name || 'Stand') + ' — Assign drivers'" [width]="560" (closed)="driverDrawerId = null">
+      <div slot="body" class="form"><p class="meta">Select the city drivers who should receive this stand's routes.</p><label class="check" *ngFor="let driver of cityDrivers"><input type="checkbox" [checked]="pendingDriverIds.includes(driver.user_id)" (change)="togglePendingDriver(driver.user_id)" [disabled]="savingGroupDrivers" /><span>{{ driver.name }} · {{ driver.vehicle_reg_no || driver.vehicle_model || 'No registered car' }}</span></label><p class="meta" *ngIf="!cityDrivers.length">No drivers are available in this city.</p></div>
       <div slot="footer"><tm-button variant="ghost" [disabled]="savingGroupDrivers" (clicked)="driverDrawerId = null">Cancel</tm-button><tm-button variant="green" [disabled]="savingGroupDrivers" (clicked)="commitDrawerDrivers()">{{ savingGroupDrivers ? 'Saving…' : 'Save assignments' }}</tm-button></div>
     </tm-drawer>
     <!-- ─────────────── drawers ─────────────── -->
@@ -376,7 +376,7 @@ interface TabDef { key: string; label: string; count?: number; }
         <label class="f" *ngIf="create.vehicle_type_id === -1"><span>New vehicle type <i>*</i></span><input [(ngModel)]="create.vehicle_type_name" maxlength="120" placeholder="e.g. Tavera, Bus, Bicycle" /></label>
         <label class="f"><span>Display name (optional)</span><input type="text" [(ngModel)]="create.display_name" placeholder="Leave blank to use the vehicle type name" /></label>
         <label class="f"><span>Vehicle set (optional)</span><select [(ngModel)]="create.vehicle_set_id"><option [ngValue]="null">No set</option><option *ngFor="let set of vehicleSets" [ngValue]="set.id">{{ set.name }}</option></select></label>
-        <p class="note">Joining a set makes its shared route groups available. Use Vehicle sets to create a set or change its groups.</p>
+        <p class="note">Joining a set makes its shared stands available. Use Vehicle sets to create a set or change its stands.</p>
         <div class="fields">
           <label class="f"><span>Max people</span><input type="number" min="1" [(ngModel)]="create.max_people" /></label>
           <label class="f"><span>Luggage capacity</span><input type="number" min="0" [(ngModel)]="create.luggage_capacity" /></label>
@@ -485,7 +485,7 @@ interface TabDef { key: string; label: string; count?: number; }
           </div>
 
           <div class="kb-top-actions">
-            <button type="button" class="btn-kb-outline" (click)="routeView = 'groups'; showGroupCreator = !showGroupCreator">Create group</button>
+            <button type="button" class="btn-kb-outline" (click)="routeView = 'groups'; showGroupCreator = !showGroupCreator">Create stand</button>
 
             <button type="button" class="btn-kb-primary" (click)="newRouteFor(v)">
               <tm-icon name="plus" [size]="13" />
@@ -500,7 +500,7 @@ interface TabDef { key: string; label: string; count?: number; }
 
         <div class="route-view-tabs" aria-label="Route views">
           <button type="button" [class.selected]="routeView === 'all'" [attr.aria-pressed]="routeView === 'all'" (click)="routeView = 'all'">All routes ({{ routesForVehicle(v).length }})</button>
-          <button type="button" [class.selected]="routeView === 'groups'" [attr.aria-pressed]="routeView === 'groups'" (click)="routeView = 'groups'">Route groups</button>
+          <button type="button" [class.selected]="routeView === 'groups'" [attr.aria-pressed]="routeView === 'groups'" (click)="routeView = 'groups'">Stands</button>
         </div>
 
         <section class="route-directory" *ngIf="routeView === 'all'">
@@ -540,22 +540,22 @@ interface TabDef { key: string; label: string; count?: number; }
         </section>
 
         <div class="group-workspace" *ngIf="routeView === 'groups'">
-          <aside class="group-navigation" aria-label="Route groups">
-            <h3>Route groups</h3>
-            <p>Select a group to manage its routes and drivers.</p>
-            <button type="button" class="btn-kb-primary" (click)="showGroupCreator = !showGroupCreator" [attr.aria-expanded]="showGroupCreator">Create group</button>
+          <aside class="group-navigation" aria-label="Stands">
+            <h3>Stands</h3>
+            <p>Select a stand to manage its routes and drivers.</p>
+            <button type="button" class="btn-kb-primary" (click)="showGroupCreator = !showGroupCreator" [attr.aria-expanded]="showGroupCreator">Create stand</button>
             <form class="group-create-form" *ngIf="showGroupCreator" (ngSubmit)="quickCreateInlineGroup(v)">
-              <label for="new-route-group">Group name</label>
+              <label for="new-route-group">Stand name</label>
               <input id="new-route-group" name="groupName" [(ngModel)]="inlineNewGroupName[v.id]" placeholder="e.g. Dargah Sumo" required />
-              <button type="submit" class="btn-kb-primary" [disabled]="!canCreateInlineGroup(v.id) || isCreatingInlineGroup">{{ isCreatingInlineGroup ? 'Creating...' : 'Create group' }}</button>
+              <button type="submit" class="btn-kb-primary" [disabled]="!canCreateInlineGroup(v.id) || isCreatingInlineGroup">{{ isCreatingInlineGroup ? 'Creating...' : 'Create stand' }}</button>
             </form>
-            <input class="group-search" [(ngModel)]="groupSearch" placeholder="Find a group" aria-label="Find a group" />
-            <button type="button" class="group-nav-item" [class.selected]="selectedGroupSection === 'ungrouped'" (click)="selectGroupSection('ungrouped')"><span>Ungrouped routes</span><b>{{ ungroupedForVehicle(v).length }}</b></button>
+            <input class="group-search" [(ngModel)]="groupSearch" placeholder="Find a stand" aria-label="Find a stand" />
+            <button type="button" class="group-nav-item" [class.selected]="selectedGroupSection === 'ungrouped'" (click)="selectGroupSection('ungrouped')"><span>Routes without a stand</span><b>{{ ungroupedForVehicle(v).length }}</b></button>
             <button type="button" class="group-nav-item" [class.selected]="selectedGroupSection === 'inactive'" (click)="selectGroupSection('inactive')"><span>Inactive routes</span><b>{{ inactiveRoutesForVehicle(v).length }}</b></button>
             <button type="button" class="group-nav-item" *ngFor="let group of navigationGroups(v)" [class.selected]="selectedGroupSection === group.id" (click)="selectGroupSection(group.id)">
               <span>{{ group.name }}<small>{{ driversIn(group).length }} drivers</small></span><b>{{ routesIn(group).length }}</b>
             </button>
-            <p *ngIf="!navigationGroups(v).length">{{ groupsForVehicle(v).length ? 'No groups match your search.' : 'Create your first group, then add routes and drivers.' }}</p>
+            <p *ngIf="!navigationGroups(v).length">{{ groupsForVehicle(v).length ? 'No stands match your search.' : 'Create your first stand, then add routes and drivers.' }}</p>
           </aside>
         <!-- Kanban Board Columns Area -->
         <div class="kb-columns-container" *ngIf="routeView === 'groups'">
@@ -573,13 +573,13 @@ interface TabDef { key: string; label: string; count?: number; }
               <div class="kb-col-title-line">
                 <div class="kb-col-title">
                   <span class="kb-col-dot kb-col-dot--sky"></span>
-                  <span class="kb-col-heading">Ungrouped routes</span>
+                  <span class="kb-col-heading">Routes without a stand</span>
                 </div>
                 <span class="kb-count-pill kb-count-pill--sky">
                   {{ filterKanbanRoutes(ungroupedForVehicle(v)).length }}
                 </span>
               </div>
-              <p class="kb-col-desc">Unassigned routes ready for map edits or grouping</p>
+              <p class="kb-col-desc">Unassigned routes ready for map edits or stand assignment</p>
             </div>
 
             <div class="kb-cards-scroll">
@@ -593,7 +593,7 @@ interface TabDef { key: string; label: string; count?: number; }
               >
                 <div class="kb-card-head">
                   <div class="kb-card-title-group">
-                    <span class="kb-drag-handle" title="Drag route into a group column">
+                    <span class="kb-drag-handle" title="Drag route into a stand column">
                       <tm-icon name="menu" [size]="12" />
                     </span>
                     <span class="kb-card-name" [title]="r.name">{{ r.name }}</span>
@@ -637,7 +637,7 @@ interface TabDef { key: string; label: string; count?: number; }
 
                   <div class="kb-move-dropdown" *ngIf="groupsForVehicle(v).length">
                     <select class="kb-select-input" (change)="onMoveSelectChange(null, $event, r.id)">
-                      <option value="" disabled selected>Move to group ▾</option>
+                      <option value="" disabled selected>Move to stand ▾</option>
                       <option *ngFor="let targetG of groupsForVehicle(v)" [value]="targetG.id">{{ targetG.name }}</option>
                     </select>
                   </div>
@@ -652,7 +652,7 @@ interface TabDef { key: string; label: string; count?: number; }
 
               <div class="kb-empty-col" *ngIf="!filterKanbanRoutes(ungroupedForVehicle(v)).length && dragOverColumnId !== 'ungrouped'">
                 <tm-icon name="check" [size]="20" />
-                <span>All routes are assigned to groups</span>
+                <span>All routes are assigned to stands</span>
               </div>
             </div>
           </div>
@@ -665,7 +665,7 @@ interface TabDef { key: string; label: string; count?: number; }
                 </div>
                 <span class="kb-count-pill">{{ filterKanbanRoutes(inactiveRoutesForVehicle(v)).length }}</span>
               </div>
-              <p class="kb-col-desc">Enable a route to return it to its assigned group or Ungrouped.</p>
+              <p class="kb-col-desc">Enable a route to return it to its assigned stand or No stand.</p>
             </div>
             <div class="kb-cards-scroll">
               <article class="kb-card" *ngFor="let r of filterKanbanRoutes(inactiveRoutesForVehicle(v))">
@@ -713,11 +713,11 @@ interface TabDef { key: string; label: string; count?: number; }
 
                 <div class="kb-grp-acts">
                   <span class="kb-count-pill">{{ filterKanbanRoutes(routesIn(g)).length }}</span>
-                  <button type="button" class="btn-kb-outline" title="Rename group" (click)="startInlineRename(g)">
+                  <button type="button" class="btn-kb-outline" title="Rename stand" (click)="startInlineRename(g)">
                     Rename
                   </button>
-                  <button type="button" class="btn-kb-outline" title="Delete group" (click)="deleteGroup(g)">
-                    Delete group
+                  <button type="button" class="btn-kb-outline" title="Delete stand" (click)="deleteGroup(g)">
+                    Delete stand
                   </button>
                 </div>
               </div>
@@ -777,10 +777,10 @@ interface TabDef { key: string; label: string; count?: number; }
 
             <div class="group-route-actions">
               <button type="button" class="btn-kb-primary" (click)="showGroupRoutePicker = !showGroupRoutePicker" [attr.aria-expanded]="showGroupRoutePicker">Add routes</button>
-              <span>{{ routesIn(g).length }} active routes in this group</span>
+              <span>{{ routesIn(g).length }} active routes in this stand</span>
             </div>
             <div class="group-route-picker" *ngIf="showGroupRoutePicker">
-              <strong>Add ungrouped routes</strong>
+              <strong>Add routes without a stand</strong>
               <p>Select routes below, then add them together. Set a fare before adding a route.</p>
               <input class="group-search" [(ngModel)]="groupRouteSearch" placeholder="Find a route to add" aria-label="Find a route to add" />
               <div class="group-picker-list">
@@ -788,7 +788,7 @@ interface TabDef { key: string; label: string; count?: number; }
                   <input type="checkbox" [checked]="pendingGroupRouteIds.has(route.id)" [disabled]="route.flat_fare == null || savingGroupRoutes" (change)="togglePendingGroupRoute(route.id)" />
                   <span>{{ route.name }}<small>{{ route.flat_fare == null ? 'Set a fare in All routes first' : route.origin_name + ' to ' + route.dest_name }}</small></span>
                 </label>
-                <p *ngIf="!groupRouteCandidates(v).length">No matching ungrouped routes. Create a route or move one from another group.</p>
+                <p *ngIf="!groupRouteCandidates(v).length">No matching routes without a stand. Create a route or move one from another stand.</p>
               </div>
               <button type="button" class="btn-kb-primary" [disabled]="!pendingGroupRouteIds.size || savingGroupRoutes" (click)="addSelectedRoutesToGroup(v, g)">{{ savingGroupRoutes ? 'Adding...' : 'Add selected routes (' + pendingGroupRouteIds.size + ')' }}</button>
             </div>
@@ -804,7 +804,7 @@ interface TabDef { key: string; label: string; count?: number; }
               >
                 <div class="kb-card-head">
                   <div class="kb-card-title-group">
-                    <span class="kb-drag-handle" title="Drag route to another group">
+                    <span class="kb-drag-handle" title="Drag route to another stand">
                       <tm-icon name="menu" [size]="12" />
                     </span>
                     <span class="kb-card-name" [title]="r.name">{{ r.name }}</span>
@@ -840,7 +840,7 @@ interface TabDef { key: string; label: string; count?: number; }
                   <div class="kb-move-dropdown">
                     <select class="kb-select-input" (change)="onMoveSelectChange(g, $event, r.id)">
                       <option value="" disabled selected>Move to ▾</option>
-                      <option value="ungrouped">Available Ungrouped</option>
+                      <option value="ungrouped">Routes without a stand</option>
                       <option *ngFor="let otherG of getOtherGroups(v, g.id)" [value]="otherG.id">{{ otherG.name }}</option>
                     </select>
                   </div>
@@ -849,10 +849,10 @@ interface TabDef { key: string; label: string; count?: number; }
                     type="button"
                     class="kb-action-btn kb-action-btn--remove"
                     (click)="ungroupRoute(g, r.id)"
-                    title="Remove route from this group"
+                    title="Remove route from this stand"
                   >
                     <tm-icon name="x" [size]="11" />
-                    <span>Remove from group</span>
+                    <span>Remove from stand</span>
                   </button>
                 </div>
               </div>
@@ -865,7 +865,7 @@ interface TabDef { key: string; label: string; count?: number; }
 
               <div class="kb-empty-col" *ngIf="!filterKanbanRoutes(routesIn(g)).length && dragOverColumnId !== g.id">
                 <tm-icon name="road" [size]="20" />
-                <span>No matching active routes. Use Add routes to assign routes to this group.</span>
+                <span>No matching active routes. Use Add routes to assign routes to this stand.</span>
               </div>
             </div>
           </div>
@@ -922,7 +922,7 @@ interface TabDef { key: string; label: string; count?: number; }
       <button type="button" (click)="closeRowMenu(); openCommonDrawer(v)"><tm-icon name="edit" [size]="15" /> Edit vehicle</button>
       <button type="button" (click)="closeRowMenu(); openLayoutsList(v)"><tm-icon name="grid" [size]="15" /> Seat layouts</button>
       <button type="button" (click)="closeRowMenu(); openAppAssets(v)"><tm-icon name="upload" [size]="15" /> App Assets</button>
-      <button type="button" (click)="closeRowMenu(); toggleExpand(v)"><tm-icon name="road" [size]="15" /> Route groups</button>
+      <button type="button" (click)="closeRowMenu(); toggleExpand(v)"><tm-icon name="road" [size]="15" /> Stands</button>
       <button type="button" (click)="closeRowMenu(); openCopyModal(v)"><tm-icon name="copy" [size]="15" /> Copy to location</button>
       <div class="rowmenu__div"></div>
       <button type="button" (click)="closeRowMenu(); toggleActiveFor(v)"><tm-icon name="refresh" [size]="15" /> {{ v.is_active ? 'Disable' : 'Enable' }}</button>
@@ -2376,7 +2376,7 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
   }
   masterGroupCreateOpen = false;
   get masterHeading(): string {
-    return this.masterSection === 'routes' ? 'Routes' : this.masterSection === 'drivers' ? 'Drivers' : this.masterSection === 'route-groups' ? 'Route Groups' : this.masterSection === 'vehicle-configuration' ? 'Vehicle Configuration' : 'Vehicles';
+    return this.masterSection === 'routes' ? 'Routes' : this.masterSection === 'drivers' ? 'Drivers' : this.masterSection === 'route-groups' ? 'Stands' : this.masterSection === 'vehicle-configuration' ? 'Vehicle Configuration' : 'Vehicles';
   }
   handleMasterAction(action: MasterAction): void {
     const route = this.routes.find(row => row.id === action.id);
@@ -2553,6 +2553,7 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
   copyModalOpen = false;
   copyingToLocation = false;
   allCities: CityOption[] = [];
+  get operationsCountryCode(): string { return this.allCities.find(city => city.id === this.cityId)?.country_code || ''; }
   copyForm = {
     target_city_ids: [] as number[],
     vehicle_ids: [] as number[],
@@ -2822,7 +2823,7 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
 
       this.api.patch(`/admin/cities/${this.cityId}/route-groups/${fromGroup.id}`, { name: fromGroup.name, route_ids: newOldIds }).subscribe({
         next: () => {
-          this.toast.success('Route removed from group');
+          this.toast.success('Route removed from stand');
           this.onRouteMutation();
         },
         error: (err) => {
@@ -2843,7 +2844,7 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           targetGroup.route_ids = originalTargetIds;
-          this.toast.error(err?.error?.message || 'Could not add route to group');
+          this.toast.error(err?.error?.message || 'Could not add route to stand');
         },
       });
     }
@@ -2888,12 +2889,12 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
       next: () => {
         g.name = name;
         this.renamingGroupId = null;
-        this.toast.success(`Group renamed to "${name}"`);
+        this.toast.success(`Stand renamed to "${name}"`);
         this.onRouteMutation();
       },
       error: (err) => {
         this.renamingGroupId = null;
-        this.toast.error(err?.error?.message || 'Could not rename group');
+        this.toast.error(err?.error?.message || 'Could not rename stand');
       },
     });
   }
@@ -2914,7 +2915,7 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
         this.routeView = 'groups';
         this.groupSearch = '';
         this.kanbanSearch = '';
-        this.toast.success(`Group "${name}" created`);
+        this.toast.success(`Stand "${name}" created`);
         if (res?.group?.id) {
           this.activeDeckGroupId[v.id] = res.group.id;
           this.groups = [...this.groups.filter((g) => g.id !== res.group.id), { ...res.group, route_ids: res.group.route_ids ?? [], driver_user_ids: res.group.driver_user_ids ?? [] }];
@@ -2925,7 +2926,7 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.isCreatingInlineGroup = false;
-        this.toast.error(err?.error?.message || 'Could not create group');
+        this.toast.error(err?.error?.message || 'Could not create stand');
       },
     });
   }
@@ -3073,7 +3074,7 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.syncingDriverId = null;
-        this.toast.error(err?.error?.message || 'Failed to update group drivers');
+        this.toast.error(err?.error?.message || 'Failed to update stand drivers');
         this.onRouteMutation();
       },
     });
@@ -3097,12 +3098,12 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
     forkJoin(requests).subscribe({
       next: () => {
         this.syncingDriverId = null;
-        this.toast.success(`Assigned "${d.name}" to all groups`);
+        this.toast.success(`Assigned "${d.name}" to all stands`);
         this.onRouteMutation();
       },
       error: (err) => {
         this.syncingDriverId = null;
-        this.toast.error(err?.error?.message || 'Failed to assign driver to all groups');
+        this.toast.error(err?.error?.message || 'Failed to assign driver to all stands');
         this.onRouteMutation();
       },
     });
@@ -3126,7 +3127,7 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
     forkJoin(requests).subscribe({
       next: () => {
         this.syncingDriverId = null;
-        this.toast.success(`Removed "${d.name}" from all groups`);
+        this.toast.success(`Removed "${d.name}" from all stands`);
         this.onRouteMutation();
       },
       error: (err) => {
@@ -3776,7 +3777,7 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
     if (!g || this.cityId == null || this.savingGroupDrivers) return;
     this.savingGroupDrivers = true;
     this.api.put(`/admin/cities/${this.cityId}/route-groups/${g.id}/drivers`, { driver_user_ids: this.pendingDriverIds }).subscribe({
-      next: () => { this.savingGroupDrivers = false; this.driverDrawerId = null; this.toast.success('Group drivers updated'); this.loadGroups(); },
+      next: () => { this.savingGroupDrivers = false; this.driverDrawerId = null; this.toast.success('Stand drivers updated'); this.loadGroups(); },
       error: (err) => { this.savingGroupDrivers = false; this.toast.error(err?.error?.message || 'Could not update drivers'); },
     });
   }
@@ -3800,8 +3801,8 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
       name: this.groupName.trim(),
       city_vehicle_type_id: this.rows.find(row => (this.selected?.mode_row_ids ?? []).includes(row.id) && row.vehicle_set_id)?.id ?? this.selected?.id ?? null,
     }).subscribe({
-      next: () => { this.groupSaving = false; this.groupOpen = false; this.masterGroupCreateOpen = false; this.masterGroupCreatedVersion++; this.toast.success('Route group created'); this.loadGroups(); },
-      error: (err) => { this.groupSaving = false; this.toast.error(err?.error?.message || 'Could not create group'); },
+      next: () => { this.groupSaving = false; this.groupOpen = false; this.masterGroupCreateOpen = false; this.masterGroupCreatedVersion++; this.toast.success('Stand created'); this.loadGroups(); },
+      error: (err) => { this.groupSaving = false; this.toast.error(err?.error?.message || 'Could not create stand'); },
     });
   }
 
@@ -3809,23 +3810,23 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
 
   saveRename(g: GroupRow): void {
     const name = this.renameValue.trim();
-    if (!name || this.cityId == null) { this.toast.error('Group name is required'); return; }
+    if (!name || this.cityId == null) { this.toast.error('Stand name is required'); return; }
     this.api.patch(`/admin/cities/${this.cityId}/route-groups/${g.id}`, { name, route_ids: g.route_ids }).subscribe({
-      next: () => { this.renamingId = null; this.toast.success('Route group renamed'); this.loadGroups(); },
-      error: (err) => this.toast.error(err?.error?.message || 'Could not rename group'),
+      next: () => { this.renamingId = null; this.toast.success('Stand renamed'); this.loadGroups(); },
+      error: (err) => this.toast.error(err?.error?.message || 'Could not rename stand'),
     });
   }
 
   deleteGroup(g: GroupRow): void {
     if (this.cityId == null) return;
-    if (!confirm(`Delete "${g.name}"? Its routes go back to needing a group.`)) return;
+    if (!confirm(`Delete "${g.name}"? Its routes go back to needing a stand.`)) return;
     this.api.delete(`/admin/cities/${this.cityId}/route-groups/${g.id}`).subscribe({
       next: () => {
         if (this.selectedGroupSection === g.id) this.selectGroupSection('ungrouped');
-        this.toast.success('Route group deleted');
+        this.toast.success('Stand deleted');
         this.loadGroups();
       },
-      error: (err) => this.toast.error(err?.error?.message || 'Could not delete group'),
+      error: (err) => this.toast.error(err?.error?.message || 'Could not delete stand'),
     });
   }
 
@@ -3849,7 +3850,7 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
     this.recompute();
     this.api.patch(`/admin/cities/${this.cityId}/route-groups/${g.id}`, { name: g.name, route_ids: routeIds }).subscribe({
       next: () => { this.toast.success(message); this.loadGroups(); },
-      error: (err) => { this.toast.error(err?.error?.message || 'Could not save group'); this.loadGroups(); },
+      error: (err) => { this.toast.error(err?.error?.message || 'Could not save stand'); this.loadGroups(); },
     });
   }
 
@@ -4087,7 +4088,7 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
   }
 
   routeGroupNames(r: RouteLite): string {
-    return this.groups.filter((g) => g.route_ids.includes(r.id)).map((g) => g.name).join(', ') || 'Ungrouped';
+    return this.groups.filter((g) => g.route_ids.includes(r.id)).map((g) => g.name).join(', ') || 'No stand';
   }
 
   toggleRouteActive(r: RouteLite, ev?: Event): void {
@@ -4375,7 +4376,7 @@ export class VehicleWorkspaceComponent implements OnInit, OnDestroy {
     if (v) {
       this.openUnifiedGroupDrawer(v);
     } else if (this.selectedIds.size > 1) {
-      this.toast.error('Please select only one vehicle to manage its route groups.');
+      this.toast.error('Please select only one vehicle to manage its stands.');
     } else {
       this.toast.error('Please select a vehicle first.');
     }

@@ -29,7 +29,7 @@ export class DeleteAccountPage {
     const alert = await this.alertCtrl.create({
       header: 'Delete account?',
       message:
-        'This permanently deletes your DreamCabs account, including BOTH customer and driver profiles if they share this account, uploaded verification documents and account access on all devices. Independent accounting records may be retained. Deletion does not settle outstanding payments or request a ride refund. Continue?',
+        'This permanently deletes your Cabbies account, including BOTH customer and driver profiles if they share this account, uploaded verification documents and account access on all devices. Independent accounting records may be retained. Deletion does not settle outstanding payments or request a ride refund. Continue?',
       buttons: [
         { text: 'Cancel', role: 'cancel' },
         {

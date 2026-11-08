@@ -1,3 +1,4 @@
+import { DriverTopbarComponent } from '../../shared/driver-topbar/driver-topbar.component';
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -6,7 +7,7 @@ import { TermsPage } from './terms.page';
 import { TermsPageRoutingModule } from './terms-routing.module';
 
 @NgModule({
-  imports: [
+  imports: [DriverTopbarComponent, 
     CommonModule,
     FormsModule,
     IonicModule,

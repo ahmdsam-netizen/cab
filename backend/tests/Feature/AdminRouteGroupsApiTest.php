@@ -412,6 +412,31 @@ class AdminRouteGroupsApiTest extends TestCase
         ])->assertStatus(422);
     }
 
+    public function test_name_only_rename_preserves_all_assignments_and_inactive_state(): void
+    {
+        $vehicle = $this->makeCityVehicleType($this->cityId);
+        $route = $this->makeRoute($this->cityId, 'Existing route');
+        $driver = $this->makeDriver($this->cityId);
+        $created = $this->postJson("/api/admin/cities/{$this->cityId}/route-groups/setup", [
+            'name' => 'Original', 'is_active' => false, 'city_vehicle_type_id' => $vehicle,
+            'route_ids' => [$route], 'driver_user_ids' => [$driver->user_id],
+            'vehicle_ids' => [$vehicle], 'vehicle_set_ids' => [],
+        ])->assertCreated()->json('route_group');
+        // A name-only edit must not revalidate existing route pricing.
+        DB::table('routes')->where('id', $route)->update(['fare_config' => null]);
+        $url = "/api/admin/cities/{$this->cityId}/route-groups/{$created['id']}";
+        $renamed = $this->patchJson($url, ['name' => 'Renamed stand'])->assertOk()->json('route_group');
+        foreach (['id', 'is_active', 'city_vehicle_type_id', 'route_ids', 'driver_user_ids', 'vehicle_set_ids'] as $key) {
+            $this->assertSame($created[$key], $renamed[$key]);
+        }
+        $this->assertSame('Renamed stand', $renamed['name']);
+        $this->assertDatabaseHas('city_vehicle_types', ['id' => $vehicle, 'vehicle_set_id' => $created['vehicle_set_ids'][0]]);
+        $this->postJson("/api/admin/cities/{$this->cityId}/route-groups", ['name' => 'Taken'])->assertCreated();
+        $this->patchJson($url, ['name' => 'Taken'])->assertUnprocessable()->assertJsonValidationErrors('name');
+        $this->patchJson($url, ['name' => ''])->assertUnprocessable()->assertJsonValidationErrors('name');
+        $this->assertDatabaseHas('route_groups', ['id' => $created['id'], 'name' => 'Renamed stand']);
+    }
+
     public function test_rename_preserves_binding_but_explicit_rebind_updates_it(): void
     {
         $v1 = $this->makeCityVehicleType($this->cityId);

@@ -64,7 +64,7 @@ export class BackgroundLocationService {
     if (Capacitor.isNativePlatform()) {
       const id = await locationWatchers.add('background', () => BackgroundGeolocation.addWatcher(
         {
-          backgroundTitle: 'DreamCabs is sharing your location',
+          backgroundTitle: 'Cabbies is sharing your location',
           backgroundMessage: 'Your location is being shared with the rider during this trip.',
           requestPermissions: true,
           stale: false,

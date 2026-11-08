@@ -9,6 +9,28 @@
   font-size: 0.86rem;
 }
 
+/* Reference layout: date filters, compact total and rides share one scroll surface. */
+.pg-toolbar { --padding-end: 16px; }
+.pg-toolbar ion-button[aria-label='Reload'] { width: 44px; height: 44px; margin: 0; --padding-start: 0; --padding-end: 0; }
+.ec-reference-top { padding: 18px 16px 0; }
+.ec-date-tabs { display: flex; gap: 4px; padding: 4px; background: #f0f4f8; border-radius: 12px; }
+.ec-date-tabs button { flex: 1; border: 0; min-height: 36px; padding: 6px; background: transparent; color: #536b7e; border-radius: 9px; font-size: 12px; font-weight: 650; }
+.ec-date-tabs button.is-active { color: #fff; background: #102e44; }
+.ec-reference-summary { display: grid; gap: 5px; margin-top: 16px; padding: 18px; background: #eef5fa; border-radius: 14px; color: #102b3d; }
+.ec-reference-summary > span { font-size: 13px; }
+.ec-reference-summary > strong { font-size: 30px; line-height: 1.15; font-weight: 750; }
+.ec-reference-summary > small { color: #667d8f; font-size: 12px; }
+.ec-rides-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.ec-rides-heading h2 { font-size: 16px; margin: 0; font-weight: 700; }
+.ec-rides-heading a { display: flex; gap: 4px; align-items: center; font-size: 12px; color: #008951; text-decoration: none; white-space: nowrap; }
+.ec-reference-ride { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #edf1f5; padding: 18px 0; }
+.ec-reference-ride > div { display: grid; gap: 6px; min-width: 0; }
+.ec-reference-ride strong { font-size: 14px; color: #102b3d; overflow-wrap: anywhere; }
+.ec-reference-ride small { color: #728494; font-size: 12px; }
+.ec-reference-ride > b { font-size: 15px; color: #102b3d; white-space: nowrap; }
+.ec-ride-method { color: #008951; font-size: 11px; }
+.ec-scope-note { font-size: 12px; color: #657789; margin: 0 0 12px; line-height: 1.5; }
+
 /* ── Money Hero Stat Strip ── */
 .ec-hero {
   padding-bottom: 22px;
@@ -119,12 +141,16 @@
   box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
 
   ion-segment-button {
+    min-width: 0;
+    flex: 1;
+    --padding-start: 4px;
+    --padding-end: 4px;
     --indicator-color: #ffffff;
     --indicator-box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04);
     --color: #64748B;
     --color-checked: var(--dreamcab-dark-blue, #0D1B2A);
     min-height: 40px;
-    font-size: 0.84rem;
+    font-size: 12px;
     font-weight: 700;
     border-radius: 10px;
     text-transform: none;

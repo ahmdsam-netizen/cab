@@ -43,15 +43,15 @@ interface DriverOpt { user_id: number; name: string; phone?: string | null; }
       <header class="bd-head">
         <div>
           <h1 class="bd-title">Fixed routes</h1>
-          <p class="bd-sub">Drag routes into groups. Groups grant drivers permission to run them.</p>
+          <p class="bd-sub">Drag routes into stands. Stands grant drivers permission to run them.</p>
         </div>
         <button class="bd-add" (click)="addRoute.emit()">+ Add fixed route</button>
       </header>
 
       <div class="bd-bar">
         <span class="bd-chip">{{ routes.length }} routes</span>
-        <span class="bd-chip">{{ groups.length }} {{ groups.length === 1 ? 'group' : 'groups' }}</span>
-        <span class="bd-chip bd-chip--warn" *ngIf="ungrouped.length">⚠ {{ ungrouped.length }} needs a group</span>
+        <span class="bd-chip">{{ groups.length }} {{ groups.length === 1 ? 'stand' : 'stands' }}</span>
+        <span class="bd-chip bd-chip--warn" *ngIf="ungrouped.length">⚠ {{ ungrouped.length }} needs a stand</span>
         <span class="bd-spacer"></span>
         <input class="bd-search" type="text" [(ngModel)]="search" placeholder="🔍 Search routes…" />
       </div>
@@ -60,12 +60,12 @@ interface DriverOpt { user_id: number; name: string; phone?: string | null; }
         <!-- Needs a group -->
         <section class="col col--orphan" [class.drop]="dropTarget === 'orphan'"
                  (dragover)="allow($event)" (dragenter)="dropTarget='orphan'" (dragleave)="clearDrop('orphan')" (drop)="drop(null)">
-          <div class="col__head"><span class="col__name">Needs a group</span><span class="col__badge">{{ orphanFiltered.length }}</span></div>
+          <div class="col__head"><span class="col__name">Needs a stand</span><span class="col__badge">{{ orphanFiltered.length }}</span></div>
           <div class="col__body">
             <div class="card" *ngFor="let r of orphanFiltered" draggable="true" (dragstart)="startDrag(r.id, null, $event)" (dragend)="endDrag()">
               <ng-container *ngTemplateOutlet="cardTpl; context: { r: r }"></ng-container>
             </div>
-            <div class="col__empty" *ngIf="!orphanFiltered.length">All routes are grouped 🎉</div>
+            <div class="col__empty" *ngIf="!orphanFiltered.length">All routes have stands 🎉</div>
           </div>
         </section>
 
@@ -109,7 +109,7 @@ interface DriverOpt { user_id: number; name: string; phone?: string | null; }
                  (click)="createEmpty()">
           <div class="new-inner">
             <div class="new-plus">+</div>
-            <div class="new-t">New group</div>
+            <div class="new-t">New stand</div>
             <div class="new-s">or drop a route here</div>
           </div>
         </section>
@@ -279,31 +279,31 @@ export class RouteGroupsBoardComponent implements OnInit, OnDestroy {
   }
 
   private createFromDrop(routeId: number, fromId: number | null): void {
-    const name = (prompt('Name the new group') || '').trim();
+    const name = (prompt('Name the new stand') || '').trim();
     if (!name || this.cityId == null) { this.load(); return; }
     this.api.post<{ route_group: GroupRow }>(`/admin/cities/${this.cityId}/route-groups`, { name, route_ids: [routeId] }).subscribe({
       next: () => {
         const from = fromId != null ? this.groups.find((g) => g.id === fromId) : null;
         if (from) { from.route_ids = from.route_ids.filter((id) => id !== routeId); this.persist([from]); }
-        else { this.toast.success('Group created.'); this.load(); }
+        else { this.toast.success('Stand created.'); this.load(); }
       },
-      error: (e) => { this.toast.error(e?.error?.message || 'Could not create group.'); this.load(); },
+      error: (e) => { this.toast.error(e?.error?.message || 'Could not create stand.'); this.load(); },
     });
   }
 
   createEmpty(): void {
     if (this.cityId == null) return;
-    const name = (prompt('Name the new group') || '').trim();
+    const name = (prompt('Name the new stand') || '').trim();
     if (!name) return;
     this.api.post(`/admin/cities/${this.cityId}/route-groups`, { name }).subscribe({
-      next: () => { this.toast.success('Group created.'); this.load(); },
-      error: (e) => { this.toast.error(e?.error?.message || 'Could not create group.'); },
+      next: () => { this.toast.success('Stand created.'); this.load(); },
+      error: (e) => { this.toast.error(e?.error?.message || 'Could not create stand.'); },
     });
   }
 
   rename(g: GroupRow): void {
     if (this.cityId == null) return;
-    const name = (prompt('Rename group', g.name) || '').trim();
+    const name = (prompt('Rename stand', g.name) || '').trim();
     if (!name || name === g.name) return;
     this.api.patch(`/admin/cities/${this.cityId}/route-groups/${g.id}`, { name, route_ids: g.route_ids }).subscribe({
       next: () => { this.toast.success('Renamed.'); this.load(); },
@@ -313,7 +313,7 @@ export class RouteGroupsBoardComponent implements OnInit, OnDestroy {
 
   remove(g: GroupRow): void {
     if (this.cityId == null) return;
-    if (!confirm(`Delete "${g.name}"? Its routes go back to "Needs a group" unless another group holds them.`)) return;
+    if (!confirm(`Delete "${g.name}"? Its routes go back to "Needs a stand" unless another stand holds them.`)) return;
     this.api.delete(`/admin/cities/${this.cityId}/route-groups/${g.id}`).subscribe({
       next: () => { this.toast.success('Deleted.'); this.load(); },
       error: (e) => { this.toast.error(e?.error?.message || 'Could not delete.'); },

@@ -70,9 +70,9 @@ export class MasterGroupEditorComponent implements OnChanges {
         this.saving = false;
         if (tab === 'routes') { this.name = this.initialName = name; this.initialRoutes = routeIds; }
         else this.initialDrivers = driverIds;
-        this.toast.success(tab === 'routes' ? 'Group routes updated' : 'Group drivers updated'); this.saved.emit();
+        this.toast.success(tab === 'routes' ? 'Stand routes updated' : 'Stand drivers updated'); this.saved.emit();
       },
-      error: (error) => { this.saving = false; this.toast.error(error?.error?.message || 'Could not save group changes'); },
+      error: (error) => { this.saving = false; this.toast.error(error?.error?.message || 'Could not save stand changes'); },
     });
   }
 }

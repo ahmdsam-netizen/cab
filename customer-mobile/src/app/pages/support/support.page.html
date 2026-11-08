@@ -1,90 +1,51 @@
-<ion-header class="ion-no-border">
-  <ion-toolbar class="pg-toolbar">
-    <ion-buttons slot="start">
-      <ion-back-button defaultHref="/customer-tabs/go"></ion-back-button>
-    </ion-buttons>
-    <ion-title class="pg-brandtitle"><span class="b-white">Dream</span><span class="b-green">Cabs</span></ion-title>
-    <ion-buttons slot="end">
-      <ion-button class="dc-press" (click)="load()" aria-label="Reload">
-        <ion-icon name="refresh-outline" slot="icon-only"></ion-icon>
-      </ion-button>
-    </ion-buttons>
-  </ion-toolbar>
-
-  <div class="pg-hero">
-    <h1 class="pg-title">Help &amp; Support</h1>
-    <p class="pg-subtitle">Reach customer support, browse common questions, or report an issue.</p>
-  </div>
-</ion-header>
-
-<ion-content class="pg-content">
-  <div class="pg-body pg-anim-body">
-    <div class="pg-card" *ngIf="loading">
-      <div class="dc-skeleton" style="height:46px;margin-bottom:10px"></div>
-      <div class="dc-skeleton" style="height:46px;margin-bottom:10px"></div>
-      <div class="dc-skeleton" style="height:46px"></div>
-    </div>
-
-    <ng-container *ngIf="!loading">
-      <ng-container *ngIf="hasChannels">
-        <p class="dc-section">Contact us</p>
-        <div class="dc-list">
-          <button class="dc-row dc-press" *ngIf="effectivePhone" (click)="call(effectivePhone)">
-            <span class="dc-row__icon"><ion-icon name="headset-outline"></ion-icon></span>
-            <span class="dc-row__text"><strong>Customer support</strong><small>{{ effectivePhone }}</small></span>
-            <ion-icon class="dc-row__chev" name="call-outline"></ion-icon>
-          </button>
-          <button class="dc-row dc-press" *ngIf="support?.support_email" (click)="email(support?.support_email)">
-            <span class="dc-row__icon"><ion-icon name="mail-outline"></ion-icon></span>
-            <span class="dc-row__text"><strong>Email us</strong><small>{{ support?.support_email }}</small></span>
-            <ion-icon class="dc-row__chev" name="chevron-forward-outline"></ion-icon>
-          </button>
-        </div>
-      </ng-container>
-
-      <ng-container *ngIf="support?.emergency_police_no">
-        <p class="dc-section">Emergency</p>
-        <div class="dc-list">
-          <button class="dc-row dc-press" (click)="call(support?.emergency_police_no)">
-            <span class="dc-row__icon dc-row__icon--danger"><ion-icon name="shield-half-outline"></ion-icon></span>
-            <span class="dc-row__text"><strong>Police / Emergency</strong><small>{{ support?.emergency_police_no }}</small></span>
-            <ion-icon class="dc-row__chev" name="call-outline"></ion-icon>
-          </button>
-        </div>
-      </ng-container>
-
-      <div class="pg-card" *ngIf="error">
-        <div class="dc-empty" style="padding:24px 8px">
-          <div class="dc-empty__icon"><ion-icon name="cloud-offline-outline"></ion-icon></div>
-          <strong>Couldn&rsquo;t load support info</strong>
-          <span>{{ error }}</span>
-          <button class="dc-cta dc-cta--ghost dc-press" style="margin-top:14px;width:auto;padding:0 20px;height:44px" (click)="load()">
-            <ion-icon name="refresh-outline"></ion-icon> Try again
-          </button>
-        </div>
+<ion-content class="safety-content">
+  <main class="safety-page">
+    <header><div><h1>Safety centre</h1><p>Help is always one tap away.</p></div><button class="refresh" (click)="load(); loadContacts()" aria-label="Refresh safety information"><ion-icon name="refresh-outline"></ion-icon></button></header>
+    <button class="sos-card" (click)="emergency()" [disabled]="!support?.emergency_no">
+      <span><strong>Emergency SOS</strong><small>{{ loading ? 'Loading emergency number…' : support?.emergency_no ? 'Call emergency services · ' + support?.emergency_no : 'Emergency number not configured' }}</small></span>
+      <span class="sos-icon"><ion-icon name="warning-outline" aria-hidden="true"></ion-icon></span>
+    </button>
+    <button class="police-card" (click)="police()" [disabled]="!support?.emergency_police_no">
+      <span class="police-icon"><ion-icon name="shield-outline" aria-hidden="true"></ion-icon></span>
+      <span><strong>Police</strong><small>{{ loading ? 'Loading police number…' : support?.emergency_police_no || 'Police number not configured' }}</small></span>
+      <ion-icon name="call-outline" aria-hidden="true"></ion-icon>
+    </button>
+    <section class="support-section" *ngIf="effectivePhone || support?.support_email">
+      <h2>Help and support</h2>
+      <div class="protection-card">
+        <button *ngIf="effectivePhone" (click)="call(effectivePhone)"><ion-icon name="headset-outline" aria-hidden="true"></ion-icon><span>Call customer support</span><ion-icon name="call-outline" aria-hidden="true"></ion-icon></button>
+        <button *ngIf="support?.support_email" (click)="email(support?.support_email)"><ion-icon name="mail-outline" aria-hidden="true"></ion-icon><span>Email support</span><ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon></button>
       </div>
-
-      <div class="pg-card sup-report">
-        <div class="sup-report__icon"><ion-icon name="flag-outline"></ion-icon></div>
-        <strong>Report a problem</strong>
-        <span>Tell us what went wrong and we&rsquo;ll get back to you over email.</span>
-        <button class="dc-cta dc-cta--dark dc-press" (click)="report()">
-          <ion-icon name="create-outline"></ion-icon> Report a problem
-        </button>
+    </section>
+    <section aria-labelledby="contacts-title">
+      <h2 id="contacts-title">Trusted contacts</h2>
+      <a class="contacts-card" routerLink="/customer-tabs/emergency-contacts">
+        <span class="contact-icon"><ion-icon name="person-outline" aria-hidden="true"></ion-icon></span>
+        <span><strong>{{ contactsError ? 'Manage trusted contacts' : contactsCount === null ? 'Loading contacts…' : contactsCount === 0 ? 'Add trusted contacts' : contactsCount + (contactsCount === 1 ? ' contact added' : ' contacts added') }}</strong><small>{{ contactsError ? 'Open contacts to view your saved people' : 'Keep your emergency contacts up to date' }}</small></span>
+        <ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+      </a>
+    </section>
+    <section aria-labelledby="protection-title">
+      <h2 id="protection-title">Trip protection</h2>
+      <div class="protection-card">
+        <a routerLink="/customer-tabs/trips"><ion-icon name="navigate-outline" aria-hidden="true"></ion-icon><span>Live ride tracking</span><small>View ride</small><ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon></a>
+        <a routerLink="/customer-tabs/trips"><ion-icon name="car-outline" aria-hidden="true"></ion-icon><span>Driver and vehicle details</span><ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon></a>
+        <a routerLink="/customer-tabs/trips"><ion-icon name="key-outline" aria-hidden="true"></ion-icon><span>Boarding code check</span><ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon></a>
       </div>
-
-      <p class="dc-section">Frequently asked</p>
-      <div class="pg-card sup-faqcard">
-        <ion-accordion-group class="sup-faq">
-          <ion-accordion *ngFor="let f of faqs" [value]="f.q">
-            <ion-item slot="header" lines="none" class="sup-faq__head">
-              <span class="sup-faq__qicon"><ion-icon name="help-circle-outline"></ion-icon></span>
-              <ion-label>{{ f.q }}</ion-label>
-            </ion-item>
-            <div slot="content" class="sup-faq__body">{{ f.a }}</div>
-          </ion-accordion>
-        </ion-accordion-group>
-      </div>
-    </ng-container>
-  </div>
+      <p class="section-note">Open your booked ride for available safety tools and ride SOS.</p>
+    </section>
+    <section aria-labelledby="report-title">
+      <h2 id="report-title">Report a problem</h2>
+      <div class="report-grid"><button *ngFor="let issue of issues" (click)="report(issue.label)" [disabled]="!support?.support_email"><ion-icon [name]="issue.icon" aria-hidden="true"></ion-icon><strong>{{ issue.label }}</strong></button></div>
+      <p class="section-note">{{ support?.support_email ? 'Choose an issue to email support. Add your booking details before sending.' : loading ? 'Loading reporting options…' : 'Email reporting is unavailable. Use an available support option above.' }}</p>
+    </section>
+    <section><h2>Common questions</h2><ion-accordion-group><ion-accordion *ngFor="let f of faqs" [value]="f.q"><ion-item slot="header" lines="none"><ion-label>{{ f.q }}</ion-label></ion-item><p slot="content" class="faq-answer">{{ f.a }}</p></ion-accordion></ion-accordion-group></section>
+  </main>
 </ion-content>
+<ion-footer class="safety-footer"><nav aria-label="Customer navigation">
+  <a routerLink="/customer-tabs/go"><ion-icon name="home-outline" aria-hidden="true"></ion-icon><span>Home</span></a>
+  <a routerLink="/customer-tabs/trips"><ion-icon name="document-text-outline" aria-hidden="true"></ion-icon><span>Trips</span></a>
+  <a routerLink="/customer-tabs/go/voice"><ion-icon name="mic-outline" aria-hidden="true"></ion-icon><span>Voice</span></a>
+  <a routerLink="/customer-tabs/support" class="selected" aria-current="page"><ion-icon name="shield-checkmark-outline" aria-hidden="true"></ion-icon><span>Safety</span></a>
+  <a routerLink="/customer-tabs/profile"><ion-icon name="person-outline" aria-hidden="true"></ion-icon><span>Account</span></a>
+</nav></ion-footer>

@@ -1,3 +1,4 @@
+import { DriverTopbarComponent } from '../../shared/driver-topbar/driver-topbar.component';
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -8,7 +9,7 @@ import { TripSummaryModal } from './trip-summary.modal';
 import { StartOtpModal } from './start-otp.modal';
 
 @NgModule({
-  imports: [CommonModule, FormsModule, IonicModule, RidesPageRoutingModule],
+  imports: [DriverTopbarComponent, CommonModule, FormsModule, IonicModule, RidesPageRoutingModule],
   declarations: [RidesPage, TripSummaryModal, StartOtpModal],
 })
 export class RidesPageModule {}

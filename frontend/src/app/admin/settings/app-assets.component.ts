@@ -7,10 +7,10 @@ import { ApiService } from '../../core/api.service';
 import { ToastService } from '../../core/toast.service';
 import { ButtonComponent, IconComponent, IconName, ModalComponent } from '../../ui';
 
-type AssetKey = 'map_marker' | 'booking_card';
+type AssetKey = 'map_marker' | 'booking_card' | 'customer_marker';
 interface VehicleFamily { key: string; display_name: string; }
 interface FamilyAsset { id: number; display_name: string; key: AssetKey; image_url: string | null; }
-interface AssetsResponse { families: VehicleFamily[]; data: FamilyAsset[]; }
+interface AssetsResponse { families: VehicleFamily[]; data: FamilyAsset[]; customer_marker?: FamilyAsset | null; }
 
 @Component({
   selector: 'app-app-assets',
@@ -20,14 +20,28 @@ interface AssetsResponse { families: VehicleFamily[]; data: FamilyAsset[]; }
     <div class="page">
       <header class="hero">
         <h1>App Assets</h1>
-        <p>Upload each vehicle image once. It applies to <strong>all cities, Android, iOS and the admin dashboard</strong>.</p>
+        <p>Configure shared vehicle and customer map icons across <strong>all cities, Android, iOS and admin dashboards</strong>.</p>
       </header>
-      <div class="cue" *ngIf="loading">Loading vehicle images...</div>
+
+      <nav class="asset-tabs" role="tablist">
+        <button class="asset-tab" [class.is-active]="activeTab === 'vehicles'" (click)="activeTab = 'vehicles'" role="tab">
+          <tm-icon name="car" [size]="16" />
+          <span>Vehicle Icons</span>
+        </button>
+        <button class="asset-tab" [class.is-active]="activeTab === 'customer'" (click)="activeTab = 'customer'" role="tab">
+          <tm-icon name="user" [size]="16" />
+          <span>Customer Icon</span>
+        </button>
+      </nav>
+
+      <div class="cue" *ngIf="loading">Loading assets...</div>
       <div class="cue" *ngIf="loadError">
         <span>{{ loadError }}</span>
         <tm-button variant="outline" icon="refresh" (clicked)="loadAssets()">Retry</tm-button>
       </div>
-      <section class="layout" *ngIf="!loading && !loadError">
+
+      <!-- Vehicle Icons Tab -->
+      <section class="layout" *ngIf="activeTab === 'vehicles' && !loading && !loadError">
         <aside class="vehicles">
           <div class="search">
             <tm-icon name="search" [size]="16" />
@@ -66,9 +80,47 @@ interface AssetsResponse { families: VehicleFamily[]; data: FamilyAsset[]; }
           </ng-container>
         </main>
       </section>
+
+      <!-- Customer Icon Tab -->
+      <section class="customer-section" *ngIf="activeTab === 'customer' && !loading && !loadError">
+        <div class="customer-card">
+          <header class="assets-head">
+            <h2>Customer Marker Icon</h2>
+            <tm-button variant="outline" icon="refresh" [disabled]="busy" (clicked)="loadAssets()">Refresh</tm-button>
+          </header>
+          <div class="slots" style="grid-template-columns: 1fr;">
+            <article class="slot">
+              <input #customerFileInput type="file" accept="image/png,image/jpeg,image/gif,image/svg+xml,image/webp"
+                hidden (change)="onCustomerFileSelect($event)" />
+              <div class="preview" *ngIf="customerAsset as asset">
+                <img [src]="asset.image_url" alt="Customer Marker" />
+                <tm-button variant="outline" icon="edit" [disabled]="busy" (clicked)="customerFileInput.click()">Replace</tm-button>
+                <tm-button variant="danger" icon="trash" [disabled]="busy" (clicked)="assetToDelete = asset">Delete</tm-button>
+              </div>
+              <div class="preview default-preview" *ngIf="!customerAsset">
+                <div class="dot-preview-box">
+                  <span class="preview-dot-pulse"></span>
+                  <span class="preview-dot"></span>
+                </div>
+                <div class="default-desc">
+                  <strong>Default: Location Dot</strong>
+                  <p>No custom icon uploaded. The customer app currently displays the default pulsing location dot.</p>
+                </div>
+                <tm-button variant="green" icon="upload" [disabled]="busy" (clicked)="customerFileInput.click()">Upload Customer Icon</tm-button>
+              </div>
+              <small>Transparent PNG or SVG. If removed, the customer app seamlessly falls back to the default location dot.</small>
+            </article>
+          </div>
+          <p class="saving" *ngIf="busy">Saving changes...</p>
+        </div>
+      </section>
     </div>
+
     <tm-modal [open]="!!assetToDelete" title="Delete shared image" (closed)="assetToDelete = null">
-      <div slot="body"><p>Delete this image for <strong>all cities and both Android and iOS</strong>? The apps will use their default image.</p></div>
+      <div slot="body">
+        <p *ngIf="assetToDelete?.key === 'customer_marker'">Delete the customer marker icon? The customer app will immediately use the default location dot.</p>
+        <p *ngIf="assetToDelete?.key !== 'customer_marker'">Delete this image for <strong>all cities and both Android and iOS</strong>? The apps will use their default image.</p>
+      </div>
       <div slot="footer">
         <tm-button variant="ghost" [disabled]="busy" (clicked)="assetToDelete = null">Cancel</tm-button>
         <tm-button variant="danger" [disabled]="busy" (clicked)="deleteAsset()">Delete</tm-button>
@@ -79,6 +131,16 @@ interface AssetsResponse { families: VehicleFamily[]; data: FamilyAsset[]; }
     .page { display:flex; flex-direction:column; gap:16px; }
     h1 { margin:0; font-size:22px; } h2 { margin:0; font-size:18px; }
     p, small { color:var(--tm-text-muted); } .hero p { margin:6px 0; }
+    .asset-tabs { display:flex; gap:8px; border-bottom:1px solid var(--tm-line); padding-bottom:8px; }
+    .asset-tab { display:flex; align-items:center; gap:8px; padding:8px 16px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--tm-text-muted); cursor:pointer; font-weight:600; font-size:14px; transition:all .15s ease; }
+    .asset-tab.is-active { background:var(--tm-surface); color:var(--tm-text); border-color:var(--tm-line); box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+    .customer-section { display:flex; flex-direction:column; gap:16px; width:100%; }
+    .customer-card { background:var(--tm-surface); border:1px solid var(--tm-line); border-radius:14px; padding:20px; width:100%; box-sizing:border-box; }
+    .default-preview { display:flex; align-items:center; gap:16px; padding:12px; background:var(--tm-canvas); border-radius:10px; }
+    .dot-preview-box { position:relative; width:44px; height:44px; display:flex; align-items:center; justify-content:center; background:#ffffff; border-radius:10px; border:1px solid var(--tm-line); }
+    .preview-dot { width:16px; height:16px; border-radius:50%; background:#2563EB; border:3px solid #ffffff; box-shadow:0 2px 5px rgba(0,0,0,0.25); z-index:2; position:relative; }
+    .preview-dot-pulse { position:absolute; width:28px; height:28px; border-radius:50%; border:2px solid #2563EB; opacity:0.6; z-index:1; }
+    .default-desc { flex:1; min-width:0; } .default-desc strong { display:block; font-size:13px; color:var(--tm-text); } .default-desc p { margin:2px 0 0; font-size:12px; }
     .layout { display:grid; grid-template-columns:280px 1fr; gap:16px; align-items:start; }
     .vehicles, .assets { background:var(--tm-surface); border:1px solid var(--tm-line); border-radius:14px; padding:16px; }
     .vehicles { display:flex; flex-direction:column; gap:8px; max-height:70vh; overflow:auto; }
@@ -97,8 +159,10 @@ interface AssetsResponse { families: VehicleFamily[]; data: FamilyAsset[]; }
   `],
 })
 export class AppAssetsComponent implements OnInit, OnDestroy {
+  activeTab: 'vehicles' | 'customer' = 'vehicles';
   families: VehicleFamily[] = [];
   assets: FamilyAsset[] = [];
+  customerAsset: FamilyAsset | null = null;
   selectedFamily: VehicleFamily | null = null;
   assetToDelete: FamilyAsset | null = null;
   search = '';
@@ -132,6 +196,7 @@ export class AppAssetsComponent implements OnInit, OnDestroy {
       next: res => {
         this.families = res.families || [];
         this.assets = res.data || [];
+        this.customerAsset = res.customer_marker ?? this.assets.find(a => a.display_name === 'customer' && a.key === 'customer_marker') ?? null;
         this.selectedFamily = this.families.find(f => f.key === selected) || this.families[0] || null;
         this.loading = false;
       },
@@ -157,11 +222,40 @@ export class AppAssetsComponent implements OnInit, OnDestroy {
       error: err => { this.busy = false; this.toast.error(err.error?.message || 'Could not upload image'); },
     }));
   }
+  onCustomerFileSelect(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || this.busy) return;
+    if (file.size > 4 * 1024 * 1024) { this.toast.error('Choose an image smaller than 4 MB.'); return; }
+    const form = new FormData();
+    form.append('display_name', 'customer');
+    form.append('key', 'customer_marker');
+    form.append('image', file);
+    this.busy = true;
+    this.subscriptions.add(this.api.postMultipart('/admin/app-assets', form).subscribe({
+      next: () => {
+        this.busy = false;
+        this.toast.success('Customer marker icon saved for all cities and apps');
+        this.loadAssets();
+      },
+      error: err => {
+        this.busy = false;
+        this.toast.error(err.error?.message || 'Could not upload customer marker icon');
+      },
+    }));
+  }
   deleteAsset(): void {
     if (!this.assetToDelete || this.busy) return;
     this.busy = true;
     this.subscriptions.add(this.api.delete(`/admin/app-assets/${this.assetToDelete.id}`).subscribe({
-      next: () => { this.busy = false; this.assetToDelete = null; this.toast.success('Image deleted for all cities and apps'); this.loadAssets(); },
+      next: () => {
+        this.busy = false;
+        const wasCustomer = this.assetToDelete?.key === 'customer_marker';
+        this.assetToDelete = null;
+        this.toast.success(wasCustomer ? 'Customer marker icon deleted' : 'Image deleted for all cities and apps');
+        this.loadAssets();
+      },
       error: err => { this.busy = false; this.toast.error(err.error?.message || 'Could not delete image'); },
     }));
   }

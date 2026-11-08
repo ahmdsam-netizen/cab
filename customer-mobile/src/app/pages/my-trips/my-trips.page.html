@@ -1,0 +1,48 @@
+<ion-content class="my-trips-content">
+  <main class="trips-page">
+    <header class="trips-heading">
+      <h1>My trips</h1>
+      <button type="button" (click)="refresh()" [disabled]="loading" aria-label="Refresh trips"><ion-icon name="refresh-outline" aria-hidden="true"></ion-icon></button>
+    </header>
+    <nav class="trips-tabs" aria-label="Trip categories">
+      <button *ngFor="let item of tabs" type="button" [class.selected]="tab === item.id" [attr.aria-pressed]="tab === item.id" (click)="tab = item.id">{{ item.title }}</button>
+    </nav>
+
+    <ng-container *ngFor="let source of sources">
+      <div class="feed-error" *ngIf="feeds[source].error" role="alert">
+        <span>{{ feeds[source].error }}</span><button type="button" (click)="retry(source)" [disabled]="feeds[source].loading">Retry</button>
+      </div>
+    </ng-container>
+    <div class="trips-loading" *ngIf="loading" role="status"><ion-spinner name="crescent"></ion-spinner><span>Loading your trips…</span></div>
+    <section class="trips-list" aria-label="Bookings" [attr.aria-busy]="loading">
+      <h2 *ngIf="tab === 'past' && cards.length">Past rides</h2>
+      <ng-container *ngFor="let card of cards; let index = index; trackBy: trackCard">
+      <h2 class="journey-section-title" *ngIf="tab === 'journeys' && (index === 0 || card.past !== cards[index - 1].past)">{{ card.past ? 'Past rides' : 'Your next rides' }}</h2>
+      <article class="trip-card">
+        <div class="trip-card-heading"><h2>{{ card.title }}</h2><span class="status" [class.status--muted]="card.status === 'CANCELLED' || card.status === 'EXPIRED'" [class.status--warning]="card.status === 'NO_SHOW' || card.status === 'PAYMENT_PENDING' || card.status === 'PENDING_DRIVER_APPROVAL'">{{ card.label }}</span></div>
+        <p class="trip-route" *ngIf="card.route">{{ card.route }}</p>
+        <p class="trip-meta"><span>{{ names[card.source] }}</span><span *ngIf="dateLabel(card.date)">{{ dateLabel(card.date) }}</span><span *ngIf="card.seats">{{ card.seats }}</span></p>
+        <p class="trip-meta" *ngIf="card.fare != null || card.payment"><strong *ngIf="card.fare != null">{{ card.fare | currency:card.currency:'symbol':'1.0-2' }}</strong><span *ngIf="card.payment" class="payment-method">{{ methodLabel(card.payment) }}</span></p>
+        <p class="refund" *ngIf="card.refund">Refund: {{ card.refund }}</p>
+        <a [routerLink]="card.link" [queryParams]="card.source === 'shuttle' ? { bookingId: card.id } : {}" [class.primary-action]="!card.past" [class.details-action]="card.past">{{ card.action }}<ion-icon *ngIf="card.past" name="chevron-forward-outline" aria-hidden="true"></ion-icon></a>
+      </article>
+      </ng-container>
+    </section>
+    <section class="empty-state" *ngIf="!loading && !cards.length">
+      <ion-icon name="document-text-outline" aria-hidden="true"></ion-icon>
+      <h2>{{ hasErrors ? 'Some trips could not be loaded' : hasMore ? 'No matching trips loaded yet' : tab === 'journeys' ? 'Your journeys start here' : tab === 'past' ? 'No past rides yet' : tab === 'prebooked' ? 'No pre-booked rides' : 'No upcoming rides' }}</h2>
+      <p>{{ hasErrors ? 'Retry above to check your bookings.' : hasMore ? 'Load more to check your other bookings.' : 'Your bookings will appear here when you book a ride.' }}</p>
+      <a routerLink="/customer-tabs/go" class="primary-action">Book a ride</a>
+    </section>
+    <button class="load-more" type="button" *ngIf="hasMore" [disabled]="loading" (click)="loadMore()">{{ loading ? 'Loading…' : 'Load more trips' }}</button>
+  </main>
+</ion-content>
+<ion-footer class="trips-footer">
+  <nav aria-label="Customer navigation">
+    <a routerLink="/customer-tabs/go"><ion-icon name="home-outline" aria-hidden="true"></ion-icon><span>Home</span></a>
+    <a routerLink="/customer-tabs/trips" class="selected" aria-current="page"><ion-icon name="document-text-outline" aria-hidden="true"></ion-icon><span>Trips</span></a>
+    <a routerLink="/customer-tabs/go/voice"><ion-icon name="mic-outline" aria-hidden="true"></ion-icon><span>Voice</span></a>
+    <a routerLink="/customer-tabs/support"><ion-icon name="shield-checkmark-outline" aria-hidden="true"></ion-icon><span>Safety</span></a>
+    <a routerLink="/customer-tabs/profile"><ion-icon name="person-outline" aria-hidden="true"></ion-icon><span>Account</span></a>
+  </nav>
+</ion-footer>

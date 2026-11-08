@@ -10,9 +10,15 @@
   --padding-end: 0;
   color: #fff;
   font-size: 1.25rem;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   margin: 0;
+
+  ion-icon {
+    width: 24px;
+    height: 24px;
+    font-size: 24px;
+  }
 }
 
 /* Pick-address map popup title — plain visible title (not the hidden brand). */
@@ -1236,6 +1242,7 @@
 }
 
 .pf-service-item {
+  .pf-service-item__image { width: 36px; height: 30px; object-fit: contain; flex-shrink: 0; }
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1976,3 +1983,29 @@ ion-modal.pf-city-modal-white {
 .pf-vehicle-photo--model { width: 56px; height: 40px; flex-shrink: 0; margin-bottom: 0; }
 .pf-registered-photo { display: flex; justify-content: center; padding: 12px 16px; }
 .pf-registered-photo img { width: 160px; height: 100px; object-fit: contain; }
+/* Client reference 11: Account overview; existing edit/onboarding forms retained. */
+.account-reference { max-width: 540px; margin: auto; padding: 4px 0 28px; color: #102b3d; }.account-identity { display: flex; align-items: center; gap: 12px; padding: 6px 0 14px; }.account-identity img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 1px solid #d8e6df; }.account-identity > div { flex: 1; min-width: 0; }.account-identity h1 { font-size: 18px; font-weight: 750; margin: 0 0 4px; overflow-wrap: anywhere; }.account-identity p { color: #657789; font-size: 12px; margin: 0; }.account-identity button { width: 44px; height: 44px; flex-shrink: 0; border: 0; background: #eef7f2; color: #078247; border-radius: 50%; font-size: 20px; }
+.account-links { margin-top: 12px; background: white; border: 1px solid #e2e9ee; border-radius: 15px; overflow: hidden; }.account-links button { display: flex; align-items: center; gap: 10px; padding: 11px 12px; min-height: 44px; width: 100%; border: 0; border-bottom: 1px solid #edf1f4; background: white; color: #233d50; text-align: left; }.account-links button:last-child { border-bottom: 0; }.account-links button > ion-icon:first-child { font-size: 21px; color: #5e7787; }.account-links button span { flex: 1; font-size: 14px; font-weight: 550; }.account-links button strong { color: #0a7945; font-size: 14px; }.account-links button > ion-icon:last-child { color: #91a1ac; font-size: 16px; }.account-links .account-logout, .account-links .account-logout > ion-icon:first-child { color: #b54343; }
+.pg-brandtitle.account-header-title { display: block; }
+.account-section-title { margin: 20px 2px 8px; font-size: 12px; font-weight: 700; color: #718592; text-transform: uppercase; letter-spacing: .5px; }
+.account-section-title + .account-links { margin-top: 0; }
+.pf-service-access {
+  overflow-wrap: anywhere;
+
+  &__note, &__group p, small { color: var(--ion-color-medium); font-size: 13px; }
+  &__group { margin-top: 16px; }
+  &__tabs { border-radius: 10px; background: #f1f5f9; }
+  ion-segment-button {
+    --color: #52657d;
+    --color-checked: #087f50;
+    --indicator-color: #e3f1eb;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: none;
+  }
+  ion-label span { margin-inline-start: 3px; }
+  ul { display: grid; gap: 6px; list-style: none; padding: 0; margin: 0; }
+  li { padding: 9px 12px; border-radius: 10px; background: #f1f5f9; color: #101a2c; font-size: 14px; font-weight: 600; }
+  small { display: block; margin-top: 3px; font-weight: 400; }
+}

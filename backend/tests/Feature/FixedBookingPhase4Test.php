@@ -200,6 +200,83 @@ class FixedBookingPhase4Test extends TestCase
         }
     }
 
+    private function approvedHoldWithAvailableCoupon(): \App\Models\FixedSeatHold
+    {
+        $couponId = DB::table('coupons')->insertGetId([
+            'city_id' => $this->route->city_id, 'title' => 'AFTER20', 'benefit_type' => 'discount',
+            'promo_type' => 'location_insensitive', 'discount_type' => 'percentage',
+            'discount_value' => 20, 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('coupon_assignments')->insert([
+            'coupon_id' => $couponId, 'user_id' => $this->customer->id, 'reason' => 'Verification',
+            'assigned_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $service = app(\App\Services\FixedSeatHoldService::class);
+        $hold = $service->createHold($this->customer, [
+            'route_departure_id' => $this->departure->id, 'seats' => 1,
+            'board_stop_id' => $this->pickupStop->id, 'drop_stop_id' => $this->dropStop->id,
+        ]);
+        $service->driverAcceptHold($this->driver, $hold);
+        Sanctum::actingAs($this->customer, ['act-as:customer']);
+        return $hold->fresh();
+    }
+
+    public function test_coupon_can_be_applied_and_removed_after_approval_without_releasing_seats(): void
+    {
+        $hold = $this->approvedHoldWithAvailableCoupon();
+        $expiry = $hold->expires_at->toISOString();
+        $labels = $hold->heldSeats()->pluck('label')->all();
+        $url = "/api/fixed/seat-holds/{$hold->id}/coupon";
+        $this->postJson($url, ['coupon_title' => 'AFTER20'])->assertOk()
+            ->assertJsonPath('hold.amount', 96)->assertJsonPath('hold.discount_amount', 24)
+            ->assertJsonPath('hold.coupon_title', 'AFTER20')->assertJsonPath('hold.status', 'ACCEPTED');
+        $this->assertSame($expiry, $hold->fresh()->expires_at->toISOString());
+        $this->assertSame($labels, $hold->heldSeats()->pluck('label')->all());
+        $this->assertNull(DB::table('coupon_assignments')->where('user_id', $this->customer->id)->value('used_at'));
+        $this->postJson($url, ['coupon_title' => null])->assertOk()
+            ->assertJsonPath('hold.amount', 120)->assertJsonPath('hold.discount_amount', 0)
+            ->assertJsonPath('hold.coupon_title', null);
+    }
+
+    public function test_hold_coupon_rejects_other_customers_and_invalid_codes_without_changing_fare(): void
+    {
+        $hold = $this->approvedHoldWithAvailableCoupon();
+        $url = "/api/fixed/seat-holds/{$hold->id}/coupon";
+        $this->postJson($url, ['coupon_title' => 'INVALID'])->assertStatus(422);
+        $this->assertSame(120.0, $hold->fresh()->amount);
+        $other = User::factory()->create();
+        $other->addRole('customer');
+        Sanctum::actingAs($other, ['act-as:customer']);
+        $this->postJson($url, ['coupon_title' => 'AFTER20'])->assertNotFound();
+        $this->assertSame(120.0, $hold->fresh()->amount);
+    }
+
+    public function test_hold_coupon_cannot_change_after_payment_starts_or_hold_expires(): void
+    {
+        $hold = $this->approvedHoldWithAvailableCoupon();
+        $url = "/api/fixed/seat-holds/{$hold->id}/coupon";
+        $hold->update(['razorpay_order_id' => 'order_started']);
+        $this->postJson($url, ['coupon_title' => 'AFTER20'])->assertStatus(409);
+        $hold->update(['razorpay_order_id' => null, 'expires_at' => now()->subSecond()]);
+        $this->postJson($url, ['coupon_title' => 'AFTER20'])->assertStatus(422);
+        $this->assertSame(120.0, $hold->fresh()->amount);
+    }
+
+    public function test_payment_confirms_the_coupon_amount_updated_after_driver_approval(): void
+    {
+        $hold = $this->approvedHoldWithAvailableCoupon();
+        $this->postJson("/api/fixed/seat-holds/{$hold->id}/coupon", ['coupon_title' => 'AFTER20'])->assertOk();
+        $hold->refresh()->update(['razorpay_order_id' => 'order_after_coupon']);
+        $gateway = Mockery::mock(RazorpayService::class);
+        $gateway->shouldReceive('verifyPaymentSignature')->once()->andReturn(true);
+        $reservation = app(\App\Services\FixedSeatHoldService::class)->confirmHold($this->customer, $hold->fresh(), [
+            'razorpay_order_id' => 'order_after_coupon', 'razorpay_payment_id' => 'pay_after_coupon',
+            'razorpay_signature' => 'test', 'booking_channel' => 'advance',
+        ], $gateway);
+        $this->assertSame(96.0, (float) $reservation->fare_amount);
+        $this->assertNotNull(DB::table('coupon_assignments')->where('user_id', $this->customer->id)->value('used_at'));
+    }
+
     private function verifyCouponConfirmation(float $tip): void
     {
         $couponId = DB::table('coupons')->insertGetId([

@@ -17,6 +17,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { AuthService } from './core/auth.service';
 import { PushService } from './core/push.service';
 import { GeolocationService } from './core/geolocation.service';
+import { AppAssetService } from './core/app-asset.service';
 
 @Component({
   selector: 'app-root',
@@ -45,9 +46,11 @@ export class AppComponent implements OnInit {
     private actionSheetCtrl: ActionSheetController,
     private popoverCtrl: PopoverController,
     private menuCtrl: MenuController,
+    private appAssets: AppAssetService,
   ) {}
 
   ngOnInit(): void {
+    this.appAssets.loadCustomerMarker();
     if (this.auth.isLoggedIn()) {
       void this.push.registerForUser();
       void this.geo.getCurrentPosition();

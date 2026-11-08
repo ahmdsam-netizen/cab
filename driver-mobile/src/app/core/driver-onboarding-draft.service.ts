@@ -29,11 +29,36 @@ const REGISTRATION_STORAGE_KEY = 'driver_registration_draft';
 
 @Injectable({ providedIn: 'root' })
 export class DriverOnboardingDraftService {
-  private photoFile: File | null = null;
+  private photoWrites: Promise<void> = Promise.resolve();
 
-  setProfile(profile: DriverOnboardingProfileDraft, photoFile: File | null): void {
+  private photoStore(mode: IDBTransactionMode, action: (store: IDBObjectStore) => IDBRequest): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const open = indexedDB.open('driver-onboarding-drafts', 1);
+      open.onupgradeneeded = () => { open.result.createObjectStore('photos'); };
+      open.onerror = () => reject(open.error);
+      open.onblocked = () => reject(new Error('Photo draft storage is unavailable.'));
+      open.onsuccess = () => {
+        const db = open.result;
+        const transaction = db.transaction('photos', mode);
+        const request = action(transaction.objectStore('photos'));
+        transaction.oncomplete = () => { db.close(); resolve(request.result); };
+        transaction.onabort = () => { db.close(); reject(transaction.error || new Error('Photo draft could not be saved.')); };
+        transaction.onerror = () => { /* onabort reports the failure. */ };
+      };
+    });
+  }
+
+  setPhotoFile(photoFile: File | null, ownerId: number): Promise<void> {
+    const write = this.photoWrites.catch(() => undefined).then(() => this.photoStore('readwrite', store => photoFile
+      ? store.put({ file: photoFile, name: photoFile.name, type: photoFile.type, lastModified: photoFile.lastModified }, ownerId)
+      : store.delete(ownerId))).then(() => undefined);
+    this.photoWrites = write;
+    return write;
+  }
+
+  async setProfile(profile: DriverOnboardingProfileDraft, photoFile: File | null, ownerId: number): Promise<void> {
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
-    this.photoFile = photoFile;
+    await this.setPhotoFile(photoFile, ownerId);
   }
 
   getProfile(): DriverOnboardingProfileDraft | null {
@@ -46,8 +71,11 @@ export class DriverOnboardingDraftService {
     }
   }
 
-  getPhotoFile(): File | null {
-    return this.photoFile;
+  async getPhotoFile(ownerId: number): Promise<File | null> {
+    await this.photoWrites.catch(() => undefined);
+    const saved = await this.photoStore('readonly', store => store.get(ownerId));
+    if (!saved?.file) return null;
+    return new File([saved.file], saved.name, { type: saved.type, lastModified: saved.lastModified });
   }
 
   setRegistration(draft: DriverRegistrationDraft): void {
@@ -68,9 +96,9 @@ export class DriverOnboardingDraftService {
     localStorage.removeItem(REGISTRATION_STORAGE_KEY);
   }
 
-  clear(): void {
+  async clear(ownerId: number): Promise<void> {
     localStorage.removeItem(PROFILE_STORAGE_KEY);
     this.clearRegistration();
-    this.photoFile = null;
+    await this.setPhotoFile(null, ownerId);
   }
 }

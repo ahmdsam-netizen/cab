@@ -6,7 +6,8 @@ import { ButtonComponent, IconComponent } from '../../ui';
 export type MasterSection = 'routes' | 'drivers' | 'route-groups' | 'vehicle-configuration';
 export type RouteGrouping = 'route-set' | 'city-area' | 'scope' | 'type' | 'all-routes' | 'routes';
 export interface MasterVehicle { image_url?: string | null; id: number; display_name: string; vehicle_type_id: number | null; vehicle_type_name?: string | null; max_people: number; luggage_capacity: number; is_active: boolean; vehicle_set_id?: number | null; vehicle_set_ids?: number[]; mode_row_ids?: number[]; }
-export interface MasterRoute { id: number; name: string; scope: string; origin_name: string; dest_name: string; flat_fare: number | null; booking_window_hours: number | null; is_active: boolean; city_vehicle_type_id: number | null; stops?: { id: number }[]; }
+export interface MasterRouteStop { id: number; name?: string; seq?: number; lat?: number | null; lng?: number | null; }
+export interface MasterRoute { id: number; name: string; scope: string; origin_name: string; dest_name: string; flat_fare: number | null; booking_window_hours: number | null; is_active: boolean; city_vehicle_type_id: number | null; stops?: MasterRouteStop[]; origin_lat?: number; origin_lng?: number; dest_lat?: number; dest_lng?: number; path_polyline?: { lat: number; lng: number }[] | null; image_url?: string | null; }
 export interface MasterGroup { id: number; name: string; is_active: boolean; city_vehicle_type_id: number | null; route_ids: number[]; driver_user_ids: number[]; vehicle_set_ids?: number[]; }
 export interface MasterDriver { avatar_url?: string | null; id: number; user_id: number; name: string; phone: string | null; city_vehicle_type_id: number | null; vehicle_type_id: number | null; vehicle_reg_no: string | null; vehicle_model: string | null; vehicle_color: string | null; }
 export interface MasterAction { kind: 'add-route' | 'edit-route' | 'toggle-route' | 'import' | 'add-group' | 'edit-group' | 'group-drivers' | 'delete-group' | 'driver'; id?: number; vehicleId?: number | null; }
@@ -96,7 +97,7 @@ export class MasterExplorerComponent implements OnChanges {
         area.children.push({ key: `group:${scope}:${group.id}`, name: group.name, kind: 'group', scope, id: group.id, ids: routes.map(route => route.id), children: routes.map(route => this.routeNode(route)) });
       }
       const loose = this.scopedRoutes.filter(route => route.scope === scope && !this.groups.some(group => group.route_ids.includes(route.id)) && this.matches(`${route.name} ${route.origin_name} ${route.dest_name}`));
-      if (loose.length) area.children.push({ key: `loose:${scope}`, name: 'Ungrouped routes', kind: 'group', scope, ids: loose.map(route => route.id), children: loose.map(route => this.routeNode(route)) });
+      if (loose.length) area.children.push({ key: `loose:${scope}`, name: 'Routes without a stand', kind: 'group', scope, ids: loose.map(route => route.id), children: loose.map(route => this.routeNode(route)) });
       area.ids = [...new Set(area.children.flatMap(node => node.ids))];
       if (area.children.length) root.children.push({ key: scope, name: scope === 'local' ? 'Local' : 'Outstation', kind: 'scope', scope, ids: area.ids, children: [area] });
     }
@@ -116,7 +117,7 @@ export class MasterExplorerComponent implements OnChanges {
         if (members.length || (!group.route_ids.length && this.matches(group.name) && this.status === 'all')) root.children.push(branch(`group:${group.id}`, group.name, 'group', members, group.id));
       }
       const loose = routes.filter(route => !this.groups.some(group => group.route_ids.includes(route.id)));
-      if (loose.length) root.children.push(branch('loose', 'Ungrouped routes', 'group', loose));
+      if (loose.length) root.children.push(branch('loose', 'Routes without a stand', 'group', loose));
     } else if (this.grouping === 'city-area') {
       if (routes.length) root.children.push(branch('area', `${this.cityName || 'Selected city'} area`, 'area', routes));
     } else if (this.grouping === 'scope') {

@@ -41,6 +41,46 @@ class FixedRouteReimportUpdateTest extends TestCase
         Sanctum::actingAs($admin, ['act-as:admin']);
     }
 
+    public function test_endpoint_names_save_and_reopen_without_changing_geometry_or_stand_assignments(): void
+    {
+        $vehicle = DB::table('city_vehicle_types')->insertGetId(['city_id' => $this->cityId, 'display_name' => 'Name test vehicle', 'created_at' => now(), 'updated_at' => now()]);
+        $payload = [
+            'scope' => 'local', 'name' => 'Custom title', 'origin_name' => 'Original start', 'dest_name' => 'Original end',
+            'origin_lat' => 34.1, 'origin_lng' => 74.1, 'dest_lat' => 34.2, 'dest_lng' => 74.2,
+            'path_polyline' => [[34.1, 74.1], [34.2, 74.2]], 'city_vehicle_type_id' => $vehicle,
+            'fare_config' => ['seat_fare' => 199, 'commission_type' => 'percent', 'commission_percent' => 10],
+            'luggage_surcharge_amount' => 42, 'booking_window_hours' => 8, 'is_active' => false,
+            'stops' => [
+                ['name' => 'Original start', 'lat' => 34.1, 'lng' => 74.1, 'is_pickup' => true, 'is_drop' => false],
+                ['name' => 'Original end', 'lat' => 34.2, 'lng' => 74.2, 'is_pickup' => false, 'is_drop' => true],
+            ],
+        ];
+        $route = $this->postJson("/api/admin/cities/{$this->cityId}/fixed-routes", $payload)->assertCreated()->json('route');
+        $original = Route::findOrFail($route['id']);
+        $stopIds = $original->stops->pluck('id')->all();
+        $driver = User::factory()->create();
+        foreach (['Stand A', 'Stand B'] as $name) {
+            $stand = \App\Models\RouteGroup::query()->create(['city_id' => $this->cityId, 'name' => $name, 'city_vehicle_type_id' => $vehicle, 'is_active' => true]);
+            $stand->routes()->attach($original->id); $stand->drivers()->attach($driver->id);
+        }
+        $memberships = DB::table('route_group_route')->where('route_id', $original->id)->orderBy('route_group_id')->get()->toArray();
+        $drivers = DB::table('driver_route_group')->get()->toArray();
+        $payload['origin_name'] = $payload['stops'][0]['name'] = 'Renamed start';
+        $payload['dest_name'] = $payload['stops'][1]['name'] = 'Renamed end';
+        foreach ($stopIds as $index => $id) $payload['stops'][$index]['id'] = $id;
+        $this->patchJson("/api/admin/cities/{$this->cityId}/fixed-routes/{$original->id}", $payload)->assertOk();
+        $reopened = $this->getJson("/api/admin/cities/{$this->cityId}/fixed-routes")->assertOk()->json('data.0');
+        $this->assertSame('Renamed start', $reopened['origin_name']); $this->assertSame('Renamed end', $reopened['dest_name']);
+        $this->assertSame('Custom title', $reopened['name']);
+        $this->assertSame($stopIds, array_column($reopened['stops'], 'id'));
+        $this->assertSame(['Renamed start', 'Renamed end'], array_column($reopened['stops'], 'name'));
+        foreach (['origin_lat', 'origin_lng', 'dest_lat', 'dest_lng', 'path_polyline', 'city_vehicle_type_id', 'fare_config', 'luggage_surcharge_amount', 'booking_window_hours', 'is_active'] as $key) {
+            $this->assertEquals($original->$key, $original->fresh()->$key, $key);
+        }
+        $this->assertEquals($memberships, DB::table('route_group_route')->where('route_id', $original->id)->orderBy('route_group_id')->get()->toArray());
+        $this->assertEquals($drivers, DB::table('driver_route_group')->get()->toArray());
+    }
+
     public function test_reimport_replaces_line_and_stops_but_keeps_fare_and_retires_old_stops(): void
     {
         $route = Route::query()->create([

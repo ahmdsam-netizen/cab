@@ -1,5 +1,5 @@
 /**
- * Normalizes phone input for India-first DreamCabs flow.
+ * Normalizes phone input for India-first Cabbies flow.
  * - Strips spaces
  * * If already starts with +, returns as-is (after space trim)
  * * If 10 digits, assumes India mobile → +91

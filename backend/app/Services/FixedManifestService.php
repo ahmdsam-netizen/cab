@@ -102,9 +102,11 @@ class FixedManifestService
 
         $requestedPlatform = request()?->header('X-Platform', 'android') ?? 'android';
         $imageService = app(\App\Services\VehicleFamilyImageService::class);
+        $identity = app(FixedDepartureVehicleService::class)->identity($departure);
         $driverProfile = $departure->driver?->driver;
-        $vtName = $departure->cityVehicleType?->display_name
-            ?: ($driverProfile?->vehicle_model ?: ($driverProfile?->vehicle_type ?: ''));
+        $vtName = $identity['vehicle_name']
+            ?: ($departure->cityVehicleType?->display_name
+            ?: ($driverProfile?->vehicle_model ?: ($driverProfile?->vehicle_type ?: '')));
         $imagePayload = $imageService->resolveForVehicle(
             $cityId,
             $vtName,
@@ -125,6 +127,15 @@ class FixedManifestService
                 'seats_taken' => (int) $departure->seats_taken,
                 'map_marker_url' => $imagePayload['map_marker_url'],
                 'image_url' => $imagePayload['image_url'],
+                'vehicle' => [
+                    'type' => $identity['vehicle_type_name'] ?? null,
+                    'brand' => $identity['vehicle_brand'] ?? null,
+                    'model' => $identity['vehicle_model'] ?? null,
+                    'color' => $identity['vehicle_color'] ?? null,
+                    'reg_no' => $identity['vehicle_reg_no'] ?? null,
+                    'image_url' => $imagePayload['image_url'],
+                    'map_marker_url' => $imagePayload['map_marker_url'],
+                ],
                 'active_hold_count' => FixedSeatHold::query()
                     ->where('route_departure_id', $departure->id)
                     ->where('status', 'HELD')

@@ -240,6 +240,9 @@ import { ColumnComponent } from './column.component';
       display: flex;
       flex-direction: column;
     }
+    .tm-dt:has(.tm-dt__toolbar tm-filter-select button[aria-expanded="true"]) {
+      overflow: visible;
+    }
 
     /* ============ Toolbar ============ */
     .tm-dt__toolbar {
@@ -292,7 +295,7 @@ import { ColumnComponent } from './column.component';
     }
     .tm-dt__table th,
     .tm-dt__table td {
-      padding: 12px 16px;
+      padding: var(--tm-dt-cell-padding, 12px 16px);
       vertical-align: middle;
       text-align: left;
     }
@@ -533,7 +536,7 @@ import { ColumnComponent } from './column.component';
       }
       .tm-dt__table th,
       .tm-dt__table td {
-        padding: 10px 12px;
+        padding: var(--tm-dt-cell-padding, 10px 12px);
       }
       .tm-dt__footer {
         padding: var(--tm-space-3);

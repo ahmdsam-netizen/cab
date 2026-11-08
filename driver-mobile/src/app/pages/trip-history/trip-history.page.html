@@ -1,10 +1,12 @@
 <ion-header class="ion-no-border">
+  <app-driver-topbar></app-driver-topbar>
   <ion-toolbar class="pg-toolbar">
     <ion-buttons slot="start">
       <ion-back-button defaultHref="/tabs/dashboard"></ion-back-button>
     </ion-buttons>
+    <ion-title class="history-title">Ride History</ion-title>
     <ion-buttons slot="end">
-      <ion-button class="dc-press" (click)="refresh()" aria-label="Reload">
+      <ion-button class="dc-press" (click)="refresh()" [disabled]="loading" aria-label="Reload">
         <ion-icon name="refresh-outline" slot="icon-only"></ion-icon>
       </ion-button>
       <button class="pg-action dc-press" (click)="openFilters()">
@@ -17,12 +19,9 @@
 </ion-header>
 
 <ion-content class="pg-content">
-  <div class="pg-hero">
-    <h1 class="pg-title">Trip history</h1>
-    <p class="pg-subtitle">Your past rides.</p>
-  </div>
-
   <div class="pg-body pg-anim-body">
+    <div class="history-date-tabs" aria-label="Ride date range"><button type="button" [class.is-active]="range === 'today'" [attr.aria-pressed]="range === 'today'" (click)="setRange('today')">Today</button><button type="button" [class.is-active]="range === 'week'" [attr.aria-pressed]="range === 'week'" (click)="setRange('week')">This Week</button><button type="button" [class.is-active]="range === 'all'" [attr.aria-pressed]="range === 'all'" (click)="setRange('all')">All</button></div>
+    <section class="history-summary" *ngIf="!loading && !error" aria-label="History summary"><span>Completed fares shown</span><strong>₹{{ completedFaresShown | number:'1.0-2' }}</strong><small>{{ completedRidesShown }} completed ride{{ completedRidesShown === 1 ? '' : 's' }} · Current results</small></section>
     <!-- Error. -->
     <div *ngIf="error" class="dc-card th-error">
       <ion-icon name="alert-circle-outline"></ion-icon>
@@ -36,43 +35,12 @@
       <div class="dc-skeleton" style="height:140px"></div>
     </div>
 
-    <!-- Trips list. -->
-    <div *ngIf="!loading && filteredTrips.length" class="th-list dc-stagger">
-      <div *ngFor="let t of filteredTrips" class="dc-card dc-card--tap th-trip dc-press">
-        <!-- Top: badges. -->
-        <div class="th-badges">
-          <img *ngIf="t.image_url" class="th-vehicle-photo" [src]="t.image_url" [alt]="t.vehicle_name || 'Vehicle'" loading="lazy" (error)="t.image_url = null" />
-          <span class="dc-badge" [ngClass]="statusBadgeClass(t)">{{ statusLabel(t) }}</span>
-          <span *ngIf="paymentBadge(t) as pb" class="dc-badge" [ngClass]="paymentBadgeClass(pb.color)">{{ pb.label }}</span>
-        </div>
-
-        <!-- Addresses. -->
-        <div class="th-route">
-          <span class="th-route__dot th-route__dot--pickup"></span>
-          <span class="th-route__line"></span>
-          <span class="th-route__dot th-route__dot--drop"></span>
-
-          <div class="th-route__labels">
-            <p class="th-addr">{{ t.pickup_address || 'Pickup' }}</p>
-            <p class="th-addr th-addr--drop">{{ t.drop_address || 'Drop-off' }}</p>
-          </div>
-        </div>
-
-        <!-- Footer: date + fare. -->
-        <div class="th-foot">
-          <span class="th-date" *ngIf="dateDisplay(t) as d">
-            <ion-icon name="time-outline"></ion-icon>
-            {{ d | date:'dd MMM yyyy, HH:mm' }}
-          </span>
-          <span class="th-date" *ngIf="!dateDisplay(t)">
-            <ion-icon name="time-outline"></ion-icon>
-            No date
-          </span>
-          <span class="th-fare" *ngIf="fareDisplay(t) as f">{{ f }}</span>
-        </div>
-
-        <p *ngIf="t.cancelled_reason" class="th-reason">{{ t.cancelled_reason }}</p>
-      </div>
+    <div *ngIf="!loading && filteredTrips.length" class="history-reference-list">
+      <article *ngFor="let t of filteredTrips" class="history-reference-trip">
+        <div class="history-route-main"><div><strong>{{ t.pickup_address || 'Pickup' }} <ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon> {{ t.drop_address || 'Drop-off' }}</strong><small>{{ dateDisplay(t) ? (dateDisplay(t) | date:'dd MMM, h:mm a') : 'Date unavailable' }} · #{{ t.id }}</small></div><span class="history-amount" *ngIf="fareDisplay(t) as fare">{{ fare }}</span></div>
+        <div class="history-route-meta"><span class="dc-badge" [ngClass]="statusBadgeClass(t)">{{ statusLabel(t) }}</span><span *ngIf="paymentBadge(t) as pb" class="dc-badge" [ngClass]="paymentBadgeClass(pb.color)">{{ pb.label }}</span><span *ngIf="t.vehicle_name">{{ t.vehicle_name }}</span></div>
+        <details *ngIf="t.cancelled_reason" class="history-cancellation"><summary>Cancellation reason</summary><p class="th-reason">{{ t.cancelled_reason }}</p></details>
+      </article>
     </div>
 
     <!-- Empty state. -->

@@ -11,10 +11,12 @@ use App\Models\RouteDeparture;
 use App\Models\RouteStop;
 use App\Models\SeatReservation;
 use App\Models\Trip;
+use App\Events\FixedRouteCatalogUpdated;
 use App\Services\AutoRefundService;
 use App\Services\DynamicPricingService;
 use App\Services\FareEstimationService;
 use App\Services\FixedAvailabilityService;
+use App\Services\FixedDepartureService;
 use App\Services\FixedManifestService;
 use App\Services\FixedRefundService;
 use App\Services\GeoService;
@@ -310,6 +312,7 @@ class AdminTripsController
         TripStateMachineService $tripStateMachine,
         NotificationCenter $notifier,
         ShuttleRefundService $shuttleRefunds,
+        FixedDepartureService $fixedDepartures,
     ) {
         ManagerScope::assertCityAllowed((int) $trip->city_id);
 
@@ -318,6 +321,30 @@ class AdminTripsController
             'waive_fee' => ['nullable', 'boolean'],
             'cancelled_by' => ['nullable', 'string', 'in:operator,driver,customer,system'],
         ]);
+
+        // Fixed apps read departures and passenger reservations, not just trips.
+        // Use the same cancellation/refund path as the fixed vehicle screen.
+        $departure = $trip->route_departure_id
+            ? RouteDeparture::query()->with('route')->findOrFail($trip->route_departure_id)
+            : null;
+        if ($departure && $departure->route?->mode === 'fixed') {
+            if ($trip->status === 'COMPLETED') {
+                return response()->json(['message' => 'Trip is already completed or cancelled.'], 409);
+            }
+            $city = City::query()->findOrFail($trip->city_id);
+            $result = $fixedDepartures->cancelAdminDeparture($city, $departure, $request->user(), $data['reason']);
+            try {
+                broadcast(new FixedRouteCatalogUpdated((int) $city->id, (int) $departure->route_id, 'departure_cancelled'))->toOthers();
+            } catch (\Throwable $e) {
+                report($e);
+            }
+            return response()->json([
+                'message' => 'Fixed ride and active passenger bookings cancelled with full-refund handling.',
+                'trip' => $trip->fresh(),
+                'cancelled_passengers' => $result['cancelled_passengers'],
+                'refund_pending' => $result['refund_pending'],
+            ]);
+        }
 
         if (in_array($trip->status, ['COMPLETED', 'CANCELLED'], true)) {
             return response()->json(['message' => 'Trip is already completed or cancelled.'], 409);

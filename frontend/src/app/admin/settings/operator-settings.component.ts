@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
@@ -13,6 +13,12 @@ import {
 } from '../../ui';
 
 interface OperatorSettings {
+  private_service_name: string | null;
+  fixed_service_name: string | null;
+  shuttle_service_name: string | null;
+  private_service_image_url: string | null;
+  fixed_service_image_url: string | null;
+  shuttle_service_image_url: string | null;
   tips_enabled: boolean;
   customer_tip_value_1: number;
   customer_tip_value_2: number;
@@ -50,6 +56,8 @@ interface OperatorSettings {
   ride_cancellation_msg: string | null;
 }
 
+type ServiceMode = 'private' | 'fixed' | 'shuttle';
+
 type SectionKey =
   | 'tipping'
   | 'geofence'
@@ -57,6 +65,7 @@ type SectionKey =
   | 'wallet'
   | 'subscription'
   | 'services'
+  | 'serviceNames'
   | 'notifications'
   | 'templates';
 
@@ -65,6 +74,7 @@ interface RideMode {
   id: number;
   mode: 'private' | 'fixed' | 'shuttle' | string;
   name: string;
+  display_name?: string | null;
   is_active: boolean;
 }
 
@@ -313,6 +323,38 @@ interface SectionMeta {
 
             <!-- ============= SERVICES (ride catalogue) ============= -->
             <ng-container *ngIf="activeSection === 'services'">
+              <section class="svc-scope svc-names" aria-labelledby="service-names-title">
+                <h3 id="service-names-title">Service names and images</h3>
+                <p class="chan-note__sub">Names and images apply to Local and Outstation in every city. Leave a name blank to use the default. Images can be JPG, PNG or WebP up to 4 MB.</p>
+                <div class="svc-names__fields">
+                  <div class="svc-branding" *ngFor="let service of serviceBranding">
+                    <tm-input [label]="service.label + ' display name'" [placeholder]="service.label" [(ngModel)]="settings[service.nameField]" />
+                    <div class="svc-branding__preview">
+                      <input #imageInput hidden type="file" accept="image/jpeg,image/png,image/webp"
+                        [disabled]="saving.serviceNames" (change)="selectServiceImage(service.mode, $event)">
+                      <button type="button" class="svc-branding__image" [class.has-image]="serviceImagePreview(service.mode)"
+                        [disabled]="saving.serviceNames"
+                        [attr.aria-label]="(serviceImagePreview(service.mode) ? 'Replace ' : 'Add ') + service.label + ' image'"
+                        (click)="imageInput.click()">
+                        <img *ngIf="serviceImagePreview(service.mode) as preview; else defaultServiceImage" [src]="preview" alt="">
+                        <ng-template #defaultServiceImage>
+                          <span class="svc-branding__placeholder">
+                            <tm-icon name="image" size="22"></tm-icon>
+                            <span>Add image</span>
+                          </span>
+                        </ng-template>
+                      </button>
+                      <button *ngIf="serviceImagePreview(service.mode)" type="button" class="svc-branding__remove"
+                        [attr.aria-label]="'Use default ' + service.label + ' image'" title="Use default image"
+                        [disabled]="saving.serviceNames" (click)="setServiceImage(service.mode, null)">
+                        <tm-icon name="x" size="15"></tm-icon>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <tm-button variant="ink" icon="check" [loading]="saving.serviceNames" (clicked)="save('serviceNames')">Save service details</tm-button>
+              </section>
+
               <div class="chan-note">
                 <span class="chan-note__title">Switches apply to every city, in both apps, instantly</span>
                 <span class="chan-note__sub">These settings are global — turning a service off here hides it from the customer booking screen and from driver signup/profile in every city, not just the one selected above. Switching off Local or Outstation takes its three services with it. Every switch saves on its own — no Save button needed. At least one service must always stay on.</span>
@@ -335,7 +377,7 @@ interface SectionMeta {
 
                 <label class="switch-row svc-scope__mode" [class.svc-scope__mode--off]="!scope.is_active" *ngFor="let mode of scope.modes">
                   <span class="switch-row__text">
-                    <span class="switch-row__title">{{ mode.name }}</span>
+                    <span class="switch-row__title">{{ mode.display_name || mode.name }}</span>
                     <span class="switch-row__sub">{{ modeSub(mode) }}</span>
                   </span>
                   <span class="switch">
@@ -565,6 +607,32 @@ interface SectionMeta {
     .chan-note__sub { font-size: 11.5px; color: var(--tm-text-soft); line-height: 1.45; }
     .chan-note--error { color: var(--tm-red, #B42318); border-color: var(--tm-red, #B42318); }
     .svc-scope { border: 1px solid var(--tm-border, #E5E9EF); border-radius: 12px; padding: 4px 14px; margin-bottom: 12px; }
+    .svc-names { display: grid; gap: 10px; padding: 14px; }
+    .svc-names h3, .svc-names p { margin: 0; }
+    .svc-names h3 { font-size: 14px; }
+    .svc-names__fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); gap: 10px; }
+    .svc-branding { display: grid; align-content: start; gap: 8px; min-width: 0; }
+    .svc-branding__preview { position: relative; }
+    .svc-branding__image {
+      display: grid; place-items: center; width: 100%; height: 108px; padding: 8px;
+      border: 1px dashed var(--tm-line-2); border-radius: var(--tm-radius-md);
+      background: var(--tm-canvas-2); color: var(--tm-text-muted); cursor: pointer;
+    }
+    .svc-branding__image.has-image { border-style: solid; background: var(--tm-surface); }
+    .svc-branding__image:hover:not(:disabled) { border-color: var(--tm-green); color: var(--tm-green-deep); }
+    .svc-branding__image img { display: block; width: 100%; height: 90px; object-fit: contain; }
+    .svc-branding__placeholder { display: grid; justify-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+    .svc-branding__remove {
+      position: absolute; top: 6px; right: 6px; display: grid; place-items: center;
+      width: 28px; height: 28px; padding: 0; border: 1px solid var(--tm-line-2); border-radius: 50%;
+      background: var(--tm-surface); color: var(--tm-text); cursor: pointer;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .svc-branding__remove { opacity: 0; pointer-events: none; }
+      .svc-branding__preview:hover .svc-branding__remove,
+      .svc-branding__preview:focus-within .svc-branding__remove { opacity: 1; pointer-events: auto; }
+    }
+    .svc-names > tm-button { justify-self: start; }
     .svc-scope__head { border-bottom: 1px solid var(--tm-border, #E5E9EF); }
     .svc-scope__mode { padding-left: 18px; }
     .svc-scope__mode--off { opacity: 0.45; }
@@ -643,8 +711,14 @@ interface SectionMeta {
     }
   `],
 })
-export class OperatorSettingsComponent implements OnInit {
+export class OperatorSettingsComponent implements OnInit, OnDestroy {
   settings: OperatorSettings | null = null;
+  readonly serviceBranding = [
+    { mode: 'private', label: 'Private', nameField: 'private_service_name' },
+    { mode: 'fixed', label: 'Fixed', nameField: 'fixed_service_name' },
+    { mode: 'shuttle', label: 'Shuttle', nameField: 'shuttle_service_name' },
+  ] as const;
+  private readonly serviceImageEdits = new Map<ServiceMode, { file: File | null; preview: string | null }>();
   loading = false;
 
   activeSection: SectionKey = 'tipping';
@@ -667,6 +741,7 @@ export class OperatorSettingsComponent implements OnInit {
     wallet: false,
     subscription: false,
     services: false,
+    serviceNames: false,
     notifications: false,
     templates: false,
   };
@@ -718,6 +793,7 @@ export class OperatorSettingsComponent implements OnInit {
       'subscription_popup_button2',
     ],
     services: [], // per-toggle instant PATCH, not part of the settings form
+    serviceNames: ['private_service_name', 'fixed_service_name', 'shuttle_service_name'],
     // SMS keys dropped from the UI on purpose: SMS is OTP-only (login +
     // boarding, always on) so the old SMS toggles are dead switches.
     notifications: [
@@ -741,6 +817,40 @@ export class OperatorSettingsComponent implements OnInit {
         this.loadServices();
       }
     });
+  }
+
+  ngOnDestroy(): void {
+    this.clearServiceImageEdits();
+  }
+
+  serviceImagePreview(mode: ServiceMode): string | null {
+    const edit = this.serviceImageEdits.get(mode);
+    return edit ? edit.preview : this.settings?.[`${mode}_service_image_url`] ?? null;
+  }
+
+  selectServiceImage(mode: ServiceMode, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || this.saving.serviceNames) return;
+    if (file.size > 4 * 1024 * 1024) {
+      this.toast.error('Choose an image up to 4 MB.');
+      return;
+    }
+    this.setServiceImage(mode, file);
+  }
+
+  setServiceImage(mode: ServiceMode, file: File | null): void {
+    const oldPreview = this.serviceImageEdits.get(mode)?.preview;
+    if (oldPreview) URL.revokeObjectURL(oldPreview);
+    this.serviceImageEdits.set(mode, { file, preview: file ? URL.createObjectURL(file) : null });
+  }
+
+  private clearServiceImageEdits(): void {
+    for (const { preview } of this.serviceImageEdits.values()) {
+      if (preview) URL.revokeObjectURL(preview);
+    }
+    this.serviceImageEdits.clear();
   }
 
   get currentSection(): SectionMeta {
@@ -775,7 +885,7 @@ export class OperatorSettingsComponent implements OnInit {
   }
 
   save(section: SectionKey): void {
-    if (!this.settings) return;
+    if (!this.settings || this.saving[section]) return;
 
     // Block the save before it leaves the browser if it would disable every
     // payment method — the backend rejects it too, this just spares the round trip.
@@ -802,6 +912,12 @@ export class OperatorSettingsComponent implements OnInit {
         fd.append(field, String(raw));
       }
     }
+    if (section === 'serviceNames') {
+      for (const [mode, { file }] of this.serviceImageEdits) {
+        if (file) fd.append(`${mode}_service_image`, file);
+        else fd.append(`${mode}_remove_service_image`, '1');
+      }
+    }
 
     this.api
       .postMultipart<{ settings: OperatorSettings; message: string }>(
@@ -812,6 +928,10 @@ export class OperatorSettingsComponent implements OnInit {
         next: (res) => {
           this.saving[section] = false;
           this.settings = res.settings;
+          if (section === 'serviceNames') {
+            this.clearServiceImageEdits();
+            this.loadServices();
+          }
           this.toast.success(`${this.titleFor(section)} saved`);
         },
         error: (err) => {
@@ -825,6 +945,7 @@ export class OperatorSettingsComponent implements OnInit {
   }
 
   private titleFor(section: SectionKey): string {
+    if (section === 'serviceNames') return 'Service details';
     return this.sections.find((s) => s.key === section)?.label ?? 'Settings';
   }
 

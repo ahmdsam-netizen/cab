@@ -14,6 +14,7 @@ use App\Http\Controllers\LocationController;
 use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PricingController;
+use App\Http\Controllers\ServiceTileArtworkController;
 use App\Http\Controllers\ShuttleBookingsController;
 use App\Http\Controllers\ShuttleDriverController;
 use App\Http\Controllers\TripsController;
@@ -90,6 +91,7 @@ Route::get('/', function () {
 
 Route::get('/health', HealthController::class);
 Route::get('/app-banners', [AppBannerController::class, 'index']);
+Route::get('/app-assets/customer-marker', [\App\Http\Controllers\Admin\AdminAppAssetsController::class, 'customerMarker']);
 
 // Local place-search — fuzzy match against operator-seeded saved_locations.
 // Public (no auth) so the booking screen can call it before login and during
@@ -171,6 +173,8 @@ Route::post('/shuttle/quote', [PricingController::class, 'shuttleQuote'])->middl
 // Public lookup endpoints for the mobile booking UI.
 Route::get('/pricing/cities', [PricingController::class, 'cities']);
 Route::get('/pricing/cities/{city}/products', [PricingController::class, 'products']);
+Route::get('/pricing/service-tile-artwork/{rideType}/{version}', ServiceTileArtworkController::class)
+    ->whereNumber('rideType')->where('version', '[a-f0-9]{64}')->name('pricing.service-tile-artwork');
 Route::get('/pricing/ride-types', [PricingController::class, 'rideTypes']);
 Route::get('/pricing/vehicle-types', [PricingController::class, 'vehicleTypes']);
 Route::get('/pricing/outstation-packages', [PricingController::class, 'outstationPackages']);
@@ -230,6 +234,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/catalog/ride-types', [CatalogController::class, 'rideTypes']);
     Route::get('/catalog/vehicle-types', [CatalogController::class, 'vehicleTypes']);
     Route::get('/catalog/cities', [CatalogController::class, 'cities']);
+    Route::get('/catalog/cities/{city}/registration-stands', [DriversController::class, 'registrationStands']);
     Route::get('/catalog/cities/{city}/driver-ride-products', [CatalogController::class, 'driverRideProducts']);
     Route::get('/catalog/cities/{city}/vehicles', [CatalogController::class, 'cityVehicles']);
     Route::get('/catalog/fleets', [CatalogController::class, 'fleets']);
@@ -237,6 +242,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 });
 
 Route::middleware(['auth:sanctum', 'role:driver'])->group(function () {
+    Route::get('/drivers/me/service-access', [DriversController::class, 'serviceAccess']);
     Route::post('/drivers/documents', [DriversController::class, 'uploadDocument']);
     Route::delete('/drivers/documents/{document}', [DriversController::class, 'deleteDocument']);
     Route::get('/drivers/me/documents/{document}/file', [DriversController::class, 'meDocumentFile'])
@@ -274,7 +280,10 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::post('/admin/app-assets', [\App\Http\Controllers\Admin\AdminAppAssetsController::class, 'store'])->middleware(['manager.city', 'permission:app_assets']);
     Route::delete('/admin/app-assets/{asset}', [\App\Http\Controllers\Admin\AdminAppAssetsController::class, 'destroy'])->middleware(['manager.city', 'permission:app_assets']);
     Route::get('/admin/me', [AdminAuthController::class, 'me']);
+    Route::match(['post', 'put', 'patch'], '/admin/me/profile', [AdminAuthController::class, 'updateProfile']);
+    Route::match(['post', 'put', 'patch'], '/admin/me/password', [AdminAuthController::class, 'updatePassword']);
     Route::get('/admin/drivers', [AdminDriversController::class, 'index'])->middleware('permission:drivers');
+    Route::get('/admin/drivers/city-counts', [AdminDriversController::class, 'cityCounts'])->middleware('permission:drivers');
     Route::get('/admin/drivers/export', [AdminDriversController::class, 'exportCsv'])->middleware('permission:drivers');
     Route::get('/admin/drivers/leaderboard', [AdminDriversController::class, 'leaderboard'])->middleware('permission:drivers');
     Route::get('/admin/drivers/performance', [AdminDriversController::class, 'performance'])->middleware('permission:drivers');
@@ -359,6 +368,7 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     // when the caller's scoped to a different city.
     Route::middleware('manager.city')->group(function () {
         Route::get('/admin/cities/{city}', [AdminCitiesController::class, 'show']);
+        Route::get('/admin/cities/{city}/driver-stand-counts', [AdminDriversController::class, 'cityStands'])->middleware('permission:drivers');
         Route::patch('/admin/cities/{city}', [AdminCitiesController::class, 'update'])->middleware('permission:city_settings');
         Route::patch('/admin/cities/{city}/polygon', [AdminCitiesController::class, 'updatePolygon'])->middleware('permission:city_settings');
         Route::delete('/admin/cities/{city}', [AdminCitiesController::class, 'destroy'])->middleware('permission:city_settings');
@@ -567,6 +577,7 @@ Route::middleware(['auth:sanctum', 'role:customer'])->group(function () {
     Route::post('/fixed/coupon-preview', [FixedBookingsController::class, 'couponPreview'])->middleware('throttle:booking');
     Route::post('/fixed/seat-holds', [FixedBookingsController::class, 'storeSeatHold'])->middleware(['throttle:booking', 'idempotent']);
     Route::post('/fixed/seat-holds/{fixedSeatHold}/release', [FixedBookingsController::class, 'releaseSeatHold'])->middleware('throttle:booking');
+    Route::post('/fixed/seat-holds/{fixedSeatHold}/coupon', [FixedBookingsController::class, 'updateSeatHoldCoupon'])->middleware('throttle:booking');
     Route::post('/fixed/seat-holds/{fixedSeatHold}/razorpay-order', [FixedBookingsController::class, 'createSeatHoldRazorpayOrder'])->middleware(['throttle:booking', 'idempotent']);
     Route::post('/fixed/seat-holds/{fixedSeatHold}/confirm-payment', [FixedBookingsController::class, 'confirmSeatHoldPayment'])->middleware(['throttle:booking', 'idempotent']);
     Route::get('/fixed/bookings', [FixedBookingsController::class, 'index']);
@@ -638,6 +649,7 @@ Route::middleware(['auth:sanctum', 'role:admin', 'manager.city', 'permission:rid
     Route::post('/admin/cities/{city}/fixed-routes/import-kml-bulk', [AdminFixedRoutesController::class, 'bulkImportKml']);
     Route::post('/admin/cities/{city}/fixed-routes', [AdminFixedRoutesController::class, 'store']);
     Route::patch('/admin/cities/{city}/fixed-routes/{route}', [AdminFixedRoutesController::class, 'update']);
+    Route::post('/admin/cities/{city}/fixed-routes/{route}/copy', [AdminFixedRoutesController::class, 'copy']);
 
     // Route Groups — reusable bundles of fixed routes; the unit of driver route allocation.
     Route::post('/admin/cities/{city}/route-groups/setup', [AdminRouteGroupsController::class, 'setup']);

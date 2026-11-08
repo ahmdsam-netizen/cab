@@ -67,12 +67,17 @@ class FixedDriverSeatLayoutTest extends TestCase
 
     private function assignedDriver(int $routeId, ?int $vehicleTypeId = null): User
     {
+        $vehicleTypeId ??= $this->vehicleTypeId;
+        $vehicleId = DB::table('city_vehicle_types')->insertGetId(['city_id' => $this->cityId,
+            'vehicle_type_id' => $vehicleTypeId, 'display_name' => 'Driver vehicle '.$vehicleTypeId,
+            'is_active' => true, 'max_people' => 6, 'luggage_capacity' => 2]);
         $user = User::factory()->create();
         $user->addRole('driver');
         $driver = Driver::query()->create([
             'user_id' => $user->id,
             'city_id' => $this->cityId,
             'vehicle_type_id' => $vehicleTypeId,
+            'city_vehicle_type_id' => $vehicleId,
             'approval_status' => 'approved',
             'service_scope' => 'local',
             'service_mode' => 'fixed',
@@ -191,7 +196,7 @@ class FixedDriverSeatLayoutTest extends TestCase
         ])->assertStatus(422);
     }
 
-    public function test_layouts_falls_back_to_city_wide_when_no_layout_matches_the_vehicle(): void
+    public function test_layouts_rejects_when_no_layout_matches_the_vehicle(): void
     {
         // The driver's vehicle type has NO layout in this city, so the filter must
         // fall back to the full city list rather than lock them out.
@@ -204,10 +209,8 @@ class FixedDriverSeatLayoutTest extends TestCase
         $user = $this->assignedDriver($routeId, $lonelyTypeId);
 
         Sanctum::actingAs($user, ['act-as:driver']);
-        $res = $this->getJson("/api/fixed/driver/routes/{$routeId}/layouts")->assertOk();
-
-        $ids = collect($res->json('data'))->pluck('id')->all();
-        $this->assertContains($this->primaryLayoutId, $ids, 'falls back to the city Ertiga layout');
+        $this->getJson("/api/fixed/driver/routes/{$routeId}/layouts")->assertStatus(422)
+            ->assertJsonPath('message', 'No seat layout is configured for this vehicle. Contact the admin.');
     }
 
     public function test_manifest_includes_seat_labels_for_each_passenger(): void

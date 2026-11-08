@@ -1,3 +1,5 @@
+@use '../service-booking';
+
 /* "Pool ride" — only the forming screen is unique; the rest is StepShell +
    shared .bk-* utilities. */
 
@@ -16,6 +18,7 @@
   border-radius: 50%;
   background: rgba(245, 158, 11, 0.12);
   border: 2px solid var(--dc-amber);
+  color: var(--dc-amber);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -30,11 +33,16 @@
 .sh-seatwrap {
   display: flex;
   justify-content: center;
-  padding: 6px 0 4px;
+  padding: 18px 8px;
+  background: var(--dc-surface);
+  border: 1px solid var(--dc-hairline);
+  border-radius: 16px;
+  overflow-x: auto;
 }
 .sh-seatlegend {
   display: flex;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 16px;
   margin: 12px 0 4px;
   font-size: 12px;
@@ -50,3 +58,22 @@
     border: 1px solid #d3d8de;
   }
 }
+
+.sh-tip-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.sh-tip-chip {
+  flex: 1 1 80px; min-height: 44px; padding: 9px 12px;
+  border: 1px solid var(--dc-hairline-strong); border-radius: 12px;
+  background: var(--dc-surface); color: var(--dc-ink-soft); font-size: 13px; font-weight: 700;
+}
+.sh-tip-chip--selected { border-color: var(--dc-green); background: #eaf6ef; color: var(--dc-green); }
+.sh-coupon { padding: 14px; background: var(--dc-surface); border: 1px solid var(--dc-hairline); border-radius: 16px; }
+.sh-coupon__entry { display: flex; gap: 8px; flex-wrap: wrap; }
+.sh-coupon__entry input {
+  flex: 1 1 130px; min-width: 0; width: 100%; min-height: 44px;
+  padding: 10px 12px; border: 1px solid var(--dc-hairline-strong); border-radius: 12px;
+  background: var(--dc-surface); color: var(--dc-ink); font-size: 14px;
+}
+.sh-coupon__apply { min-height: 44px; padding: 10px 16px; border: 0; border-radius: 12px; background: var(--dc-green); color: #fff; font-size: 13px; font-weight: 700; }
+.sh-coupon__applied { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--dc-green); font-size: 13px; font-weight: 700; }
+.sh-coupon__applied ion-icon { font-size: 20px; }
+.sh-coupon__applied button { margin-left: auto; min-height: 44px; border: 0; background: transparent; color: var(--dc-ink); font-size: 13px; }

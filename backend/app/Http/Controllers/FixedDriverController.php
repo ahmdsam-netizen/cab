@@ -28,6 +28,7 @@ use App\Services\FixedRefundService;
 use App\Services\FixedBookingService;
 use App\Services\FixedSeatHoldService;
 use App\Services\SeatMapService;
+use App\Services\FixedDepartureVehicleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -144,12 +145,7 @@ class FixedDriverController extends Controller
     }
 
     /**
-     * List seat layouts the driver can pick from when opening a vehicle on this
-     * route. Scoped to the route's city AND narrowed to the driver's own vehicle
-     * type when their profile carries one (F3) — so a Swift driver stops seeing
-     * an Ertiga's layout. Falls back to the full city list only when the driver
-     * has no known vehicle type, or when no layout exists for it (so a
-     * mis-configured driver is never locked out of opening a vehicle).
+     * Only layouts matching the driver's vehicle in the route's city are offered.
      */
     public function layouts(Request $request, Route $route)
     {
@@ -163,7 +159,8 @@ class FixedDriverController extends Controller
         $layouts = VehicleSeatLayout::query()
             ->where('city_id', $route->city_id)
             ->where('is_active', true)
-            ->when($vehicleTypeId, fn ($q) => $q->where('vehicle_type_id', $vehicleTypeId))
+            ->where('vehicle_type_id', $vehicleTypeId)
+            ->whereHas('cells', fn ($q) => $q->where('kind', 'seat'))
             ->withCount(['cells as seat_count' => fn ($q) => $q->where('kind', 'seat')])
             ->orderBy('name')
             ->get(['id', 'name', 'rows', 'cols'])
@@ -179,27 +176,12 @@ class FixedDriverController extends Controller
     }
 
     /**
-     * The vehicle-type filter to apply to a driver's layout choices on this
-     * route, or null for "any layout in the city". Returns the driver's own
-     * vehicle type only when they have one AND the city actually has an active
-     * layout for it; otherwise null, so the list/validation fall back to
-     * city-wide together and can never disagree. Shared by {@see layouts()} and
-     * the {@see open()} guard.
+     * Validate configured vehicle and layout before returning its category.
      */
-    private function effectiveLayoutVehicleTypeId(Route $route, Driver $driver): ?int
+    private function effectiveLayoutVehicleTypeId(Route $route, Driver $driver): int
     {
-        $vehicleTypeId = $driver->vehicle_type_id ? (int) $driver->vehicle_type_id : null;
-        if (!$vehicleTypeId) {
-            return null;
-        }
-
-        $hasMatch = VehicleSeatLayout::query()
-            ->where('city_id', $route->city_id)
-            ->where('is_active', true)
-            ->where('vehicle_type_id', $vehicleTypeId)
-            ->exists();
-
-        return $hasMatch ? $vehicleTypeId : null;
+        $prepared = app(FixedDepartureVehicleService::class)->prepare($route, $driver);
+        return (int) VehicleSeatLayout::findOrFail($prepared['vehicle_seat_layout_id'])->vehicle_type_id;
     }
 
     public function open(Request $request)
@@ -223,30 +205,6 @@ class FixedDriverController extends Controller
         $driver = $this->driverProfile($request);
         $this->serviceModes->assertFixedMode($driver, $route->scope ?: Driver::SERVICE_SCOPE_LOCAL);
 
-        // Layout: driver's explicit pick if provided (must belong to this city and,
-        // when the driver has a known vehicle type, match it — the same F3 filter
-        // the picker list uses, so a direct call can't open a foreign vehicle),
-        // otherwise fall back to the resolver.
-        $layoutId = $this->seatMap->resolveDefaultLayoutForRoute($route);
-        if (!empty($data['vehicle_seat_layout_id'])) {
-            $picked = VehicleSeatLayout::query()->find((int) $data['vehicle_seat_layout_id']);
-            if (!$picked || (int) $picked->city_id !== (int) $route->city_id) {
-                abort(422, 'That seat layout is not available for this route\'s city.');
-            }
-            $vehicleTypeId = $this->effectiveLayoutVehicleTypeId($route, $driver);
-            if ($vehicleTypeId !== null && (int) $picked->vehicle_type_id !== $vehicleTypeId) {
-                abort(422, 'That seat layout is not for your vehicle.');
-            }
-            $layoutId = (int) $picked->id;
-        }
-
-        // Capacity now derives from the layout's seat count so the seat map
-        // and the "seats remaining" counter can never disagree.
-        $seatCount = (int) VehicleSeatLayout::query()
-            ->whereKey($layoutId)
-            ->withCount(['cells as seat_count' => fn ($q) => $q->where('kind', 'seat')])
-            ->value('seat_count');
-
         // Idempotent: if driver already has an active departure, return it directly
         $existing = RouteDeparture::query()
             ->where('driver_id', $request->user()->id)
@@ -260,41 +218,38 @@ class FixedDriverController extends Controller
             ], 200);
         }
 
-        $departure = RouteDeparture::query()->create([
-            'route_id' => $route->id,
-            'route_schedule_id' => null,
-            'trip_id' => null,
-            'driver_id' => $request->user()->id,
-            'city_vehicle_type_id' => $route->city_vehicle_type_id,
-            'vehicle_seat_layout_id' => $layoutId,
-            'service_date' => now()->toDateString(),
-            'departure_kind' => 'driver_opened',
-            'depart_at' => null,
-            'announced_depart_at' => null,
-            'actual_depart_at' => null,
-            'boarding_opened_at' => now(),
-            'boarding_closed_at' => null,
-            'visible_to_customers' => true,
-            'capacity' => max(1, $seatCount ?: (int) ($data['capacity'] ?? 4)),
-            'seats_taken' => 0,
-            'luggage_capacity' => (int) $route->max_luggage_per_vehicle,
-            'luggage_taken' => 0,
-            'status' => 'FORMING',
-        ]);
+        $prepared = app(FixedDepartureVehicleService::class)->prepare($route, $driver, $data['vehicle_seat_layout_id'] ?? null);
+        $departure = DB::transaction(function () use ($route, $request, $driver, $prepared) {
+            $departure = RouteDeparture::query()->create($prepared + [
+                'route_id' => $route->id,
+                'route_schedule_id' => null,
+                'trip_id' => null,
+                'driver_id' => $request->user()->id,
+                'service_date' => now()->toDateString(),
+                'departure_kind' => 'driver_opened',
+                'depart_at' => null,
+                'announced_depart_at' => null,
+                'actual_depart_at' => null,
+                'boarding_opened_at' => now(),
+                'boarding_closed_at' => null,
+                'visible_to_customers' => true,
+                'seats_taken' => 0,
+                'luggage_capacity' => (int) $route->max_luggage_per_vehicle,
+                'luggage_taken' => 0,
+                'status' => 'FORMING',
+            ]);
 
-        $driver->update([
-            'is_online' => true,
-            'active_service_mode' => Driver::SERVICE_MODE_FIXED,
-            'active_service_scope' => $route->scope ?: Driver::SERVICE_SCOPE_LOCAL,
-            'active_status' => Driver::ACTIVE_STATUS_DUTY,
-            'last_online_at' => now(),
-        ]);
+            $driver->update([
+                'is_online' => true,
+                'active_service_mode' => Driver::SERVICE_MODE_FIXED,
+                'active_service_scope' => $route->scope ?: Driver::SERVICE_SCOPE_LOCAL,
+                'active_status' => Driver::ACTIVE_STATUS_DUTY,
+                'last_online_at' => now(),
+            ]);
 
-        try {
             $this->seatMap->snapshotForDeparture($departure);
-        } catch (\Throwable $e) {
-            Log::warning('Seat map snapshot failed on open', ['error' => $e->getMessage()]);
-        }
+            return $departure;
+        });
 
         try {
             $this->broadcastAvailability($departure, 'vehicle_opened');
@@ -377,7 +332,7 @@ class FixedDriverController extends Controller
                     'driver_id' => $request->user()->id,
                     'city_id' => $route->city_id,
                     'scope' => $route->scope ?: 'local',
-                    'city_vehicle_type_id' => $route->city_vehicle_type_id,
+                    'city_vehicle_type_id' => $dep->city_vehicle_type_id,
                     'ride_type_id' => $this->resolveRideTypeId($route),
                     'route_id' => $route->id,
                     'route_departure_id' => $dep->id,

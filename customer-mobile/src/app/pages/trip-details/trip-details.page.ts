@@ -1,3 +1,4 @@
+import { CUSTOMER_MAP_STYLE, fitCustomerMap } from '../../core/customer-map';
 import { Component } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../core/api.service';
@@ -300,8 +301,8 @@ export class TripDetailsPage {
       const drop = { lat: Number(this.trip.drop_lat), lng: Number(this.trip.drop_lng) };
 
       this.map = new google.maps.Map(div, {
+        ...CUSTOMER_MAP_STYLE,
         center: pickup,
-        zoom: 13,
         disableDefaultUI: true,
         clickableIcons: false,
         // Two-finger pan so the page still scrolls with one finger.
@@ -350,7 +351,7 @@ export class TripDetailsPage {
     const bounds = new google.maps.LatLngBounds();
     bounds.extend(a);
     bounds.extend(b);
-    this.map.fitBounds(bounds, 56);
+    fitCustomerMap(this.map, bounds, 56);
   }
 
   /** Letter pin (A = pickup, B = drop) — matches the booking/active-trip maps. */

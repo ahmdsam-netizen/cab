@@ -1,0 +1,35 @@
+// Scoped to Private and Shuttle. Match Fixed's existing reference surfaces.
+:host {
+  --dc-green: #087f50;
+  --dc-ink: #101828;
+  --dc-ink-soft: #64748b;
+  --dc-canvas: #f5f6f8;
+  --dc-surface: #fff;
+  --dc-hairline: #e6eaf0;
+  --dc-hairline-strong: #dce3eb;
+}
+
+ion-content { --background: var(--dc-canvas); }
+.bk-opt, .bk-money {
+  border: 1px solid #e0e5ed;
+  border-radius: 16px;
+  box-shadow: 0 2px 5px #10182804;
+  padding: 14px;
+}
+.bk-opt--on {
+  border-color: var(--dc-green);
+  box-shadow: 0 0 0 1px var(--dc-green);
+  background: #f0f9f4;
+}
+.bk-opt__ic ion-icon { font-size: 22px; }
+.bk-opt__r { color: var(--dc-green); font-size: 16px; }
+.bk-opt__s { line-height: 1.5; }
+.bk-money { gap: 13px; padding: 16px; }
+.bk-money__tot { padding-top: 13px; font-size: 16px; }
+.bk-note { padding: 12px; border-radius: 12px; line-height: 1.6; }
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--dc-green);
+  outline-offset: 3px;
+}
+button:disabled { opacity: .5; cursor: default; }

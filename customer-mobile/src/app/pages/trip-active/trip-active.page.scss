@@ -9,7 +9,7 @@
 .trip-map-wrap {
   position: absolute;
   inset: 0;
-  background: var(--dc-canvas, #F4F6F8);
+  background: #08090b;
   z-index: 0;
 
   .trip-map {
@@ -38,7 +38,7 @@
 
   .nav-fab {
     width: 44px; height: 44px; border-radius: 50%;
-    background: var(--dc-surface, #fff); border: none; color: var(--dc-ink, #0D1B2A);
+    background: #101114; border: 1px solid #33363c; color: #f5f7fa;
     display: flex; align-items: center; justify-content: center;
     box-shadow: 0 4px 16px rgba(13, 27, 42, 0.18); cursor: pointer;
     ion-icon { font-size: 22px; }
@@ -48,7 +48,7 @@
 
   .live-pill {
     display: inline-flex; align-items: center; gap: 6px;
-    background: var(--dc-surface, #fff); color: var(--dc-green, #12B35B);
+    background: #101114; color: #6ee7a0;
     font-size: 12px; font-weight: 800; padding: 8px 12px; border-radius: 999px;
     box-shadow: 0 4px 16px rgba(13, 27, 42, 0.12);
     .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dc-green, #12B35B); animation: live-pulse 1.4s infinite; }

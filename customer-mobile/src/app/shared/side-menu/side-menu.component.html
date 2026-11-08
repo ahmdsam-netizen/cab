@@ -1,119 +1,51 @@
 <ion-menu side="start" menuId="customer-menu" contentId="main-content">
   <ion-content class="menu-content">
-    <div class="drawer__header drv-hero dc-anim-in dc-press" *ngIf="user as u" (click)="go('/customer-tabs/profile')">
-      <span class="drv-badge drawer__badge">CUSTOMER</span>
-      <div class="drawer__id">
-        <div class="drawer__avatar">
-          <img
-            *ngIf="!avatarBroken && auth.resolveAvatarUrl(u) as url"
-            [src]="url"
-            alt=""
-            (error)="avatarBroken = true"
-          />
-          <span *ngIf="avatarBroken || !auth.resolveAvatarUrl(u)" class="avatar-initials">{{ getInitial(u) }}</span>
-        </div>
-        <div class="drawer__who">
-          <strong>{{ u.name || 'Guest' }}</strong>
-          <span class="drawer__role" *ngIf="u.phone">{{ u.phone }}</span>
-          <span class="drawer__chip">
-            <span class="drawer__chipdot"></span>Edit account
-          </span>
-        </div>
-      </div>
-    </div>
-
-    <nav class="drawer__nav dc-stagger">
-      <p class="drawer__group">Main</p>
-      <button class="dc-row nav-row dc-press" (click)="go('/customer-tabs/go')">
-        <span class="dc-row__icon"><ion-icon name="home-outline"></ion-icon></span>
-        <span class="dc-row__text"><strong>Home</strong><small>Book a ride</small></span>
-        <ion-icon class="dc-row__chev" name="chevron-forward-outline"></ion-icon>
+    <div class="account-drawer">
+      <header class="drawer-title"><h1>Account</h1><button type="button" (click)="closeMenu()" aria-label="Close account menu"><ion-icon name="close-outline" aria-hidden="true"></ion-icon></button></header>
+      <button type="button" class="account-profile" *ngIf="user as u" (click)="go('/customer-tabs/profile')" aria-label="Edit your profile">
+        <span class="account-avatar"><img *ngIf="!avatarBroken && auth.resolveAvatarUrl(u) as url" [src]="url" alt="" (error)="avatarBroken = true"/><span *ngIf="avatarBroken || !auth.resolveAvatarUrl(u)">{{ getInitial(u) }}</span></span>
+        <span class="account-identity"><strong>{{ u.name || 'Your account' }}</strong><small *ngIf="u.phone">{{ maskedPhone(u.phone) }}</small></span><span class="edit-pill">Edit</span>
       </button>
-      <button class="dc-row nav-row dc-press" (click)="openAiAssistant()">
-        <span class="dc-row__icon dc-row__icon--sparkles"><ion-icon name="sparkles"></ion-icon></span>
-        <span class="dc-row__text"><strong>AI Assistant</strong><small>Voice &amp; chat booking</small></span>
-        <ion-icon class="dc-row__chev" name="chevron-forward-outline"></ion-icon>
+      <button type="button" class="account-offer" (click)="go('/customer-tabs/coupons')">
+        <span><strong>Offers for your next ride</strong><small>Find your available coupons.</small><span class="offer-action">View offers <ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></span></span>
+        <span class="offer-icon"><ion-icon name="gift-outline" aria-hidden="true"></ion-icon></span>
       </button>
-
-      <p class="drawer__group">Bookings</p>
-      <button class="dc-row nav-row dc-press" (click)="toggleRidesMenu()" [attr.aria-expanded]="ridesMenuOpen">
-        <span class="dc-row__icon"><ion-icon name="car-sport-outline"></ion-icon></span>
-        <span class="dc-row__text"><strong>Bookings</strong><small>Private, fixed, shuttle and scheduled</small></span>
-        <ion-icon class="dc-row__chev" [name]="ridesMenuOpen ? 'chevron-up-outline' : 'chevron-down-outline'"></ion-icon>
-      </button>
-      <div class="drawer__submenu" *ngIf="ridesMenuOpen">
-        <button class="dc-row nav-row nav-row--sub dc-press" (click)="go('/customer-tabs/my-trips')">
-          <span class="dc-row__icon"><ion-icon name="car-sport-outline"></ion-icon></span>
-          <span class="dc-row__text"><strong>Private</strong><small>Your cab rides</small></span>
-        </button>
-        <button class="dc-row nav-row nav-row--sub dc-press" (click)="go('/customer-tabs/fixed-rides')">
-          <span class="dc-row__icon"><ion-icon name="git-branch-outline"></ion-icon></span>
-          <span class="dc-row__text"><strong>Fixed</strong><small>Fixed route bookings</small></span>
-        </button>
-        <button class="dc-row nav-row nav-row--sub dc-press" (click)="go('/customer-tabs/shuttle-rides')">
-          <span class="dc-row__icon"><ion-icon name="bus-outline"></ion-icon></span>
-          <span class="dc-row__text"><strong>Shuttle</strong><small>Shared shuttle rides</small></span>
-        </button>
-        <button class="dc-row nav-row nav-row--sub dc-press" (click)="go('/customer-tabs/scheduled-rides')">
-          <span class="dc-row__icon"><ion-icon name="calendar-outline"></ion-icon></span>
-          <span class="dc-row__text"><strong>Scheduled</strong><small>Upcoming planned rides</small></span>
-        </button>
-      </div>
-
-      <p class="drawer__group">Account</p>
-      <button class="dc-row nav-row dc-press" (click)="go('/customer-tabs/saved-locations')">
-        <span class="dc-row__icon"><ion-icon name="location-outline"></ion-icon></span>
-        <span class="dc-row__text"><strong>Location</strong><small>Saved pickup and drop places</small></span>
-        <ion-icon class="dc-row__chev" name="chevron-forward-outline"></ion-icon>
-      </button>
-      <button class="dc-row nav-row dc-press" (click)="go('/customer-tabs/notifications')">
-        <span class="dc-row__icon"><ion-icon name="notifications-outline"></ion-icon></span>
-        <span class="dc-row__text"><strong>Notifications</strong><small>Ride updates and alerts</small></span>
-        <ion-icon class="dc-row__chev" name="chevron-forward-outline"></ion-icon>
-      </button>
-      <button class="dc-row nav-row dc-press" (click)="go('/customer-tabs/coupons')">
-        <span class="dc-row__icon"><ion-icon name="pricetags-outline"></ion-icon></span>
-        <span class="dc-row__text"><strong>Coupons</strong><small>Offers and promo codes</small></span>
-        <ion-icon class="dc-row__chev" name="chevron-forward-outline"></ion-icon>
-      </button>
-      <button class="dc-row nav-row dc-press" (click)="go('/customer-tabs/refunds')">
-        <span class="dc-row__icon"><ion-icon name="cash-outline"></ion-icon></span>
-        <span class="dc-row__text"><strong>My Refunds</strong><small>Money coming back from cancelled bookings</small></span>
-        <ion-icon class="dc-row__chev" name="chevron-forward-outline"></ion-icon>
-      </button>
-
-      <p class="drawer__group">Help &amp; Support</p>
-      <button class="dc-row nav-row dc-press" (click)="go('/customer-tabs/emergency-contacts')">
-        <span class="dc-row__icon"><ion-icon name="people-outline"></ion-icon></span>
-        <span class="dc-row__text"><strong>Contact</strong><small>SOS contacts</small></span>
-        <ion-icon class="dc-row__chev" name="chevron-forward-outline"></ion-icon>
-      </button>
-      <button class="dc-row nav-row dc-press" (click)="go('/customer-tabs/support')">
-        <span class="dc-row__icon"><ion-icon name="help-buoy-outline"></ion-icon></span>
-        <span class="dc-row__text"><strong>Help &amp; Support</strong><small>Contact us, FAQ &amp; report</small></span>
-        <ion-icon class="dc-row__chev" name="chevron-forward-outline"></ion-icon>
-      </button>
-
-      <p class="drawer__group">Legal &amp; Policies</p>
-      <button class="dc-row nav-row dc-press" (click)="go('/customer-tabs/terms')">
-        <span class="dc-row__text" style="padding-left: 4px;"><strong>Terms &amp; Conditions</strong><small>User agreement &amp; rules</small></span>
-        <ion-icon class="dc-row__chev" name="chevron-forward-outline"></ion-icon>
-      </button>
-      <button class="dc-row nav-row dc-press" (click)="go('/customer-tabs/privacy')">
-        <span class="dc-row__text" style="padding-left: 4px;"><strong>Privacy Policy</strong><small>Data protection, GPS &amp; device permissions</small></span>
-        <ion-icon class="dc-row__chev" name="chevron-forward-outline"></ion-icon>
-      </button>
-    </nav>
-
-    <div class="drawer__footer">
-      <button class="dc-row nav-row nav-row--danger dc-press" (click)="signOut()">
-        <span class="dc-row__icon dc-row__icon--danger"><ion-icon name="log-out-outline"></ion-icon></span>
-        <span class="dc-row__text"><strong>Sign out</strong></span>
-      </button>
-      <button class="dc-row nav-row nav-row--danger dc-press" (click)="confirmDeleteAccount()">
-        <span class="dc-row__icon dc-row__icon--danger"><ion-icon name="trash-outline"></ion-icon></span>
-        <span class="dc-row__text"><strong>Delete account</strong></span>
-      </button>
+      <nav aria-label="Account menu">
+        <section class="menu-card" aria-label="AI Assistant">
+          <button type="button" class="menu-row ai-assistant-row" (click)="openAiAssistant()"><ion-icon name="sparkles" aria-hidden="true" style="color: #6366f1;"></ion-icon><span>AI Booking Assistant</span><ion-icon class="row-chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon></button>
+        </section>
+        <section class="menu-card service-bookings" aria-label="Bookings by service">
+          <button type="button" class="menu-row" (click)="go('/customer-tabs/my-trips')"><ion-icon name="car-outline" aria-hidden="true"></ion-icon><span>Private Booking</span><ion-icon class="row-chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon></button>
+          <button type="button" class="menu-row" (click)="go('/customer-tabs/fixed-rides')"><ion-icon name="bus-outline" aria-hidden="true"></ion-icon><span>Fixed Booking</span><ion-icon class="row-chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon></button>
+          <button type="button" class="menu-row" (click)="go('/customer-tabs/shuttle-rides')"><ion-icon name="git-merge-outline" aria-hidden="true"></ion-icon><span>Shuttle Booking</span><ion-icon class="row-chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon></button>
+          <button type="button" class="menu-row" (click)="go('/customer-tabs/scheduled-rides')"><ion-icon name="calendar-outline" aria-hidden="true"></ion-icon><span>Scheduled rides</span><ion-icon class="row-chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon></button>
+        </section>
+        <section class="menu-card" aria-label="Offers and refunds">
+          <button type="button" class="menu-row" (click)="go('/customer-tabs/coupons')"><ion-icon name="pricetag-outline" aria-hidden="true"></ion-icon><span>Coupons and offers</span><ion-icon class="row-chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon></button>
+          <button type="button" class="menu-row" (click)="go('/customer-tabs/refunds')"><ion-icon name="receipt-outline" aria-hidden="true"></ion-icon><span>My refunds</span><ion-icon class="row-chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon></button>
+        </section>
+        <section class="menu-card" aria-label="Contacts">
+          <button type="button" class="menu-row" (click)="go('/customer-tabs/emergency-contacts')"><ion-icon name="people-outline" aria-hidden="true"></ion-icon><span>Contacts</span><ion-icon class="row-chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon></button>
+        </section>
+        <section class="menu-card" aria-label="Places and notifications">
+          <button type="button" class="menu-row" (click)="go('/customer-tabs/saved-locations')"><ion-icon name="location-outline" aria-hidden="true"></ion-icon><span>Saved places</span><ion-icon class="row-chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon></button>
+          <button type="button" class="menu-row" (click)="go('/customer-tabs/notifications')"><ion-icon name="notifications-outline" aria-hidden="true"></ion-icon><span>Notifications</span><ion-icon class="row-chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon></button>
+        </section>
+        <section class="menu-card" aria-label="Legal and policies">
+          <button type="button" class="menu-row" (click)="go('/customer-tabs/terms')"><ion-icon name="document-outline" aria-hidden="true"></ion-icon><span>Terms and conditions</span><ion-icon class="row-chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon></button>
+          <button type="button" class="menu-row" (click)="go('/customer-tabs/privacy')"><ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon><span>Privacy policy</span><ion-icon class="row-chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon></button>
+        </section>
+      </nav>
+      <footer class="account-footer"><button type="button" class="sign-out" (click)="signOut()">Sign out</button><button type="button" class="sign-out delete-account" (click)="confirmDeleteAccount()">Delete account</button></footer>
     </div>
   </ion-content>
+  <ion-footer class="account-tabs-footer">
+    <nav class="account-bottom-nav" aria-label="Customer navigation">
+      <button type="button" (click)="go('/customer-tabs/go')" [class.is-selected]="isTabActive('/customer-tabs/go')" [attr.aria-current]="isTabActive('/customer-tabs/go') ? 'page' : null"><ion-icon name="home-outline" aria-hidden="true"></ion-icon><span>Home</span></button>
+      <button type="button" (click)="go('/customer-tabs/trips')" [class.is-selected]="isTabActive('/customer-tabs/trips')" [attr.aria-current]="isTabActive('/customer-tabs/trips') ? 'page' : null"><ion-icon name="document-text-outline" aria-hidden="true"></ion-icon><span>Trips</span></button>
+      <button type="button" (click)="go('/customer-tabs/go/voice')" [class.is-selected]="isTabActive('/customer-tabs/go/voice')" [attr.aria-current]="isTabActive('/customer-tabs/go/voice') ? 'page' : null"><ion-icon name="mic-outline" aria-hidden="true"></ion-icon><span>Voice</span></button>
+      <button type="button" (click)="go('/customer-tabs/support')" [class.is-selected]="isTabActive('/customer-tabs/support')" [attr.aria-current]="isTabActive('/customer-tabs/support') ? 'page' : null"><ion-icon name="shield-checkmark-outline" aria-hidden="true"></ion-icon><span>Safety</span></button>
+      <button type="button" (click)="go('/customer-tabs/profile')" [class.is-selected]="isTabActive('/customer-tabs/profile')" [attr.aria-current]="isTabActive('/customer-tabs/profile') ? 'page' : null"><ion-icon name="person-outline" aria-hidden="true"></ion-icon><span>Account</span></button>
+    </nav>
+  </ion-footer>
 </ion-menu>

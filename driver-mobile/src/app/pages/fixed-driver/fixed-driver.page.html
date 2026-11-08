@@ -1,5 +1,6 @@
 <ion-header class="ion-no-border" *ngIf="!previewMapFullscreen && !activeSeatRequest">
-  <ion-toolbar class="pg-toolbar">
+  <app-driver-topbar></app-driver-topbar>
+  <ion-toolbar class="pg-toolbar" [class.route-choice-toolbar]="!activeVehicle && !selectedRoute">
     <ion-buttons slot="start">
       <button 
         type="button" 
@@ -16,7 +17,7 @@
       ></ion-back-button>
     </ion-buttons>
     <ion-title class="pg-header-title">
-      {{ selectedRoute ? selectedRoute.name : (activeVehicle ? 'Active Route' : 'Choose Route') }}
+      {{ selectedRoute ? selectedRoute.name : (activeVehicle ? activeVehicle.route_name || 'Active Route' : 'Choose Route') }}
     </ion-title>
     <ion-buttons slot="end">
       <ion-button class="dc-press" (click)="refresh()" [disabled]="loading || busy" aria-label="Reload">
@@ -26,13 +27,7 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content class="pg-content" [class.is-map-fullscreen]="previewMapFullscreen">
-  <!-- Hero Section (Shown only during route selection list) -->
-  <div class="pg-hero" *ngIf="!activeVehicle && !selectedRoute">
-    <h1 class="pg-title">Choose Route</h1>
-    <p class="pg-subtitle">Select an available route to start.</p>
-  </div>
-
+<ion-content class="pg-content" [class.is-route-choice]="!activeVehicle && !selectedRoute" [class.is-active-route]="!!activeVehicle" [class.is-map-fullscreen]="previewMapFullscreen">
   <div class="pg-body pg-anim-body">
     <!-- Global Loading Spinner -->
     <div class="fixed-loading" *ngIf="loading">
@@ -57,15 +52,15 @@
       <div class="route-filter-bar">
         
         <!-- Search input if multiple routes -->
-        <div class="route-search-box" *ngIf="routes.length > 3">
+        <div class="route-search-box">
           <ion-icon name="search-outline"></ion-icon>
           <input
             type="text"
             [(ngModel)]="routeSearchQuery"
-            placeholder="Search routes or stops..."
+            placeholder="Choose your destination or search" aria-label="Search by destination"
             class="route-search-input"
           />
-          <button *ngIf="routeSearchQuery" (click)="routeSearchQuery = ''" class="route-search-clear">
+          <button *ngIf="routeSearchQuery" (click)="routeSearchQuery = ''" class="route-search-clear" type="button" aria-label="Clear search">
             <ion-icon name="close-circle"></ion-icon>
           </button>
         </div>
@@ -78,7 +73,7 @@
             [class.is-active]="selectedScopeFilter === 'all'"
             (click)="setScopeFilter('all')"
           >
-            All Types
+            All
           </button>
           <button
             type="button"
@@ -100,10 +95,16 @@
           </button>
         </div>
 
-        <!-- Scope Banner: when locked to driver registered scope -->
-        <div class="route-registered-scope-badge" *ngIf="!hasMultipleScopes && driverScope">
-          <ion-icon [name]="driverScope === 'outstation' ? 'navigate-outline' : 'location-outline'"></ion-icon>
-          <span>{{ driverScope === 'outstation' ? 'Outstation Fixed Routes' : 'Local Fixed Routes' }}</span>
+        <div class="route-proximity-chips" aria-label="Route distance filter">
+          <button type="button" [class.is-active]="routeProximityFilter === 'all'" [attr.aria-pressed]="routeProximityFilter === 'all'" (click)="setProximityFilter('all')">All</button>
+          <button type="button" [class.is-active]="routeProximityFilter === 'nearby'" [attr.aria-pressed]="routeProximityFilter === 'nearby'" (click)="setProximityFilter('nearby')">Nearby</button>
+        </div>
+        <div class="route-nearby-status" *ngIf="routeProximityFilter === 'nearby'" aria-live="polite">
+          <span *ngIf="nearbyLocationLoading">Finding your location…</span>
+          <ng-container *ngIf="!nearbyLocationLoading">
+            <span *ngIf="driverPosition">Routes starting within 5 km of you</span>
+            <ng-container *ngIf="!driverPosition"><span>Location unavailable.</span><button type="button" (click)="setProximityFilter('nearby')">Retry location</button></ng-container>
+          </ng-container>
         </div>
 
         <!-- City Filter Chips (Kupwara, Sopore, etc.) -->
@@ -138,62 +139,33 @@
         <span>{{ filteredRoutes.length }} of {{ routes.length }} route{{ routes.length > 1 ? 's' : '' }}</span>
       </div>
 
-      <!-- Filtered Routes List -->
-      <div class="route-cards-list" *ngIf="filteredRoutes.length">
-        <article 
-          class="pg-card route-pick-card dc-press" 
-          *ngFor="let route of filteredRoutes" 
-          (click)="selectRoute(route)"
-        >
-          <div class="route-pick-card__header">
-            <div class="route-pick-card__name">
-              <div class="route-icon"><ion-icon name="git-branch-outline"></ion-icon></div>
-              <strong>{{ route.name }}</strong>
-            </div>
-            <div class="route-pick-card__badges">
-              <span class="city-pill" *ngIf="route.city_name || route.origin_city_name">
-                {{ route.city_name || route.origin_city_name }}
-              </span>
-              <span class="scope-pill" [class.scope-pill--outstation]="route.scope === 'outstation'">
-                {{ route.scope === 'outstation' ? 'Outstation' : 'Local' }}
-              </span>
-            </div>
-          </div>
-
-          <div class="route-pick-card__path">
-            <div class="path-stop">
-              <span class="dot dot--origin"></span>
-              <span>{{ getRouteOriginName(route) }}</span>
-            </div>
-            <div class="path-divider">
-              <ion-icon name="arrow-forward-outline"></ion-icon>
-            </div>
-            <div class="path-stop">
-              <span class="dot dot--dest"></span>
-              <span>{{ getRouteDestName(route) }}</span>
-            </div>
-          </div>
-
-          <div class="route-pick-card__footer">
-            <div class="route-quick-meta">
-              <span class="meta-fare" *ngIf="route.flat_fare != null">₹{{ route.flat_fare }}</span>
-              <span class="meta-luggage">{{ route.max_luggage_per_vehicle }} luggage</span>
-            </div>
-            <div class="pick-action">
-              <span>Select</span>
-              <ion-icon name="chevron-forward-outline"></ion-icon>
-            </div>
-          </div>
-        </article>
+      <div class="route-cards-list reference-route-list" *ngIf="filteredRoutes.length" role="group" aria-label="Available routes">
+        <button type="button" class="reference-route-card dc-press"
+          *ngFor="let route of filteredRoutes"
+          [class.is-selected]="routeChoiceId === route.id"
+          [attr.aria-pressed]="routeChoiceId === route.id"
+          (click)="routeChoiceId = route.id">
+          <ion-icon class="reference-route-pin" name="location" aria-hidden="true"></ion-icon>
+          <span class="reference-route-copy">
+            <strong class="reference-route-endpoints"><span>{{ route.origin_name }}</span><ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon><span>{{ route.dest_name }}</span></strong>
+            <span class="reference-route-meta">{{ route.stops?.length ? route.stops?.length + ' stops' : 'Direct route' }}<span *ngIf="route.city_name || route.origin_city_name"> · {{ route.city_name || route.origin_city_name }}</span></span>
+            <span class="reference-route-fare" *ngIf="route.flat_fare != null">₹{{ route.flat_fare | number:'1.0-2' }} <small>/ seat</small></span>
+          </span>
+          <span class="reference-route-visual">
+            <img *ngIf="routeCardImage(route) as image; else routeCarFallback" [src]="image" alt="" loading="lazy" (error)="onRouteImageError(route)" />
+            <ng-template #routeCarFallback><ion-icon class="reference-route-car" name="car-sport-outline" aria-hidden="true"></ion-icon></ng-template>
+          </span>
+          <span class="reference-route-check" aria-hidden="true"><ion-icon *ngIf="routeChoiceId === route.id" name="checkmark"></ion-icon></span>
+        </button>
       </div>
 
       <!-- No Routes Match Filters Empty State -->
-      <div class="pg-card route-empty-state" *ngIf="!filteredRoutes.length">
+      <div class="pg-card route-empty-state" *ngIf="!filteredRoutes.length && (routeProximityFilter !== 'nearby' || (!nearbyLocationLoading && driverPosition))">
         <div class="route-empty-state__icon">
           <ion-icon name="filter-outline"></ion-icon>
         </div>
         <h3>No Matching Routes</h3>
-        <p>No routes match your selected city or service scope filter.</p>
+        <p>No routes match your search or filters.</p>
         <button type="button" class="dc-cta dc-cta--ghost" (click)="resetRouteFilters()" style="margin-top: 10px;">
           Clear Filters
         </button>
@@ -264,9 +236,10 @@
               class="preview-fs-fab preview-fs-fab--recenter dc-press"
               *ngIf="previewMapFullscreen"
               (click)="recenterPreviewMap()"
-              aria-label="Re-center route"
+              [disabled]="previewCameraAction === 'Waiting for GPS'"
             >
-              <ion-icon name="locate-outline"></ion-icon>
+              <ion-icon [name]="previewFollowsDriver ? 'map-outline' : 'locate-outline'" aria-hidden="true"></ion-icon>
+              <span>{{ previewCameraAction }}</span>
             </button>
 
             <!-- Google Map Canvas -->
@@ -291,12 +264,12 @@
               </button>
               <button
                 type="button"
-                class="preview-map-float-btn dc-press"
+                class="preview-map-float-btn preview-map-float-btn--camera dc-press"
                 (click)="recenterPreviewMap()"
-                aria-label="Re-center route"
-                title="Re-center"
+                [disabled]="previewCameraAction === 'Waiting for GPS'"
               >
-                <ion-icon name="locate-outline"></ion-icon>
+                <ion-icon [name]="previewFollowsDriver ? 'map-outline' : 'locate-outline'" aria-hidden="true"></ion-icon>
+                <span>{{ previewCameraAction }}</span>
               </button>
             </div>
           </div>
@@ -401,13 +374,13 @@
         >
           <ion-spinner *ngIf="busy" name="crescent"></ion-spinner>
           <ion-icon *ngIf="!busy" name="play-outline"></ion-icon>
-          <span>{{ busy ? 'Opening vehicle…' : 'Open for Bookings' }}</span>
+          <span>{{ busy ? 'Opening ride…' : 'Open ride for bookings' }}</span>
         </button>
       </div>
     </section>
 
     <!-- ==================== STATE 2: NO ROUTES ASSIGNED ==================== -->
-    <section class="pg-card unassigned-card" *ngIf="!loading && !activeVehicle && !routes.length">
+    <section class="pg-card unassigned-card" *ngIf="!loading && !error && !activeVehicle && !routes.length">
       <div class="unassigned-icon">
         <ion-icon name="map-outline"></ion-icon>
       </div>
@@ -422,78 +395,35 @@
     <!-- ==================== STATE 3: ACTIVE RIDE IN SERVICE (FULL MAP + FLOATING CONTROLS & FULL MODAL) ==================== -->
     <ng-container *ngIf="activeVehicle as vehicle">
       
-      <div class="dc-fullmap-view">
-        <!-- 1. FULL-PAGE GOOGLE MAP -->
-        <div id="fixed-driver-embedded-map" class="dc-fullscreen-map"></div>
-
-        <!-- 2. TOP FLOATING ROUTE & NEXT STOP BANNER -->
-        <div class="dc-top-banner" (click)="openDetailsModal()">
-          <div class="dc-top-banner__main">
-            <div class="dc-top-banner__route">
-              <span class="dc-top-banner__title">{{ vehicle.route_name || 'Fixed Ride' }}</span>
-              <span class="dc-top-banner__path">{{ routeOriginName }} → {{ routeDestName }}</span>
-            </div>
-            <div class="dc-top-banner__status" [class.is-live]="rideStarted">
-              <span class="dc-live-dot"></span>
-              <span>{{ statusLabel(vehicle) }}</span>
-            </div>
-          </div>
-
-          <!-- Immediate Next Stop Highlight -->
-          <div class="dc-next-stop-bar" *ngIf="nextStopGuide">
-            <div class="dc-next-stop-info">
-              <span class="dc-next-stop-tag">NEXT STOP</span>
-              <strong class="dc-next-stop-name">{{ nextStopGuide.name }}</strong>
-            </div>
-            <div class="dc-next-stop-counts">
-              <span class="dc-count-chip dc-count-chip--board" *ngIf="nextStopGuide.waitingCount > 0">
-                <ion-icon name="arrow-up-circle"></ion-icon> {{ nextStopGuide.waitingCount }}
-              </span>
-              <span class="dc-count-chip dc-count-chip--drop" *ngIf="nextStopGuide.dropCount > 0">
-                <ion-icon name="arrow-down-circle"></ion-icon> {{ nextStopGuide.dropCount }}
-              </span>
-            </div>
-          </div>
-
-          <!-- Live Nearest Customer Distance & Proximity HUD -->
-          <div 
-            class="dc-customer-proximity-row dc-anim-pop" 
-            *ngIf="nearestWaitingPassenger as p"
-            (click)="focusOnPassenger(p, $event)"
-          >
-            <div class="dc-cprox-left">
-              <div class="dc-cprox-avatar" [class.is-live]="isCustomerLive(p)">
-                <ion-icon [name]="isCustomerLive(p) ? 'navigate-circle' : 'person-circle'"></ion-icon>
-                <span class="dc-cprox-live-pulse" *ngIf="isCustomerLive(p)"></span>
+      <div class="dc-fullmap-view route-workspace">
+        <section class="route-map-section" aria-label="Live route map">
+          <div id="fixed-driver-embedded-map" class="dc-fullscreen-map"></div>
+          <button *ngIf="nextStopGuide as mapNext" type="button" class="route-map-navigate" (click)="navigateToStop(mapNext)" [attr.aria-label]="'Navigate to ' + mapNext.name" [attr.title]="'Navigate to ' + mapNext.name"><ion-icon name="navigate" aria-hidden="true"></ion-icon></button>
+        </section>
+        <section class="dc-map-floating-bottom-bar" aria-label="Ride actions and progress">
+          <section class="route-live-summary" aria-label="Live ride details">
+            <button type="button" class="route-filled" aria-label="Open seats, stops and passenger list" (click)="openDetailsModal('seats')">
+              <span class="route-section-heading">Seats booked</span>
+              <strong><ion-icon name="people" aria-hidden="true"></ion-icon>{{ vehicle.seats_taken }} / {{ vehicle.capacity }}</strong>
+              <span class="route-seat-progress" aria-hidden="true"><i [style.width.%]="vehicle.capacity ? (vehicle.seats_taken / vehicle.capacity) * 100 : 0"></i></span>
+            </button>
+            <button *ngIf="nextStopGuide as next; else routeStopsFinished" type="button" class="route-next" (click)="openStopDetail(next)">
+              <span class="route-next-heading">Next stop</span>
+              <strong><b>{{ next.seq }}</b>{{ next.name }}</strong>
+              <small>{{ next.waitingCount }} waiting · {{ next.dropCount }} to drop off</small>
+              <small class="route-live-status">{{ statusLabel(vehicle) }}</small>
+            </button>
+            <ng-template #routeStopsFinished>
+              <div class="route-next">
+                <span class="route-next-heading">Route progress</span>
+                <strong>{{ stops.length ? 'All stops reached' : 'Stops unavailable' }}</strong>
+                <small class="route-live-status">{{ statusLabel(vehicle) }}</small>
               </div>
-              <div class="dc-cprox-text">
-                <div class="dc-cprox-title">
-                  <span class="dc-cprox-badge" [class.is-live]="isCustomerLive(p)">{{ isCustomerLive(p) ? 'LIVE GPS' : hasCustomerLocation(p) ? 'LAST KNOWN' : 'WAITING' }}</span>
-                  <strong class="dc-cprox-name">{{ p.customer_name || 'Passenger' }}</strong>
-                  <span class="dc-cprox-seats" *ngIf="(p.seats || 1) > 1">({{ p.seats }} seats)</span>
-                </div>
-                <div class="dc-cprox-sub">
-                  <ion-icon name="location-outline"></ion-icon>
-                  <span>{{ isCustomerLive(p) ? 'Pickup: ' + (p.board || 'stop') : hasCustomerLocation(p) ? 'Last known location' : (p.board || 'Pickup stop') }}</span>
-                </div>
-              </div>
-            </div>
-            <div class="dc-cprox-right">
-              <div class="dc-cprox-dist-bubble" [class.is-near]="isCustomerLive(p) && passengerDistanceMeters(p) != null && passengerDistanceMeters(p)! <= 200">
-                <ion-icon name="pin"></ion-icon>
-                <span class="dc-cprox-dist-val">{{ passengerDistanceText(p) || '—' }}</span>
-              </div>
-              <span class="dc-cprox-dist-status">{{ !isCustomerLive(p) ? (hasCustomerLocation(p) ? 'LAST KNOWN' : 'PICKUP STOP') : (passengerDistanceMeters(p) != null && passengerDistanceMeters(p)! <= 200 ? 'NEARBY' : 'AWAY') }}</span>
-            </div>
-          </div>
-        </div>
+            </ng-template>
+          </section>
 
-        <!-- 3. FLOATING BOTTOM BAR WITH MANIFEST FAB & PRIMARY CTA -->
-        <div class="dc-map-floating-bottom-bar">
-          <button type="button" class="dc-map-recenter-fab dc-press" (click)="recenterMap()" aria-label="Re-center map">
-            <ion-icon name="locate-outline"></ion-icon>
-          </button>
           <!-- Primary Lifecycle Action (Start / Complete / Cancel) -->
+          <div class="route-lifecycle-actions">
           <!-- 1. START BOARDING (Before departure) -->
           <button 
             class="dc-float-cta dc-float-cta--start dc-press" 
@@ -502,10 +432,10 @@
             [disabled]="busy"
           >
             <ion-icon name="play"></ion-icon>
-            <span>Start Boarding</span>
+            <span>Start boarding</span>
           </button>
           <button class="dc-float-cta dc-float-cta--start dc-press" *ngIf="canDepart(vehicle)" (click)="departRide()" [disabled]="busy">
-            <ion-icon name="play"></ion-icon><span>Depart</span>
+            <ion-icon name="play"></ion-icon><span>Depart from origin</span>
           </button>
 
 
@@ -528,52 +458,34 @@
             [disabled]="busy"
           >
             <ion-icon name="close-circle-outline"></ion-icon>
-            <span>Cancel Ride</span>
+            <span>Cancel</span>
           </button>
-
-          <!-- Floating Action Sheets Quick Launcher -->
-          <div class="dc-float-sheets-bar">
-            <!-- 1. Passengers Sheet Button -->
-            <button 
-              type="button" 
-              class="dc-float-manifest-btn dc-press" 
-              (click)="openDetailsModalWithTab('passengers')" 
-              aria-label="Open Passenger Details"
-            >
-              <div class="dc-manifest-btn-icon-wrap">
-                <ion-icon name="people"></ion-icon>
-                <span class="dc-manifest-badge" *ngIf="waitingCount > 0">{{ waitingCount }}</span>
-              </div>
-              <div class="dc-manifest-btn-text">
-                <strong>Passengers</strong>
-                <span>{{ activeManifestPassengers.length }} booked</span>
-              </div>
-            </button>
-
-            <!-- 2. Seats Layout Sheet Button (One-tap walk-in manager) -->
-            <button 
-              type="button" 
-              class="dc-float-manifest-btn dc-float-manifest-btn--seats dc-press" 
-              (click)="openDetailsModalWithTab('seats')" 
-              aria-label="Open Vehicle Seat Layout"
-            >
-              <div class="dc-manifest-btn-icon-wrap dc-manifest-btn-icon-wrap--seats">
-                <ion-icon name="car-outline"></ion-icon>
-                <span class="dc-manifest-badge dc-manifest-badge--blocked" *ngIf="blockedSeatCellsCount > 0">{{ blockedSeatCellsCount }}</span>
-              </div>
-              <div class="dc-manifest-btn-text">
-                <strong>Seat Layout</strong>
-                <span>{{ vehicle.seats_remaining }} free</span>
-              </div>
-            </button>
           </div>
-        </div>
+
+        </section>
 
       </div>
 
       <!-- ==================== FULL-PAGE DETAILS MODAL (PASSENGERS, SEATS, STOPS) ==================== -->
+
+
+    </ng-container>
+  </div>
+
+</ion-content>
+
+<ion-footer class="route-choice-footer ion-no-border" *ngIf="!activeVehicle && !selectedRoute && routes.length && !loading && !error">
+  <div class="route-choice-action">
+    <button type="button" class="dc-press" [disabled]="!chosenRoute || busy" (click)="reviewChosenRoute()">
+      <span>Review Route</span><ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon>
+    </button>
+  </div>
+</ion-footer>
+
+<!-- Page-level overlays escape the content scroll/clipping context. -->
+<ng-container *ngIf="activeVehicle as vehicle">
       <div class="dc-manifest-modal-overlay" *ngIf="detailsModalOpen" (click)="closeDetailsModal()">
-        <div class="dc-manifest-modal-sheet" (click)="$event.stopPropagation()">
+        <div class="dc-manifest-modal-sheet" role="dialog" aria-modal="true" aria-labelledby="fixed-ride-details-title" (click)="$event.stopPropagation()">
           
           <!-- Modal Top Handle -->
           <div class="dc-modal-drag-handle-wrap">
@@ -583,13 +495,7 @@
           <!-- Modal Header -->
           <div class="dc-modal-header">
             <div class="dc-modal-header-left">
-              <div class="dc-modal-title-row">
-                <h2 class="dc-modal-route-name">{{ vehicle.route_name || 'Fixed Ride' }}</h2>
-                <span class="dc-modal-status-badge" [class.is-live]="rideStarted">
-                  {{ statusLabel(vehicle) }}
-                </span>
-              </div>
-              <span class="dc-modal-route-path">{{ routeOriginName }} → {{ routeDestName }}</span>
+              <h2 id="fixed-ride-details-title" class="dc-modal-route-path">{{ routeOriginName }} → {{ routeDestName }}</h2>
             </div>
 
             <button type="button" class="dc-modal-close-btn dc-press" (click)="closeDetailsModal()" aria-label="Close">
@@ -604,8 +510,8 @@
               <div class="dc-overview-seats">
                 <div class="dc-overview-seats-top">
                   <div class="dc-overview-seats-title">
-                    <span class="dc-hero-seat-icon">💺</span>
-                    <strong>{{ vehicle.seats_taken }} of {{ vehicle.capacity }} Seats Booked</strong>
+                    <strong>{{ vehicle.seats_taken }} / {{ vehicle.capacity }}</strong>
+                    <span>seats booked</span>
                   </div>
                   <span class="dc-hero-seats-free">{{ vehicle.seats_remaining }} seat{{ vehicle.seats_remaining !== 1 ? 's' : '' }} free</span>
                 </div>
@@ -615,48 +521,39 @@
               </div>
 
               <!-- Contextual Ride Action Button inside Overview Card -->
-              <div class="dc-overview-actions" *ngIf="canStart(vehicle) || rideStarted || canCloseVehicle(vehicle)">
+              <div class="dc-overview-actions" *ngIf="canStart(vehicle) || canDepart(vehicle) || rideStarted || canCloseVehicle(vehicle)">
                 <!-- 1. START BOARDING (Before departure) -->
                 <button class="dc-modal-action-cta dc-modal-action-cta--start dc-press" *ngIf="canStart(vehicle)" (click)="startRide()" [disabled]="busy">
                   <ion-icon name="play"></ion-icon>
-                  <span>Start Boarding</span>
+                  <span>Start boarding</span>
                 </button>
                 <button class="dc-modal-action-cta dc-modal-action-cta--start dc-press" *ngIf="canDepart(vehicle)" (click)="departRide()" [disabled]="busy">
-                  <ion-icon name="play"></ion-icon><span>Depart</span>
+                  <ion-icon name="play"></ion-icon><span>Depart from origin</span>
                 </button>
 
 
                 <!-- 2. COMPLETE RIDE (Only shown once the ride has started) -->
                 <button class="dc-modal-action-cta dc-modal-action-cta--complete dc-press" *ngIf="rideStarted" (click)="completeRide()" [disabled]="busy">
                   <ion-icon name="checkmark-done-circle"></ion-icon>
-                  <span>Complete Fixed Ride</span>
+                  <span>Complete ride</span>
                 </button>
 
                 <!-- 3. CANCEL / CLOSE (If 0 bookings before departure) -->
                 <button class="dc-modal-action-cta dc-modal-action-cta--close dc-press" *ngIf="canCloseVehicle(vehicle)" (click)="closeBookings()" [disabled]="busy">
                   <ion-icon name="close-circle-outline"></ion-icon>
-                  <span>Cancel / Close Ride</span>
+                  <span>Cancel ride</span>
                 </button>
               </div>
             </div>
 
-            <!-- Section 2: Segmented Tabs (Passengers vs Stops vs Seats) -->
-            <div class="dc-modal-nav-tabs">
-              <button 
-                type="button" 
-                class="dc-modal-tab-btn dc-press" 
-                [class.is-active]="sheetTab === 'passengers'" 
-                (click)="selectSheetTab('passengers')"
-              >
-                <ion-icon name="people"></ion-icon>
-                <span>Passengers ({{ activeManifestPassengers.length }})</span>
-                <span class="dc-modal-tab-badge" *ngIf="waitingCount > 0">{{ waitingCount }}</span>
-              </button>
+            <div class="dc-modal-nav-tabs" role="group" aria-label="Ride details views">
+              
 
               <button 
                 type="button" 
                 class="dc-modal-tab-btn dc-press" 
                 [class.is-active]="sheetTab === 'stops'" 
+                [attr.aria-pressed]="sheetTab === 'stops'"
                 (click)="selectSheetTab('stops')"
               >
                 <ion-icon name="git-commit-outline"></ion-icon>
@@ -667,15 +564,86 @@
                 type="button" 
                 class="dc-modal-tab-btn dc-press" 
                 [class.is-active]="sheetTab === 'seats'" 
+                [attr.aria-pressed]="sheetTab === 'seats'"
                 (click)="selectSheetTab('seats')"
               >
                 <ion-icon name="car-outline"></ion-icon>
                 <span>Seats</span>
                 <span class="dc-modal-tab-badge dc-modal-tab-badge--blocked" *ngIf="blockedSeatCellsCount > 0">{{ blockedSeatCellsCount }}</span>
               </button>
+              <button type="button" class="dc-modal-tab-btn dc-press" [class.is-active]="sheetTab === 'passengers'"
+                [attr.aria-pressed]="sheetTab === 'passengers'" (click)="selectSheetTab('passengers')">
+                <ion-icon name="people-outline" aria-hidden="true"></ion-icon>
+                <span>Passengers</span>
+              </button>
             </div>
 
-            <!-- TAB 1: PASSENGERS VIEW -->
+            <!-- TAB 2: METRO-STYLE ROUTE STOPS TIMELINE -->
+            <div class="dc-modal-tab-pane" *ngIf="sheetTab === 'stops'">
+              
+              <div class="dc-stops-header-row">
+                <strong>{{ stopGuide.length }} Stops in Sequence</strong>
+                <span>Tap any stop for rules</span>
+              </div>
+
+              <div class="dc-clean-metro-timeline">
+                <div 
+                  class="dc-clean-stop-row" 
+                  *ngFor="let stop of stopGuide; trackBy: trackByStopId; let i = index; let last = last" 
+                  [class.is-done]="stop.status === 'done'"
+                  [class.is-next]="stop.status === 'next'"
+                  [class.is-pending]="stop.status === 'pending'"
+                  (click)="openStopDetail(stop)"
+                >
+                  <!-- Track Line & Number Bullet -->
+                  <div class="dc-clean-stop-track">
+                    <div class="dc-clean-stop-bullet">
+                      <ion-icon *ngIf="stop.status === 'done'" name="checkmark"></ion-icon>
+                      <span *ngIf="stop.status !== 'done'">{{ stop.seq }}</span>
+                    </div>
+                    <div class="dc-clean-stop-line" *ngIf="!last"></div>
+                  </div>
+
+                  <!-- Stop Content -->
+                  <div class="dc-clean-stop-card dc-press">
+                    <div class="dc-clean-stop-top">
+                      <h4 class="dc-clean-stop-name">{{ stop.name }}</h4>
+                      <span class="dc-clean-stop-badge dc-clean-stop-badge--next" *ngIf="stop.status === 'next'">Next Stop</span>
+                      <span class="dc-clean-stop-badge dc-clean-stop-badge--done" *ngIf="stop.status === 'done'">Completed</span>
+                    </div>
+
+                    <div class="dc-clean-stop-chips" *ngIf="stop.waitingCount > 0 || stop.dropCount > 0">
+                      <span class="dc-stop-mini-chip dc-stop-mini-chip--board" *ngIf="stop.waitingCount > 0">
+                        <ion-icon name="arrow-up-circle"></ion-icon> {{ stop.waitingCount }} boarding
+                      </span>
+                      <span class="dc-stop-mini-chip dc-stop-mini-chip--drop" *ngIf="stop.dropCount > 0">
+                        <ion-icon name="arrow-down-circle"></ion-icon> {{ stop.dropCount }} dropping
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- TAB 3: VEHICLE SEAT LAYOUT & WALK-IN BLOCK/UNBLOCK VIEW -->
+            <div class="dc-modal-tab-pane" *ngIf="sheetTab !== 'stops'">
+              
+        <aside class="route-live-panel route-modal-panel" aria-label="Vehicle seats and passengers">
+          <ng-container *ngIf="sheetTab === 'seats'">
+            <div class="route-seat-loading" *ngIf="seatMapLoading && !seatMapData"><ion-spinner name="crescent"></ion-spinner><span>Loading seats…</span></div>
+            <div class="route-seat-empty" *ngIf="!seatMapLoading && !seatMapData"><p>Seat layout unavailable</p><button type="button" (click)="loadDepartureSeatMap(vehicle.id)">Retry</button></div>
+            <div class="route-mini-cabin" *ngIf="seatMapData">
+              <div class="route-mini-windshield"><ion-icon name="disc-outline" aria-hidden="true"></ion-icon><span>Driver</span></div>
+              <div class="route-mini-row" *ngFor="let row of seatMapRows"><ng-container *ngFor="let cell of row.cells">
+                <button type="button" *ngIf="cell.kind === 'seat'" class="route-mini-seat" [class.is-booked]="cell.status === 'BOOKED'" [class.is-held]="cell.status === 'HELD'" [class.is-blocked]="cell.status === 'BLOCKED'" [attr.aria-label]="'Seat ' + cell.label + ', ' + cell.status" [disabled]="seatActionBusy" (click)="onSeatCellTap(cell)">{{ cell.label }}</button>
+                <span class="route-mini-gap" *ngIf="cell.kind !== 'seat'"></span>
+              </ng-container></div>
+              <span class="route-mini-rear">Rear</span>
+            </div>
+            <div class="route-mini-legend" *ngIf="seatMapData"><span><i class="booked"></i>Booked</span><span><i></i>Available</span><span><i class="held"></i>Held</span><span><i class="blocked"></i>Walk-in</span></div>
+          </ng-container>
+            <!-- Passenger filters and actions in Seats / List -->
             <div class="dc-modal-tab-pane" *ngIf="sheetTab === 'passengers'">
               
               <!-- Filter Sub-Tabs -->
@@ -836,176 +804,74 @@
               </ng-container>
             </div>
 
-            <!-- TAB 2: METRO-STYLE ROUTE STOPS TIMELINE -->
-            <div class="dc-modal-tab-pane" *ngIf="sheetTab === 'stops'">
-              
-              <div class="dc-stops-header-row">
-                <strong>{{ stopGuide.length }} Stops in Sequence</strong>
-                <span>Tap any stop for rules</span>
-              </div>
 
-              <div class="dc-clean-metro-timeline">
-                <div 
-                  class="dc-clean-stop-row" 
-                  *ngFor="let stop of stopGuide; trackBy: trackByStopId; let i = index; let last = last" 
-                  [class.is-done]="stop.status === 'done'"
-                  [class.is-next]="stop.status === 'next'"
-                  [class.is-pending]="stop.status === 'pending'"
-                  (click)="openStopDetail(stop)"
-                >
-                  <!-- Track Line & Number Bullet -->
-                  <div class="dc-clean-stop-track">
-                    <div class="dc-clean-stop-bullet">
-                      <ion-icon *ngIf="stop.status === 'done'" name="checkmark"></ion-icon>
-                      <span *ngIf="stop.status !== 'done'">{{ stop.seq }}</span>
-                    </div>
-                    <div class="dc-clean-stop-line" *ngIf="!last"></div>
-                  </div>
-
-                  <!-- Stop Content -->
-                  <div class="dc-clean-stop-card dc-press">
-                    <div class="dc-clean-stop-top">
-                      <h4 class="dc-clean-stop-name">{{ stop.name }}</h4>
-                      <span class="dc-clean-stop-badge dc-clean-stop-badge--next" *ngIf="stop.status === 'next'">Next Stop</span>
-                      <span class="dc-clean-stop-badge dc-clean-stop-badge--done" *ngIf="stop.status === 'done'">Completed</span>
-                    </div>
-
-                    <div class="dc-clean-stop-chips" *ngIf="stop.waitingCount > 0 || stop.dropCount > 0">
-                      <span class="dc-stop-mini-chip dc-stop-mini-chip--board" *ngIf="stop.waitingCount > 0">
-                        <ion-icon name="arrow-up-circle"></ion-icon> {{ stop.waitingCount }} boarding
-                      </span>
-                      <span class="dc-stop-mini-chip dc-stop-mini-chip--drop" *ngIf="stop.dropCount > 0">
-                        <ion-icon name="arrow-down-circle"></ion-icon> {{ stop.dropCount }} dropping
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            <!-- TAB 3: VEHICLE SEAT LAYOUT & WALK-IN BLOCK/UNBLOCK VIEW -->
-            <div class="dc-modal-tab-pane" *ngIf="sheetTab === 'seats'">
-              
-              <!-- Clean Seat Status Counter Header -->
-              <div class="dc-seat-legend-bar">
-                <div class="dc-seat-legend-item">
-                  <span class="seat-dot seat-dot--available"></span>
-                  <strong>{{ availableSeatCellsCount }}</strong>
-                  <small>Available</small>
-                </div>
-                <div class="dc-seat-legend-item">
-                  <span class="seat-dot seat-dot--booked"></span>
-                  <strong>{{ bookedSeatCellsCount }}</strong>
-                  <small>Booked</small>
-                </div>
-                <div class="dc-seat-legend-item">
-                  <span class="seat-dot seat-dot--blocked"></span>
-                  <strong>{{ blockedSeatCellsCount }}</strong>
-                  <small>Walk-in Blocked</small>
-                </div>
-              </div>
-
-              <!-- Loader while fetching seat map -->
-              <div class="fixed-loading" *ngIf="seatMapLoading">
-                <ion-spinner name="crescent"></ion-spinner>
-                <span>Loading vehicle layout…</span>
-              </div>
-
-              <!-- Vehicle Cabin Representation -->
-              <div class="dc-vehicle-cabin" *ngIf="!seatMapLoading && seatMapData">
-                
-                <!-- Windshield Front with Driver in exact position -->
-                <div class="dc-cabin-windshield">
-                  <div class="dc-cabin-windshield-curve"></div>
-                  <div class="dc-cabin-driver-seat">
-                    <ion-icon name="disc-outline"></ion-icon>
-                    <span>Driver</span>
-                  </div>
-                </div>
-
-                <!-- 2D Seats Grid Rows -->
-                <div class="dc-cabin-grid">
-                  <div class="dc-cabin-row" *ngFor="let row of seatMapRows">
-                    
-                    <ng-container *ngFor="let cell of row.cells">
-                      
-                      <!-- Aisle spacer -->
-                      <div class="dc-cabin-cell dc-cabin-cell--aisle" *ngIf="cell.kind === 'aisle'"></div>
-
-                      <!-- Standard Blank Blocked cell -->
-                      <div class="dc-cabin-cell dc-cabin-cell--spacer" *ngIf="cell.kind === 'blocked'"></div>
-
-                      <!-- Actual Passenger Seat -->
-                      <button 
-                        type="button"
-                        class="dc-cabin-cell dc-cabin-seat dc-press"
-                        *ngIf="cell.kind === 'seat'"
-                        [class.is-available]="cell.status === 'AVAILABLE'"
-                        [class.is-booked]="cell.status === 'BOOKED' || cell.status === 'HELD'"
-                        [class.is-blocked]="cell.status === 'BLOCKED'"
-                        [disabled]="seatActionBusy"
-                        (click)="onSeatCellTap(cell)"
-                      >
-                        <div class="dc-seat-top">
-                          <ion-icon [name]="cell.status === 'BLOCKED' ? 'person-circle' : (cell.status === 'BOOKED' || cell.status === 'HELD' ? 'lock-closed' : 'car-sport-outline')"></ion-icon>
-                          <span class="dc-seat-label">{{ cell.label }}</span>
-                        </div>
-
-                        <div class="dc-seat-bottom">
-                          <span class="dc-seat-badge" [class.dc-seat-badge--green]="cell.status === 'AVAILABLE'" [class.dc-seat-badge--blue]="cell.status === 'BOOKED' || cell.status === 'HELD'" [class.dc-seat-badge--black]="cell.status === 'BLOCKED'">
-                            {{ cell.status === 'AVAILABLE' ? 'Open' : (cell.status === 'BLOCKED' ? 'Walk-in' : 'Booked') }}
-                          </span>
-                        </div>
-                      </button>
-
-                    </ng-container>
-
-                  </div>
-                </div>
-
-                <!-- Back of Vehicle Indicator -->
-                <div class="dc-cabin-rear">
-                  <span>Rear / Luggage</span>
-                </div>
-
-              </div>
+        </aside>
 
             </div>
 
           </div>
         </div>
       </div>
-
-    </ng-container>
-  </div>
-
+</ng-container>
   <!-- ==================== STOP DETAILS & ADMIN RULES MODAL ==================== -->
   <div class="stop-detail-overlay" *ngIf="selectedStopDetail" (click)="closeStopDetail()">
-    <div class="stop-detail-sheet" (click)="$event.stopPropagation()">
-      <button type="button" class="stop-detail-close dc-press" (click)="closeStopDetail()" aria-label="Close">
-        <ion-icon name="close-outline"></ion-icon>
-      </button>
+    <div class="stop-detail-sheet connected-stop-sheet" role="dialog" aria-modal="true" aria-label="Stop passengers" (click)="$event.stopPropagation()">
+      <button type="button" class="stop-detail-close dc-press" (click)="closeStopDetail()" aria-label="Back to route"><ion-icon name="arrow-back-outline"></ion-icon></button>
+      <header class="arrival-stop-header"><h2 class="stop-detail-name">{{ selectedStopDetail.stop.name }}</h2><p>{{ stopDistanceLabel }}</p></header>
+      <div class="arrival-stop-map">
+        <app-stop-arrival-map [stop]="selectedStopDetail.stop" [driver]="driverPosition" [reached]="selectedStopDetail.isReached" [markerUrl]="driverMapMarkerUrl" />
+        <button type="button" class="arrival-map-navigate" *ngIf="selectedStopDetail.stop.lat != null && selectedStopDetail.stop.lng != null" (click)="navigateToStop(selectedStopDetail.stop)" aria-label="Navigate to stop"><ion-icon name="navigate-outline"></ion-icon></button>
+      </div>
+      <div class="arrival-passenger-body">
+      <!-- Passengers at this Stop -->
+      <div class="stop-passengers-section">
+        <div class="arrival-waiting-summary"><ion-icon name="people" aria-hidden="true"></ion-icon><div><h3 class="stop-passengers-title">{{ selectedStopDetail.guide.waitingCount }} passenger{{ selectedStopDetail.guide.waitingCount === 1 ? '' : 's' }} waiting</h3><span>{{ selectedStopDetail.stop.name }}</span><small *ngIf="selectedStopDetail.guide.dropCount">{{ selectedStopDetail.guide.dropCount }} to drop off</small></div></div>
 
-      <!-- Stop Header -->
-      <div class="stop-detail-header">
-        <div class="stop-detail-seq-badge">Stop {{ selectedStopDetail.stop.seq }}</div>
-        <div class="stop-detail-title-wrap">
-          <h2 class="stop-detail-name">{{ selectedStopDetail.stop.name }}</h2>
-          <div class="stop-detail-status-row">
-            <span class="stop-status-pill stop-status-pill--next" *ngIf="selectedStopDetail.isNext">
-              <ion-icon name="navigate-circle-outline"></ion-icon> Active Next Stop
-            </span>
-            <span class="stop-status-pill stop-status-pill--done" *ngIf="selectedStopDetail.isReached">
-              <ion-icon name="checkmark-circle-outline"></ion-icon> Completed / Passed
-            </span>
-            <span class="stop-status-pill stop-status-pill--pending" *ngIf="!selectedStopDetail.isNext && !selectedStopDetail.isReached">
-              <ion-icon name="time-outline"></ion-icon> Upcoming Stop
-            </span>
+        <!-- Boarding List -->
+        <div class="stop-passengers-group" *ngIf="selectedStopDetail.boardingPassengers.length">
+          <span class="group-title group-title--board">
+            <ion-icon name="arrow-up-circle-outline"></ion-icon> Boarding ({{ selectedStopDetail.boardingPassengers.length }})
+          </span>
+          <div class="stop-passenger-mini-card" *ngFor="let p of selectedStopDetail.boardingPassengers">
+            <div class="p-mini-avatar passenger-avatar"><img *ngIf="passengerAvatarUrl(p) as avatar; else pickupAvatarFallback" [src]="avatar" (error)="onPassengerAvatarError(p)" [alt]="(p.customer_name || 'Passenger') + ' profile picture'" /><ng-template #pickupAvatarFallback><ion-icon name="person-outline" aria-hidden="true"></ion-icon></ng-template></div>
+            <div class="p-mini-info">
+              <strong>{{ p.customer_name || 'Passenger' }}</strong>
+              <span>{{ p.seat_labels?.length ? 'Seat ' + p.seat_labels?.join(', ') : p.seats + ' seat(s)' }}</span>
+            </div>
+            <button type="button" class="connected-primary connected-board-action" *ngIf="canBoardPassenger(p)" (click)="board(p)" [disabled]="busy || otpSending || !boardReady(p) || boardCooldown(p) > 0">{{ boardCooldown(p) > 0 ? 'Wait ' + boardCooldown(p) + 's' : 'Verify & Board' }}</button>
+            <span class="p-mini-status" *ngIf="!canBoardPassenger(p)" [class.is-boarded]="p.status === 'BOARDED'">{{ p.status }}</span>
+            <div class="connected-passenger-actions" *ngIf="canBoardPassenger(p) && (boardBlockReason(p) || noShowVisible(p))">
+              <small *ngIf="boardBlockReason(p)">{{ boardBlockReason(p) }}</small>
+              <button type="button" class="connected-text-action" *ngIf="noShowVisible(p)" (click)="noShow(p)" [disabled]="busy || !canNoShowPassenger(p)">{{ noShowCountdown(p) > 0 ? 'No-show in ' + noShowCountdownLabel(p) : 'Mark no-show' }}</button>
+            </div>
           </div>
+        </div>
+
+        <!-- Dropping List -->
+        <div class="stop-passengers-group" *ngIf="selectedStopDetail.droppingPassengers.length">
+          <span class="group-title group-title--drop">
+            <ion-icon name="arrow-down-circle-outline"></ion-icon> Dropping ({{ selectedStopDetail.droppingPassengers.length }})
+          </span>
+          <div class="stop-passenger-mini-card" *ngFor="let p of selectedStopDetail.droppingPassengers">
+            <div class="p-mini-avatar passenger-avatar"><img *ngIf="passengerAvatarUrl(p) as avatar; else dropAvatarFallback" [src]="avatar" (error)="onPassengerAvatarError(p)" [alt]="(p.customer_name || 'Passenger') + ' profile picture'" /><ng-template #dropAvatarFallback><ion-icon name="person-outline" aria-hidden="true"></ion-icon></ng-template></div>
+            <div class="p-mini-info">
+              <strong>{{ p.customer_name || 'Passenger' }}</strong>
+              <span>{{ p.seats }} seat{{ p.seats > 1 ? 's' : '' }} · {{ p.board ? 'From: ' + p.board : 'Boarded' }}</span>
+              <small class="stop-mini-dist" *ngIf="passengerDistanceText(p)">
+                <ion-icon name="pin-outline"></ion-icon> {{ passengerDistanceText(p) }} to drop-off
+              </small>
+            </div>
+            <span class="p-mini-status">{{ p.status }}</span><button type="button" class="connected-primary" *ngIf="canDropPassenger(p)" (click)="drop(p)" [disabled]="busy">Drop off</button>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div class="stop-passengers-empty" *ngIf="!selectedStopDetail.boardingPassengers.length && !selectedStopDetail.droppingPassengers.length">
+          <span>No passengers currently scheduled for boarding or drop-off at this stop.</span>
         </div>
       </div>
 
+      <details class="connected-stop-rules"><summary>Arrival and waiting rules</summary>
       <!-- Admin City Settings Parameters for this stop -->
       <div class="stop-rules-section">
         <h3 class="stop-rules-title">
@@ -1078,89 +944,29 @@
         </div>
       </div>
 
-      <!-- Passengers at this Stop -->
-      <div class="stop-passengers-section">
-        <h3 class="stop-passengers-title">
-          <ion-icon name="people-outline"></ion-icon> Passengers at this Stop
-        </h3>
-
-        <!-- Boarding List -->
-        <div class="stop-passengers-group" *ngIf="selectedStopDetail.boardingPassengers.length">
-          <span class="group-title group-title--board">
-            <ion-icon name="arrow-up-circle-outline"></ion-icon> Boarding ({{ selectedStopDetail.boardingPassengers.length }})
-          </span>
-          <div class="stop-passenger-mini-card" *ngFor="let p of selectedStopDetail.boardingPassengers">
-            <div class="p-mini-avatar">🧢</div>
-            <div class="p-mini-info">
-              <strong>{{ p.customer_name || 'Passenger' }}</strong>
-              <span>{{ p.seats }} seat{{ p.seats > 1 ? 's' : '' }} · {{ p.drop ? 'To: ' + p.drop : 'Fixed Ride' }}</span>
-              <small class="stop-mini-dist" *ngIf="passengerDistanceText(p)">
-                <ion-icon name="pin-outline"></ion-icon> {{ passengerDistanceText(p) }} away
-                <span class="stop-mini-live" *ngIf="hasCustomerLocation(p)">· {{ isCustomerLive(p) ? 'Live GPS' : 'Last known location' }}</span>
-              </small>
-            </div>
-            <span class="p-mini-status" [class.is-boarded]="p.status === 'BOARDED'">{{ p.status }}</span>
-          </div>
-        </div>
-
-        <!-- Dropping List -->
-        <div class="stop-passengers-group" *ngIf="selectedStopDetail.droppingPassengers.length">
-          <span class="group-title group-title--drop">
-            <ion-icon name="arrow-down-circle-outline"></ion-icon> Dropping ({{ selectedStopDetail.droppingPassengers.length }})
-          </span>
-          <div class="stop-passenger-mini-card" *ngFor="let p of selectedStopDetail.droppingPassengers">
-            <div class="p-mini-avatar">📍</div>
-            <div class="p-mini-info">
-              <strong>{{ p.customer_name || 'Passenger' }}</strong>
-              <span>{{ p.seats }} seat{{ p.seats > 1 ? 's' : '' }} · {{ p.board ? 'From: ' + p.board : 'Boarded' }}</span>
-              <small class="stop-mini-dist" *ngIf="passengerDistanceText(p)">
-                <ion-icon name="pin-outline"></ion-icon> {{ passengerDistanceText(p) }} to drop-off
-              </small>
-            </div>
-            <span class="p-mini-status">{{ p.status }}</span>
-          </div>
-        </div>
-
-        <!-- Empty State -->
-        <div class="stop-passengers-empty" *ngIf="!selectedStopDetail.boardingPassengers.length && !selectedStopDetail.droppingPassengers.length">
-          <span>No passengers currently scheduled for boarding or drop-off at this stop.</span>
-        </div>
+</details>
       </div>
-
-      <!-- Action Buttons -->
-      <div class="stop-detail-actions">
-        <button 
-          type="button" 
-          class="dc-cta dc-cta--primary dc-press stop-nav-btn"
-          *ngIf="selectedStopDetail.stop.lat && selectedStopDetail.stop.lng"
-          (click)="navigateToStop(selectedStopDetail.stop)"
-        >
-          <ion-icon name="navigate-outline"></ion-icon>
-          <span>Navigate to Stop</span>
-        </button>
-        <button type="button" class="dc-cta dc-cta--secondary dc-press stop-close-action-btn" (click)="closeStopDetail()">
-          <span>Close</span>
-        </button>
-      </div>
+      <footer class="arrival-stop-footer"><button type="button" class="connected-primary" (click)="verifyStopPassengers()" [disabled]="busy || otpSending || !nextPassengerAtStop">Verify &amp; Board Passengers</button></footer>
 
     </div>
   </div>
 
   <!-- ==================== BOARDING OTP BOTTOM SHEET MODAL ==================== -->
   <div class="otp-overlay" *ngIf="otpPassenger">
-    <div class="otp-sheet">
+    <div class="otp-sheet connected-verification" role="dialog" aria-modal="true" aria-label="Verify passenger">
       <button type="button" class="otp-close dc-press" (click)="closeBoardingOtp()" aria-label="Cancel">
         <ion-icon name="close-outline"></ion-icon>
       </button>
 
       <div class="otp-sheet__hero">
         <div class="otp-sheet__icon"><ion-icon name="keypad-outline"></ion-icon></div>
-        <h2 class="otp-sheet__title">Verify Boarding OTP</h2>
+        <h2 class="otp-sheet__title">Verify Passenger</h2>
         <p class="otp-sheet__passenger">{{ otpPassenger.customer_name || 'Passenger' }} · {{ otpPassenger.seats }} Seat{{ otpPassenger.seats > 1 ? 's' : '' }}</p>
       </div>
 
+      <div class="connected-passenger-identity"><div class="passenger-avatar"><img *ngIf="passengerAvatarUrl(otpPassenger) as avatar; else verificationAvatarFallback" [src]="avatar" (error)="onPassengerAvatarError(otpPassenger)" [alt]="(otpPassenger.customer_name || 'Passenger') + ' profile picture'" /><ng-template #verificationAvatarFallback><ion-icon name="person-outline" aria-hidden="true"></ion-icon></ng-template></div><span><strong>{{ otpPassenger.customer_name || 'Passenger' }}</strong><small>{{ otpPassenger.seat_labels?.join(', ') || otpPassenger.seats + ' seat(s)' }}</small></span><span class="connected-code-label">4-digit code</span></div>
       <p class="otp-instruction">
-        Ask the passenger for the 4-digit code sent to their mobile phone.
+        Ask the passenger for the 4-digit boarding code shown in their booking.
       </p>
 
       <!-- 4-Box Pin Display -->
@@ -1170,6 +976,7 @@
         </span>
         <input
           class="otp-hidden-input"
+          aria-label="Four-digit boarding code"
           type="tel"
           inputmode="numeric"
           autocomplete="one-time-code"
@@ -1189,7 +996,7 @@
 
       <div class="otp-msg-box otp-msg-box--locked" *ngIf="otpLockedFor > 0">
         <ion-icon name="lock-closed-outline"></ion-icon>
-        <span>Locked for {{ otpLockedFor }}s — or mark passenger as no-show.</span>
+        <span>Try again in {{ otpLockedFor }}s. No-show remains subject to the waiting rules.</span>
       </div>
 
       <!-- Modal Action Buttons -->
@@ -1356,4 +1163,10 @@
 
     </div>
   </div>
-</ion-content>
+
+  <div class="connected-result-overlay" *ngIf="boardingSuccess as passenger">
+    <section class="connected-result-card" role="dialog" aria-modal="true" aria-label="Passenger boarded"><ion-icon class="connected-result-check" name="checkmark-circle"></ion-icon><h2>Passenger verified</h2><p>{{ passenger.customer_name || 'Passenger' }} has boarded.</p><strong>{{ passenger.seat_labels?.join(', ') || passenger.seats + ' seat(s)' }}</strong><button type="button" class="connected-primary" (click)="continueAfterBoarding()">{{ nextBoardingPassenger ? 'Verify next passenger' : 'Back to route' }}</button><button type="button" class="connected-text-action" *ngIf="nextBoardingPassenger" (click)="boardingSuccess = null">Back to route</button></section>
+  </div>
+  <div class="connected-result-overlay" *ngIf="completionSummary as summary">
+    <section class="connected-result-card" role="dialog" aria-modal="true" aria-label="Route completed"><ion-icon class="connected-result-check" name="checkmark-circle"></ion-icon><h2>Route completed</h2><p>Thank you for driving with Cabbies</p><h3>{{ summary.route }}</h3><dl><div><dt>Seats served</dt><dd>{{ summary.dropped }}</dd></div><div><dt>Vehicle capacity</dt><dd>{{ summary.capacity }}</dd></div><div><dt>No-show bookings</dt><dd>{{ summary.noShows }}</dd></div></dl><button type="button" class="connected-primary" (click)="closeCompletion('home')">Back to Home</button><button type="button" class="connected-text-action" (click)="closeCompletion('history')">View ride history</button><button type="button" class="connected-text-action" (click)="closeCompletion('routes')">Choose another route</button></section>
+  </div>

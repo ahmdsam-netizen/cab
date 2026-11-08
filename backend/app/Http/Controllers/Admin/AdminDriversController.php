@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Events\DriverVerificationUpdated;
+use App\Models\City;
 use App\Models\Document;
 use App\Models\Driver;
 use App\Models\RouteGroup;
@@ -13,6 +14,7 @@ use App\Models\Trip;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Services\PayoutLedgerService;
+use App\Services\ManagerScope;
 use App\Services\SmsService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
@@ -44,7 +46,8 @@ class AdminDriversController
      */
     public function index(Request $request)
     {
-        $drivers = $this->buildIndexQuery($request)->paginate(
+        $allowedCities = ManagerScope::cityIds($request->user());
+        $drivers = $this->buildIndexQuery($request)->with(['city:id,name', 'cities:id,name'])->paginate(
             (int) ($request->query('per_page') ?? 50)
         );
 
@@ -53,9 +56,12 @@ class AdminDriversController
             ->whereHas('drivers', fn ($q) => $q->whereIn('users.id', $userIds))
             ->when($request->integer('city_id'), fn ($q, $cityId) => $q->where('city_id', $cityId))
             ->with(['drivers:id', 'routes:id', 'city:id,name'])->orderBy('name')->get();
-        $drivers->getCollection()->transform(function (Driver $d) use ($groups) {
+        $drivers->getCollection()->transform(function (Driver $d) use ($groups, $allowedCities) {
             $assigned = $groups->filter(fn ($g) => $g->drivers->contains('id', $d->user_id));
+            $cities = $d->city ? $d->cities->concat([$d->city]) : $d->cities;
             return $this->shapeRow($d) + [
+                'cities' => $cities->filter(fn ($city) => $allowedCities === null || in_array($city->id, $allowedCities, true))
+                    ->unique('id')->sortBy('name')->map(fn ($city) => ['id' => $city->id, 'name' => $city->name])->values(),
                 'route_groups' => $assigned->map(fn ($g) => ['id' => $g->id, 'name' => $g->name,
                     'city_name' => $g->city?->name, 'is_active' => $g->is_active])->values(),
                 'allocated_route_count' => $assigned->flatMap(fn ($g) => $g->routes->pluck('id'))->unique()->count(),
@@ -63,6 +69,59 @@ class AdminDriversController
         });
 
         return response()->json(['data' => $drivers, 'allocation_filters_supported' => true]);
+    }
+
+    public function cityCounts(Request $request)
+    {
+        $allowedCities = ManagerScope::cityIds($request->user());
+        $drivers = $this->locationDrivers($request);
+        // A driver can have the same city on both the original row and the pivot.
+        $memberships = (clone $drivers)->select('drivers.id as driver_id', 'drivers.city_id')
+            ->whereNotNull('drivers.city_id')
+            ->union($drivers->join('driver_city', 'driver_city.driver_id', '=', 'drivers.id')
+                ->select('drivers.id as driver_id', 'driver_city.city_id'));
+        $counts = DB::query()->fromSub($memberships, 'memberships')
+            ->selectRaw('city_id, COUNT(*) as driver_count')->groupBy('city_id');
+
+        $cities = City::query()
+            ->when($allowedCities !== null, fn ($query) => $query->whereIn('cities.id', $allowedCities))
+            ->leftJoinSub($counts, 'counts', 'cities.id', '=', 'counts.city_id')
+            ->orderBy('cities.name')->orderBy('cities.id')
+            ->get(['cities.id', 'cities.name', 'counts.driver_count']);
+
+        return response()->json(['data' => $cities->map(fn (City $city) => [
+            'id' => $city->id,
+            'name' => $city->name,
+            'driver_count' => (int) $city->driver_count,
+        ])]);
+    }
+
+    public function cityStands(Request $request, City $city)
+    {
+        $drivers = $this->locationDrivers($request)->forCity($city->id);
+        $counts = DB::table('driver_route_group')->whereIn('driver_user_id', $drivers->select('drivers.user_id')->toBase())
+            ->selectRaw('route_group_id, COUNT(DISTINCT driver_user_id) as driver_count')
+            ->groupBy('route_group_id');
+        $stands = RouteGroup::query()->where('route_groups.city_id', $city->id)
+            ->leftJoinSub($counts, 'counts', 'route_groups.id', '=', 'counts.route_group_id')
+            ->orderBy('route_groups.name')->orderBy('route_groups.id')
+            ->get(['route_groups.id', 'route_groups.name', 'route_groups.is_active', 'counts.driver_count']);
+
+        return response()->json([
+            'data' => $stands->map(fn (RouteGroup $stand) => [
+                'id' => $stand->id,
+                'name' => $stand->name,
+                'is_active' => $stand->is_active,
+                'driver_count' => (int) $stand->driver_count,
+            ]),
+        ]);
+    }
+
+    private function locationDrivers(Request $request): \Illuminate\Database\Eloquent\Builder
+    {
+        $fleets = ManagerScope::fleetIds($request->user());
+
+        return Driver::query()->when($fleets !== null, fn ($query) => $query->whereIn('drivers.fleet_id', $fleets));
     }
 
     /**
@@ -1066,6 +1125,9 @@ class AdminDriversController
             'address' => ['sometimes', 'nullable', 'string', 'max:500'],
         ]);
 
+        // Reject before any city, driver or user data is written.
+        app(\App\Services\DriverServiceModeService::class)->assertVehicleChangeAllowed($driver, $data);
+
         if (array_key_exists('city_ids', $data) && is_array($data['city_ids'])) {
             $cityIds = array_values(array_unique(array_map('intval', $data['city_ids'])));
             $driver->cities()->sync($cityIds);
@@ -1369,9 +1431,16 @@ class AdminDriversController
     private function buildIndexQuery(Request $request)
     {
         $state = strtolower((string) $request->query('state', 'all'));
+        $cityId = $request->integer('city_id');
+        if ($cityId) {
+            ManagerScope::assertCityAllowed($cityId, $request->user());
+        }
 
-        $query = Driver::query()
-            ->with(['user', 'documents']);
+        $filters = $request->validate([
+            'stand_id' => ['sometimes', 'integer', Rule::exists('route_groups', 'id')->where('city_id', $cityId)],
+        ]);
+        $query = ($cityId ? $this->locationDrivers($request)->forCity($cityId) : Driver::query())
+            ->with(['user', 'documents', 'vehicleTypeRef:id,name']);
 
         if ($state === 'deactivated') {
             $query->whereNotNull('deactivated_at');
@@ -1384,8 +1453,9 @@ class AdminDriversController
             $query->where('vehicle_type', $vehicleType);
         }
 
-        if ($cityId = $request->integer('city_id')) {
-            $query->forCity($cityId);
+        if (isset($filters['stand_id'])) {
+            $query->whereIn('drivers.user_id', DB::table('driver_route_group')
+                ->where('route_group_id', $filters['stand_id'])->select('driver_user_id'));
         }
         if ($vehicleId = $request->integer('city_vehicle_type_id')) {
             $vehicle = CityVehicleType::find($vehicleId);
@@ -1439,10 +1509,12 @@ class AdminDriversController
             }
         }
 
-        // ?approval_status=approved|pending|rejected
+        // Shared by the paginated list and CSV export.
         if ($approval = $request->query('approval_status')) {
             $approval = strtolower((string) $approval);
-            if (in_array($approval, ['approved', 'pending', 'rejected'], true)) {
+            if ($approval === 'not_approved') {
+                $query->whereIn('drivers.approval_status', ['pending', 'rejected']);
+            } elseif (in_array($approval, ['approved', 'pending', 'rejected'], true)) {
                 $query->where('drivers.approval_status', $approval);
             }
         }
@@ -1516,7 +1588,9 @@ class AdminDriversController
         return [
             'id' => $driver->id,
             'approval_status' => $driver->approval_status,
-            'vehicle_type' => $driver->vehicle_type,
+            // The linked catalog category is authoritative. The legacy text
+            // field can drift (for example SUV MAXI vs SUMO MAXI).
+            'vehicle_type' => $driver->vehicleTypeRef?->name ?? $driver->vehicle_type,
             'vehicle_reg_no' => $driver->vehicle_reg_no,
             'is_online' => $driver->isOnlineFresh(),
             'registered_on' => optional($driver->created_at)->toIso8601String(),

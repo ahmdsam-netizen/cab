@@ -1,4 +1,5 @@
 <ion-header class="ion-no-border">
+  <app-driver-topbar></app-driver-topbar>
   <ion-toolbar class="pg-toolbar">
     <ion-buttons slot="start">
       <ion-back-button defaultHref="/tabs/dashboard"></ion-back-button>
@@ -12,47 +13,26 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content class="pg-content">
-
-  <!-- ─── Money Hero: Total Ride Earnings, Cash & Collections Split ─── -->
-  <div class="pg-hero ec-hero">
-    <p class="pg-hero__label">Total Ride Earnings <small class="ec-scope">· {{ periodLabelMap[period] }}</small></p>
-    <h1 class="pg-hero__amount">₹{{ rideEarnings | number:'1.0-2' }}</h1>
-
-    <div class="ec-hero__stats">
-      <div class="ec-hstat">
-        <ion-icon name="cash-outline"></ion-icon>
-        <div class="ec-hstat__body">
-          <span class="ec-hstat__label">Cash Collected</span>
-          <strong class="ec-hstat__value">₹{{ cashCollected | number:'1.0-2' }}</strong>
-        </div>
-      </div>
-      <div class="ec-hstat">
-        <ion-icon name="receipt-outline"></ion-icon>
-        <div class="ec-hstat__body">
-          <span class="ec-hstat__label">Total Collected</span>
-          <strong class="ec-hstat__value">₹{{ totalCollected | number:'1.0-2' }}</strong>
-        </div>
-      </div>
-    </div>
-
-    <!-- Quick Operator Transfer Banner in Hero -->
-    <div class="ec-hero__transfer-bar">
-      <div class="ec-hbar-item">
-        <ion-icon name="hourglass-outline" class="is-pending"></ion-icon>
-        <span>Pending: <strong>₹{{ pendingTransfers | number:'1.0-2' }}</strong></span>
-      </div>
-      <div class="ec-hbar-div"></div>
-      <div class="ec-hbar-item">
-        <ion-icon name="checkmark-circle-outline" class="is-paid"></ion-icon>
-        <span>Transferred: <strong>₹{{ completedTransfers | number:'1.0-2' }}</strong></span>
-      </div>
-    </div>
+<ion-content class="pg-content earnings-scroll-content">
+  <div class="earnings-content-surface">
+  <div class="ec-reference-top">
+    <nav class="ec-date-tabs" aria-label="Earnings date range">
+      <button type="button" [class.is-active]="period === 'today'" [attr.aria-pressed]="period === 'today'" (click)="setPeriod('today')">Today</button>
+      <button type="button" [class.is-active]="period === 'week'" [attr.aria-pressed]="period === 'week'" (click)="setPeriod('week')">This Week</button>
+      <button type="button" [class.is-active]="period === 'month'" [attr.aria-pressed]="period === 'month'" (click)="setPeriod('month')">Month</button>
+      <button type="button" [class.is-active]="period === 'all'" [attr.aria-pressed]="period === 'all'" (click)="setPeriod('all')">All</button>
+    </nav>
+    <section class="ec-reference-summary" aria-label="Earnings summary">
+      <span>Total earnings · {{ periodLabelMap[period] }}</span>
+      <strong>{{ loading ? 'Loading…' : error ? 'Unavailable' : ('₹' + (rideEarnings | number:'1.0-2')) }}</strong>
+      <small *ngIf="!loading && !error">{{ rides.length }} completed ride{{ rides.length === 1 ? '' : 's' }}{{ rideListLimited ? ' shown' : '' }}</small>
+    </section>
   </div>
-
-  <!-- ─── 3 Navigation Tabs (Transfers, Received, Analytics) ─── -->
   <div class="ec-tab-nav">
     <ion-segment [value]="activeTab" (ionChange)="setTab($any($event.detail.value))" class="ec-segment">
+      <ion-segment-button value="overview">
+        <ion-icon name="car-outline"></ion-icon><ion-label>Rides</ion-label>
+      </ion-segment-button>
       <ion-segment-button value="transfers">
         <ion-icon name="swap-horizontal-outline"></ion-icon>
         <ion-label>Transfers</ion-label>
@@ -81,6 +61,21 @@
     </div>
 
     <ng-container *ngIf="!loading && !error">
+      <section *ngIf="activeTab === 'overview'" class="ec-reference-rides">
+        <div class="ec-rides-heading"><h2>Completed rides</h2><a routerLink="/tabs/history">View history <ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></a></div>
+        <div *ngIf="!rides.length" class="dc-empty">
+          <div class="dc-empty__icon"><ion-icon name="car-outline" aria-hidden="true"></ion-icon></div>
+          <strong>No completed rides {{ periodLabelMap[period] }}</strong>
+          <span>Your completed rides and earnings will appear here.</span>
+        </div>
+        <article *ngFor="let r of rides" class="ec-reference-ride">
+          <div><strong>{{ r.pickup_address && r.drop_address ? r.pickup_address + ' → ' + r.drop_address : 'Trip #' + r.id }}</strong><small>{{ fmtDate(r.date) }}<ng-container *ngIf="r.is_shared"> · Shared</ng-container></small><span class="ec-ride-method">{{ r.is_cash ? 'Cash' : 'Online' }}</span></div>
+          <b>₹{{ r.fare | number:'1.0-2' }}</b>
+        </article>
+        <p *ngIf="rideListLimited" class="ec-scope-note">Showing up to 500 recent completed rides. The earnings total includes the whole selected period.</p>
+      </section>
+      <p *ngIf="activeTab === 'transfers' || activeTab === 'received'" class="ec-scope-note">All-time operator collections and payouts</p>
+
 
       <!-- ═════════════════════════════════════════════════════════════════ -->
       <!-- TAB 1: TRANSFERS (Pending & Completed Operator Transfers)         -->
@@ -262,13 +257,6 @@
       <!-- ═════════════════════════════════════════════════════════════════ -->
       <ng-container *ngIf="activeTab === 'analytics'">
 
-        <!-- Period selector pills -->
-        <div class="dc-pills ec-pills">
-          <button class="dc-pill dc-press" [class.is-active]="period === 'week'" (click)="setPeriod('week')">Week</button>
-          <button class="dc-pill dc-press" [class.is-active]="period === 'month'" (click)="setPeriod('month')">Month</button>
-          <button class="dc-pill dc-press" [class.is-active]="period === 'all'" (click)="setPeriod('all')">All time</button>
-        </div>
-
         <!-- Overview / Bar Chart Card -->
         <div class="pg-card ec-chart-card">
           <div class="pg-card__head">
@@ -335,6 +323,7 @@
           </div>
         </div>
 
+        <p class="ec-scope-note">Collection split: {{ period === 'today' || period === 'week' ? 'last 7 days' : periodLabelMap[period] }}</p>
         <!-- Payment Mode Split Progress Bar -->
         <div class="pg-card ec-split-card">
           <div class="pg-card__head">
@@ -398,6 +387,7 @@
 
     </ng-container>
 
+  </div>
   </div>
 </ion-content>
 

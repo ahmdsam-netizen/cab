@@ -9,7 +9,7 @@ export type IconName =
   | 'home' | 'map' | 'map-marker' | 'users' | 'user-plus' | 'user'
   | 'id-card' | 'tag' | 'bolt' | 'envelope' | 'car' | 'gift' | 'send'
   | 'cog' | 'chart-bar' | 'chart-line' | 'shield' | 'sign-out'
-  | 'search' | 'bell' | 'chevron-down' | 'chevron-right' | 'chevron-left'
+  | 'search' | 'bell' | 'ban' | 'chevron-down' | 'chevron-right' | 'chevron-left'
   | 'chevron-up' | 'menu' | 'x' | 'plus' | 'check' | 'arrow-right'
   | 'filter' | 'calendar' | 'clock' | 'pin' | 'phone' | 'star' | 'eye' | 'edit'
   | 'trash' | 'download' | 'upload' | 'refresh' | 'more-horizontal' | 'copy'
@@ -18,6 +18,7 @@ export type IconName =
   | 'play' | 'external-link' | 'image' | 'camera' | 'link' | 'sliders' | 'folder' | 'share-alt';
 
 export const ICONS: Record<IconName, string> = {
+  'ban': '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
   'folder': '<path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v1"/><path d="M3 7h18l-2 13H3z"/>',
   'share-alt': '<circle cx="12" cy="4" r="2.5"/><circle cx="4" cy="19" r="2.5"/><circle cx="20" cy="19" r="2.5"/><path d="M12 6.5v5M12 11.5 5 16.5M12 11.5l7 5"/>',
   'image': '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',

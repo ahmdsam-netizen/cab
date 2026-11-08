@@ -72,6 +72,20 @@
             },
             "ci": {
               "progress": false
+            },
+            "photo-browser": {
+              "sourceMap": true,
+              "optimization": false,
+              "vendorChunk": true,
+              "extractLicenses": false,
+              "fileReplacements": [
+                {
+                  "with": "src/environments/environment.photo-browser.ts",
+                  "replace": "src/environments/environment.ts"
+                }
+              ],
+              "buildOptimizer": false,
+              "namedChunks": true
             }
           },
           "defaultConfiguration": "production"
@@ -87,6 +101,9 @@
             },
             "ci": {
               "progress": false
+            },
+            "photo-browser": {
+              "buildTarget": "app:build:photo-browser"
             }
           },
           "defaultConfiguration": "development"

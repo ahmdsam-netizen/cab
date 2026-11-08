@@ -253,7 +253,7 @@ export class SubscriptionsPage implements OnInit {
       key: order.key_id,
       amount: order.amount_paise,
       currency: order.currency || 'INR',
-      name: 'Dream Cabs',
+      name: 'Cabbies',
       description: `Subscription: ${p.title}`,
       order_id: order.order_id,
       handler: (response: any) => {

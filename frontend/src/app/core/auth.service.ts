@@ -7,6 +7,9 @@ export interface ManagerProfile {
   id: number;
   name: string;
   email: string;
+  phone?: string | null;
+  avatar_path?: string | null;
+  avatar_url?: string | null;
   manager_role: {
     id: number;
     slug: string;
@@ -18,9 +21,11 @@ export interface ManagerProfile {
   permissions: string[];           // ['*'] for Super Admin
   manager_city_id: number | null;
   manager_city_name: string | null;
+  manager_all_cities?: boolean;
   manager_fleet_id: number | null;
   manager_fleet_name: string | null;
   is_super_admin: boolean;
+  created_at?: string;
 }
 
 const PROFILE_KEY = 'dc.managerProfile';
@@ -64,6 +69,20 @@ export class AuthService {
   clear(): void {
     this.loaded = false;
     this.setProfile(null);
+  }
+
+  updateProfile(formData: FormData): Observable<{ message: string; user: ManagerProfile }> {
+    return this.api.postMultipart<{ message: string; user: ManagerProfile }>('/admin/me/profile', formData).pipe(
+      tap((res) => {
+        if (res?.user) {
+          this.setProfile(res.user);
+        }
+      }),
+    );
+  }
+
+  updatePassword(payload: { current_password: string; password: string; password_confirmation: string }): Observable<{ message: string }> {
+    return this.api.post<{ message: string }>('/admin/me/password', payload);
   }
 
   get profile(): ManagerProfile | null { return this._profile$.value; }

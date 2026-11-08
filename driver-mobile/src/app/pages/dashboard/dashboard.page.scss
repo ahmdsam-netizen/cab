@@ -10,6 +10,122 @@
   --background: #E5E3DF;
 }
 
+// Reference Home: identity, availability, driving plan and real earnings.
+// Keep the existing map mounted and the drawer/operational handlers intact.
+.dash-content { --background: #f5f7fa; }
+.home-workspace {
+  display: flex; flex-direction: column; gap: 14px; max-width: 620px;
+  margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px 24px;
+  color: #0d1b2a;
+}
+.home-workspace .drv-topbar {
+  position: relative; inset: auto; height: 48px; flex: none; width: 100%;
+  z-index: 2; pointer-events: auto; animation: none; order: 0;
+}
+.home-brand { line-height: 1.2; }
+.home-brand strong { display: block; font-size: 22px; font-weight: 800; letter-spacing: -.7px; }
+.home-brand strong span { color: #087f50; }
+.home-brand small { color: #64748b; font-size: 11px; }
+.home-icon-button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; flex: none; border: 1px solid #e4e9ef;
+  background: #fff; color: #0d1b2a; border-radius: 14px; font-size: 21px;
+}
+.home-identity {
+  order: 1; display: flex; align-items: center; gap: 12px; padding: 18px;
+  background: transparent; border: 0; border-radius: 0;
+  > img { width: 56px; height: 56px; object-fit: cover; border-radius: 50%; background: #eef3f7; }
+  > div { flex: 1; min-width: 0; }
+  h1 { font-size: 21px; font-weight: 800; margin: 4px 0; overflow-wrap: anywhere; }
+  p { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin: 0; font-size: 12px; color: #64748b; line-height: 1.6; }
+  p ion-icon { font-size: 15px; }
+  > button { width: 32px; border: 0; background: transparent; }
+}
+.home-eyebrow { color: #64748b; font-size: 11px; }
+.home-workspace .sheet {
+  order: 3; position: relative; inset: auto; width: 100%; max-width: none;
+  margin: 0; border: 1px solid #e0e8e4; border-radius: 20px; padding: 18px;
+  background: #fff; box-shadow: none; animation: none; box-sizing: border-box;
+  .sheet__handle { display: none; }
+  .sheet__lead { text-align: left; margin-bottom: 16px; }
+  .sheet__title { display: flex; align-items: center; gap: 9px; font-size: 20px; font-weight: 800; }
+  .sheet__title ion-icon { font-size: 24px; color: #087f50; }
+  .sheet__hint { font-size: 12px; line-height: 1.6; margin: 7px 0 0; }
+  .sheet__go, .sheet__stop { min-height: 48px; border-radius: 13px; box-shadow: none; }
+  &.is-online { border-color: #b9e2cb; box-shadow: none; background: #f0faf4; }
+  &.is-warning { box-shadow: none; }
+}
+.home-online-heading {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 15px; color: #087f50;
+  > ion-icon { font-size: 28px; flex: none; }
+  > div { flex: 1; }
+  strong { display: block; font-size: 20px; }
+  span { display: block; font-size: 11px; line-height: 1.5; }
+  .home-session { font-variant-numeric: tabular-nums; padding: 6px; border-radius: 8px; background: #fff; }
+}
+.home-plan, .home-earnings, .home-map-card {
+  border: 1px solid #e4e9ef; border-radius: 20px; background: #fff;
+  padding: 18px; box-shadow: 0 3px 10px #0d1b2a03; min-width: 0;
+}
+.home-plan { order: 4; }
+.home-card-heading { display: flex; align-items: center; gap: 10px; }
+.home-card-heading > div, .home-card-heading > span:not(.home-icon-tile) { flex: 1; min-width: 0; }
+.home-card-heading h2, .home-card-title { margin: 0; font-size: 15px; font-weight: 750; display: block; }
+.home-card-heading p, .home-card-heading small { display: block; font-size: 11px; color: #64748b; margin: 5px 0 0; line-height: 1.4; }
+.home-icon-tile { width: 40px; height: 40px; background: #eaf8ef; color: #087f50; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; flex: none; }
+.home-plan-copy { color: #64748b; font-size: 12px; line-height: 1.6; margin: 14px 0; }
+.home-plan-action {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+  padding: 12px; min-height: 48px; border: 0; border-radius: 13px;
+  background: #12b35b; color: #fff; font-size: 13px; font-weight: 700;
+  ion-icon { font-size: 19px; }
+  &:disabled { background: #edf2ef; color: #7b8a82; }
+}
+.home-earnings { order: 5; width: 100%; text-align: left; background: #edf6f2; color: #0d1b2a; }
+.home-earnings-amount { display: block; font-size: 30px; line-height: 1.2; margin: 16px 0 8px; font-weight: 800; letter-spacing: -.8px; }
+.home-earnings-note { color: #64748b; font-size: 11px; line-height: 1.6; display: block; }
+.home-map-card { order: 6; overflow: hidden; padding: 0; }
+.home-map-heading { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.home-map-heading h2 { margin: 0; font-size: 14px; font-weight: 750; }
+.home-map-heading span { color: #64748b; font-size: 10px; }
+.home-workspace .map-canvas { position: relative; inset: auto; height: 200px; width: 100%; z-index: 0; }
+.home-workspace .dc-banner-half-card {
+  order: 7; position: relative; inset: auto; max-width: none; width: 100%;
+  margin: 0; box-shadow: none; border: 1px solid #cfe8d8; border-radius: 18px;
+  background: #eaf6ef; overflow: visible;
+  transform-origin: 90% 0;
+  animation: driver-offer-pop 360ms cubic-bezier(.2, .85, .25, 1.2) both;
+  &::before { content: ''; position: absolute; z-index: 2; top: -14px; right: 8.5%; width: 0; height: 0; border-left: 14px solid transparent; border-right: 14px solid transparent; border-bottom: 14px solid #eaf6ef; }
+  .dc-banner-half-img-wrap { min-height: 100px; max-height: 140px; border-radius: 17px 17px 0 0; }
+  .dc-banner-half-img { max-height: 140px; }
+  .dc-banner-half-body { padding: 12px 16px; background: #eaf6ef; border-radius: 0 0 17px 17px; }
+  .dc-banner-half-title { font-size: 14px; }
+}
+@keyframes driver-offer-pop {
+  0% { opacity: 0; transform: translateY(-12px) scale(.82); }
+  72% { opacity: 1; transform: translateY(2px) scale(1.015); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-workspace .dc-banner-half-card { animation: none; }
+}
+.home-workspace .error-banner { order: 2; position: relative; inset: auto; width: auto; margin: 0; z-index: 1; }
+.home-footer { background: #fff; border-top: 1px solid #e4e9ef; }
+.home-navigation {
+  display: grid; grid-template-columns: repeat(4, 1fr); max-width: 620px; margin: 0 auto;
+  padding: 8px 12px max(8px, env(safe-area-inset-bottom));
+  button { min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 0; background: transparent; color: #738095; font-size: 10px; border-radius: 12px; }
+  ion-icon { font-size: 22px; }
+  .is-current { color: #087f50; background: #edf8f1; font-weight: 700; }
+}
+.home-workspace button:focus-visible, .home-navigation button:focus-visible { outline: 2px solid #087f50; outline-offset: 3px; }
+@media (min-width: 900px) {
+  .home-workspace { max-width: 1080px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+  .home-workspace .drv-topbar, .home-identity, .home-workspace .error-banner, .home-workspace .home-readiness { grid-column: 1 / -1; }
+  .home-workspace .dc-banner-half-card { grid-column: 1 / -1; flex-direction: row; align-items: center; .dc-banner-half-img-wrap { flex: 0 0 35%; } }
+  .home-navigation { max-width: 1080px; }
+}
+
 /* The Google Map host — full-bleed background layer (ViewChild #mapDiv). */
 .map-canvas {
   position: absolute;
@@ -668,7 +784,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 28px;
+    // The 100px ring extends 55px below this box at its largest scale.
+    margin-bottom: 68px;
   }
 
   .loc-radar-ring {
@@ -1529,3 +1646,106 @@
   }
 }
 
+/* Client Home reference: one compact vertical composition on every viewport. */
+.dash-content { --background: #fff; }
+.home-workspace {
+  display: flex; max-width: 460px; gap: 16px;
+  padding: max(18px, env(safe-area-inset-top)) 20px 20px;
+}
+.home-workspace .drv-topbar { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; height: 44px; margin-bottom: 4px; }
+.home-brand { text-align: center; }
+.home-brand strong { font-size: 23px; letter-spacing: -.7px; }
+.home-workspace .drv-topbar__right { margin: 0; display: flex; align-items: center; gap: 4px; }
+.home-workspace .drv-topbar__status { display: none; }
+.home-workspace .drv-menu { width: 44px; height: 44px; padding: 4px; border: 1px solid #cfe1d7; background: #f6faf8; border-radius: 50%; box-shadow: none; box-sizing: border-box; }
+.home-workspace .drv-menu__img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
+.home-workspace .home-icon-button { width: 44px; height: 44px; border: 0; background: transparent; border-radius: 50%; font-size: 24px; }
+.home-workspace .home-icon-button ion-icon { width: 24px; height: 24px; font-size: 24px; flex: none; }
+.home-workspace .sheet { padding: 0; border: 0; border-radius: 14px; background: transparent; }
+.home-workspace .sheet.is-online { background: transparent; border: 0; }
+.home-workspace .sheet .sheet__go, .home-duty-switch {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px;
+  padding: 12px 18px; border: 0; border-radius: 14px;
+  background: linear-gradient(100deg, #12b35b, #00974c); color: #fff;
+  box-shadow: none; font-size: 22px; font-weight: 650; text-align: left;
+}
+.home-duty-switch > ion-icon { font-size: 23px; flex: none; }
+.home-switch-track { display: flex; align-items: center; width: 54px; height: 32px; border-radius: 20px; padding: 3px; margin-left: auto; background: #ffffff38; box-sizing: border-box; flex: none; }
+.home-switch-track > span { width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px #00673124; }
+.home-duty-switch--on .home-switch-track { justify-content: flex-end; }
+.home-duty-switch:disabled { opacity: .75; }
+.home-workspace .sheet .sheet__go--recharge { font-size: 15px; }
+.home-plan { padding: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 10px #0d1b2a08; }
+.home-plan .home-card-heading { padding: 20px 18px; gap: 14px; min-height: 106px; box-sizing: border-box; }
+.home-plan .home-icon-tile { background: transparent; color: #087f50; font-size: 39px; width: 40px; height: 48px; }
+.home-plan .home-card-heading h2 { font-size: 14px; margin-bottom: 5px; }
+.home-route-name { display: block; font-size: 20px; font-weight: 800; line-height: 1.3; }
+.home-plan .home-card-heading p { font-size: 12px; margin-top: 5px; }
+.home-plan-action { min-height: 58px; border-radius: 0 0 14px 14px; font-size: 17px; background: #12b35b; }
+.home-plan-action:disabled { background: #dfece5; color: #63796b; }
+.home-earnings { position: relative; background: #eef5f9; padding: 20px 22px; border: 0; border-radius: 14px; box-shadow: none; }
+.home-earnings .home-card-title { font-size: 15px; }
+.home-earnings .home-card-heading > ion-icon { position: absolute; right: 20px; top: 50%; font-size: 22px; transform: translateY(-50%); }
+.home-earnings-amount { font-size: 32px; margin: 8px 0 4px; padding-right: 20px; }
+.home-earnings-note { font-size: 12px; padding-right: 18px; color: #42566a; }
+.home-navigation { max-width: 460px; padding-top: 8px; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+.home-navigation .is-current { background: transparent; }
+.home-navigation button { font-size: 11px; }
+.home-navigation ion-icon { font-size: 23px; }
+.home-workspace .dash-active-fixed-card { margin-top: 16px; }
+
+// Approved Daily overview content; retain the existing Home background.
+.home-greeting { order: 1; padding: 3px 0 1px; }
+.home-greeting time { color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: .65px; }
+.home-greeting h1 { color: #0d1b2a; font-size: 23px; line-height: 1.3; font-weight: 750; letter-spacing: -.5px; margin: 6px 0; overflow-wrap: anywhere; }
+.home-greeting p { display: flex; align-items: flex-start; gap: 4px; color: #64748b; font-size: 12px; line-height: 1.5; margin: 0; }
+.home-greeting p ion-icon { font-size: 14px; flex: none; margin-top: 2px; }
+.home-duty-copy { display: block; min-width: 0; }
+.home-duty-copy strong { display: block; font-size: 20px; line-height: 1.2; font-weight: 700; }
+.home-duty-copy small { display: block; font-size: 11px; line-height: 1.4; margin-top: 3px; opacity: .9; }
+.home-summaries { order: 2; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.home-service-access {
+  order: 6;
+  padding: 14px;
+  border: 1px solid #e4eaf0;
+  border-radius: 14px;
+  background: #fff;
+  color: #0d1b2a;
+
+  .home-service-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; column-gap: 8px; }
+  h2 { margin: 0; font-size: 15px; font-weight: 750; }
+  dl { display: grid; gap: 8px; margin: 4px 0 0; }
+  dl > div { padding: 9px 12px; border-radius: 10px; background: #f1f5f9; }
+  dt, dd, p { font-size: 12px; line-height: 1.45; }
+  dt { display: flex; align-items: center; gap: 7px; font-weight: 700; }
+  dt ion-icon { color: #087f50; font-size: 16px; }
+  dt span { margin-inline-start: auto; padding: 1px 7px; border-radius: 10px; background: #e3f1eb; color: #087f50; }
+  dd { display: flex; flex-wrap: wrap; gap: 2px 6px; margin: 3px 0 0 23px; color: #52657d; overflow-wrap: anywhere; }
+  dd span + span::before { content: '· '; }
+  button { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0; border: 0; background: transparent; color: #087f50; font-size: 12px; font-weight: 700; }
+}
+.home-workspace .home-plan { order: 5; }
+.home-summaries .home-earnings { border: 1px solid #e4eaf0; background: #f5f8fa; padding: 14px; min-width: 0; }
+.home-summaries .home-card-title { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; color: #64748b; line-height: 1.4; }
+.home-summaries .home-card-title ion-icon { font-size: 15px; flex: none; }
+.home-summaries .home-earnings-amount { font-size: 24px; line-height: 1.3; margin: 8px 0 3px; padding: 0; overflow-wrap: anywhere; }
+.home-summaries .home-earnings-note { padding: 0; display: flex; align-items: center; gap: 5px; font-size: 11px; }
+.home-summaries .home-earnings-note ion-icon { transform: rotate(45deg); font-size: 13px; }
+.home-quick-access { order: 6; padding-top: 2px; }
+.home-quick-access h2 { margin: 0 0 12px; font-size: 14px; font-weight: 750; }
+.home-quick-access > div { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.home-quick-access button { border: 0; background: transparent; color: #0d1b2a; display: flex; flex-direction: column; align-items: center; gap: 7px; font-size: 11px; padding: 0 0 5px; min-width: 0; min-height: 68px; }
+.home-quick-access button > span { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: #f5f8fa; border: 1px solid #e4eaf0; border-radius: 13px; color: #087f50; }
+.home-quick-access ion-icon { font-size: 21px; }
+.home-readiness { order: 1; display: flex; align-items: flex-start; gap: 10px; border-radius: 14px; padding: 14px; background: #eaf6ef; color: #0d1b2a; }
+.home-readiness > ion-icon { font-size: 20px; color: #087f50; flex: none; margin-top: 1px; }
+.home-readiness h2 { font-size: 12px; font-weight: 750; margin: 0; }
+.home-readiness p { font-size: 11px; line-height: 1.6; color: #64748b; margin: 4px 0 0; }
+.home-readiness button { border: 0; padding: 8px 0 0; min-height: 36px; display: flex; align-items: center; gap: 6px; background: transparent; color: #087f50; font-size: 12px; font-weight: 650; }
+
+app-driver-topbar .drv-menu { width: 40px; height: 40px; margin: 0; background: #fff; }
+.home-identity { display: flex; align-items: center; gap: 14px; }
+.home-identity .drv-menu { width: 52px; height: 52px; flex-shrink: 0; margin: 0; border: 1px solid #d5e5dc; background: white; border-radius: 50%; }
+.home-identity .drv-menu__img { width: 44px; height: 44px; }
+.home-identity h1 { margin: 0 0 6px; font-size: 24px; }
+.home-identity p { margin: 0; }

@@ -1,173 +1,78 @@
-<ion-header class="ion-no-border dc-fixed-header">
-  <ion-toolbar class="dc-toolbar">
-    <ion-buttons slot="start">
-      <ion-button class="dc-hdr-btn dc-press" (click)="back()" aria-label="Back">
-        <ion-icon name="arrow-back-outline" slot="icon-only"></ion-icon>
-      </ion-button>
-    </ion-buttons>
+<ion-content class="live-content" [fullscreen]="true" [scrollY]="false">
+  <div #fixedActiveMap id="fixedActiveMap" class="live-map" aria-label="Live ride map"></div>
+  <header class="live-topbar">
+    <button type="button" class="round-button" (click)="back()" aria-label="Back"><ion-icon name="arrow-back-outline" aria-hidden="true"></ion-icon></button>
+    <div class="live-status"><span *ngIf="booking as ride" class="status-pill" [ngClass]="statusClass(ride)">{{ bookingStatusLabel(ride) }}</span></div>
+    <button type="button" class="round-button" (click)="refreshRide()" [disabled]="loading" aria-label="Refresh ride"><ion-icon name="refresh-outline" aria-hidden="true"></ion-icon></button>
+  </header>
+  <div class="live-loading" *ngIf="loading && !booking" role="status"><ion-spinner name="crescent"></ion-spinner><span>Loading your ride…</span></div>
+  <div class="live-error" *ngIf="error" role="alert">{{ error }}</div>
+  <div class="map-notice" *ngIf="mapError" role="status">{{ mapError }}</div>
 
-    <ion-title class="dc-hdr-title">
-      <span class="dc-hdr-route">{{ booking?.route_name || 'Fixed Ride' }}</span>
-      <span class="dc-hdr-status" *ngIf="booking" [ngClass]="statusClass(booking)">
-        ● {{ bookingStatusLabel(booking) }}
-      </span>
-    </ion-title>
-
-    <ion-buttons slot="end">
-      <ion-button class="dc-hdr-btn dc-press" (click)="load()" [disabled]="loading" aria-label="Refresh">
-        <ion-spinner *ngIf="loading" name="crescent" class="dc-spin-icon"></ion-spinner>
-        <ion-icon *ngIf="!loading" name="refresh-outline" slot="icon-only"></ion-icon>
-      </ion-button>
-    </ion-buttons>
-  </ion-toolbar>
-</ion-header>
-
-<ion-content class="dc-fixed-content" [fullscreen]="true" [scrollY]="false">
-  <!-- Loading State -->
-  <div class="dc-state-overlay" *ngIf="loading && !booking">
-    <ion-spinner name="crescent"></ion-spinner>
-    <span>Loading your ride…</span>
-  </div>
-
-  <!-- Error State -->
-  <div class="dc-error-banner" *ngIf="error">
-    <ion-icon name="alert-circle-outline"></ion-icon>
-    <span>{{ error }}</span>
-  </div>
-
-  <!-- ==================== 1. FULL EMBEDDED MAP CONTAINER ==================== -->
-  <div class="dc-live-map-wrapper">
-    <div #fixedActiveMap id="fixedActiveMap" class="dc-embedded-map"></div>
-
-    <!-- Floating Re-center FAB on Map -->
-    <button type="button" class="dc-map-recenter-btn dc-press" (click)="recenterMap()" aria-label="Re-center map">
-      <ion-icon name="locate-outline"></ion-icon>
-    </button>
-
-    <!-- ==================== 2. FLOATING BOTTOM SHEET ==================== -->
-    <div class="dc-bottom-sheet" [class.is-expanded]="sheetExpanded" *ngIf="booking as ride">
-      
-      <!-- Top Toggle Pill Button -->
-      <button type="button" class="dc-sheet-toggle-bar dc-press" (click)="toggleSheet()" [attr.aria-label]="sheetExpanded ? 'Collapse' : 'Expand'">
-        <div class="dc-sheet-handle"></div>
-        <span class="dc-sheet-toggle-label">{{ sheetExpanded ? 'Hide Details' : 'View Ride Details' }}</span>
-        <ion-icon [name]="sheetExpanded ? 'chevron-down' : 'chevron-up'"></ion-icon>
-      </button>
-
-      <!-- Section 1: Quick Ride Highlights (Always Visible) -->
-      <div class="dc-sheet-quick-summary">
-        
-        <!-- Boarding Code (Permanent On-screen Delivery) -->
-        <div class="dc-code-block" *ngIf="ride.boarding_code">
-          <div class="dc-code-top">
-            <ion-icon name="keypad-outline"></ion-icon>
-            <span>BOARDING CODE</span>
+  <section class="live-sheet" [class.is-expanded]="sheetExpanded" *ngIf="booking as ride" aria-label="Ride details">
+    <button type="button" class="sheet-handle" (click)="toggleSheet()" [attr.aria-expanded]="sheetExpanded" [attr.aria-label]="sheetExpanded ? 'Collapse ride details' : 'Expand ride details to full height'"><span aria-hidden="true"></span><ion-icon [name]="sheetExpanded ? 'chevron-down-outline' : 'chevron-up-outline'" aria-hidden="true"></ion-icon></button>
+    <div class="live-sheet-scroll">
+      <article class="ride-card progress-card" *ngIf="isActiveBooking(ride)">
+        <div class="stage-heading"><span class="stage-icon"><ion-icon [name]="journeyIcon(ride)" aria-hidden="true"></ion-icon></span><div><small>YOUR JOURNEY</small><strong>{{ progressTitle(ride) }}</strong></div><span class="seat-chip">{{ seatLine(ride) }}</span></div>
+        <p>{{ statusDetail(ride) }}</p>
+        <ng-container *ngTemplateOutlet="journeyStages"></ng-container>
+        <p class="location-note" *ngIf="ride.latest_driver_location_stale">Driver location was last updated a while ago.</p>
+        <ng-container *ngIf="orderedStops(ride).length">
+        <div class="stop-progress" #stopRail (scroll)="updateStopScroll($event)" aria-label="Route stop progress">
+          <div class="stop-item" *ngFor="let stop of orderedStops(ride)" [class.is-reached]="hasReached(ride, stop)" [class.is-current]="isCurrentStop(ride, stop)" [class.is-passed]="hasPassed(ride, stop)">
+            <span class="stop-dot" aria-hidden="true"></span><small *ngIf="isCurrentStop(ride, stop)">Cab's last stop</small><strong>{{ stop.name }}</strong><small *ngIf="isBoardStop(ride, stop)">Your pickup</small>
           </div>
-          <div class="dc-code-digits">
-            <span class="dc-digit" *ngFor="let d of codeDigits(ride)">{{ d }}</span>
-          </div>
-          <small class="dc-code-hint">Tell this code to driver when you board.</small>
         </div>
-
-        <!-- Driver & Vehicle Compact Row -->
-        <div class="dc-driver-compact">
-          <div class="dc-driver-avatar">
-            <ion-icon name="car-sport"></ion-icon>
-          </div>
-          <div class="dc-driver-meta">
-            <strong>{{ ride.driver_name || 'Driver assigned' }}</strong>
-            <span>{{ vehicleLine(ride) }}</span>
-            <small *ngIf="ride.vehicle_reg_no || carLine(ride)">{{ carLine(ride) }} {{ ride.vehicle_reg_no ? '· ' + ride.vehicle_reg_no : '' }}</small>
-          </div>
-          <button type="button" class="dc-call-btn dc-press" *ngIf="ride.driver_phone" (click)="callDriver()" aria-label="Call Driver">
-            <ion-icon name="call"></ion-icon>
-            <span>Call</span>
-          </button>
-        </div>
-
-        <!-- Quick Cancel Button -->
-        <div class="dc-quick-cancel" *ngIf="canCancel(ride)">
-          <button type="button" class="dc-btn dc-btn--danger-outline dc-press" (click)="cancelRide()" [disabled]="cancelling">
-            <ion-spinner *ngIf="cancelling" name="crescent"></ion-spinner>
-            <ion-icon *ngIf="!cancelling" name="close-circle-outline"></ion-icon>
-            <span>{{ cancelling ? 'Cancelling...' : 'Cancel Fixed Ride' }}</span>
-          </button>
-        </div>
+        <input *ngIf="stopRail.scrollWidth > stopRail.clientWidth" class="stop-scroll-control" type="range" min="0" max="100" step="1" [value]="stopScrollPercent" (input)="scrollStopTimeline(stopRail, $event)" aria-label="Scroll route stops" />
+        </ng-container>
+      </article>
+      <article class="ride-card arrival-card" *ngIf="!isActiveBooking(ride)" [class.is-interrupted]="journeyStage(ride) < 0" role="status">
+        <span class="arrival-icon"><ion-icon [name]="journeyStage(ride) >= 2 ? 'checkmark-circle-outline' : 'information-circle-outline'" aria-hidden="true"></ion-icon></span>
+        <small>BOOKING #{{ ride.id }}</small><h1>{{ bookingStatusLabel(ride) }}</h1><p>{{ statusDetail(ride) }}</p>
+        <div class="arrival-destination" *ngIf="journeyStage(ride) >= 2"><ion-icon name="location-outline" aria-hidden="true"></ion-icon>{{ ride.drop || 'Your destination' }}</div>
+        <ng-container *ngIf="journeyStage(ride) >= 2" [ngTemplateOutlet]="journeyStages"></ng-container>
+      </article>
+      <ng-template #journeyStages>
+        <ol class="journey-stages" *ngIf="journeyStage(ride) >= 0" aria-label="Journey stages">
+          <li *ngFor="let label of ['Booked', 'Boarded', 'Dropped off', 'Completed']; let stage = index" [class.is-done]="journeyStage(ride) > stage" [class.is-current]="journeyStage(ride) === stage" [attr.aria-current]="journeyStage(ride) === stage ? 'step' : null"><span><ion-icon *ngIf="journeyStage(ride) > stage; else stageNumber" name="checkmark-outline" aria-hidden="true"></ion-icon><ng-template #stageNumber>{{ stage + 1 }}</ng-template></span><small>{{ label }}</small></li>
+        </ol>
+      </ng-template>
+      <article class="ride-card destination-card" *ngIf="journeyStage(ride) === 1">
+        <span class="pickup-icon"><ion-icon name="location-outline" aria-hidden="true"></ion-icon></span><div><small>YOUR DROP-OFF</small><strong>{{ ride.drop || 'Drop stop unavailable' }}</strong><p>Your driver will confirm your drop-off when you arrive.</p></div>
+      </article>
+      <article class="ride-card driver-card">
+        <span class="driver-avatar"><ion-icon name="person-outline" aria-hidden="true"></ion-icon></span>
+        <div class="driver-copy"><strong>{{ ride.driver_name || 'Driver details pending' }}</strong><span>{{ vehicleLine(ride) }}</span><small *ngIf="ride.vehicle_reg_no || carLine(ride)">{{ vehicleDetails(ride) }}</small></div>
+        <button type="button" class="call-button" *ngIf="ride.driver_phone" (click)="callDriver()" aria-label="Call driver"><ion-icon name="call-outline" aria-hidden="true"></ion-icon></button>
+      </article>
+      <article class="ride-card boarding-card" *ngIf="showBoardingCode(ride)">
+        <div class="boarding-heading"><ion-icon name="key-outline" aria-hidden="true"></ion-icon><div><strong>Your boarding code</strong><small>Show this to your driver at pickup</small></div></div>
+        <div class="code-digits" aria-label="Boarding code"><span *ngFor="let digit of codeDigits(ride)">{{ digit }}</span></div>
+        <small>Share only when you are ready to board.</small>
+      </article>
+      <article class="ride-card pickup-card" *ngIf="canWalkToPickup(ride)" aria-label="Walking distance to pickup">
+        <span class="pickup-icon"><ion-icon name="location-outline" aria-hidden="true"></ion-icon></span><span><small>Pickup stop</small><strong>{{ ride.board || 'Pickup stop unavailable' }}</strong><small>{{ walkingDistanceLabel() }}<span *ngIf="ride.vehicle_color"> · Look for a {{ ride.vehicle_color }} vehicle</span></small></span>
+      </article>
+      <article class="ride-card journey-card">
+        <div class="journey-point"><span class="journey-dot" aria-hidden="true"></span><div><small>BOARD</small><strong>{{ ride.board || 'Pickup stop' }}</strong></div></div>
+        <div class="journey-point"><span class="journey-dot journey-dot--drop" aria-hidden="true"></span><div><small>DROP</small><strong>{{ ride.drop || 'Drop stop' }}</strong></div></div>
+        <div class="journey-fare"><span>{{ seatLine(ride) }}<span *ngIf="ride.payment_method"> · {{ paymentMethodLabel(ride) }}</span></span><strong>{{ fareLine(ride) }}</strong></div>
+        <div class="payment-detail" *ngIf="journeyStage(ride) >= 2"><ion-icon name="card-outline" aria-hidden="true"></ion-icon><span>{{ paymentLine(ride) }}</span></div>
+      </article>
+      <div class="ride-actions" *ngIf="isActiveBooking(ride)">
+        <a routerLink="/customer-tabs/support"><ion-icon name="chatbubble-ellipses-outline" aria-hidden="true"></ion-icon>Support</a>
+        <button type="button" class="sos-button" *ngIf="ride.trip_id" (click)="triggerSOS()" [disabled]="sosBusy"><ion-icon name="warning-outline" aria-hidden="true"></ion-icon>{{ sosBusy ? 'Sending…' : 'SOS' }}</button>
+        <a *ngIf="!ride.trip_id" routerLink="/customer-tabs/emergency-contacts"><ion-icon name="shield-checkmark-outline" aria-hidden="true"></ion-icon>Safety</a>
       </div>
-
-      <!-- Section 2: Expanded Content Drawer -->
-      <div class="dc-sheet-scrollable" *ngIf="sheetExpanded">
-        
-        <!-- Pickup & Drop Timeline -->
-        <div class="dc-card dc-timeline-card">
-          <div class="dc-timeline-node">
-            <div class="dc-t-dot dc-t-dot--pickup"></div>
-            <div class="dc-t-content">
-              <span class="dc-t-label">PICKUP STOP</span>
-              <strong class="dc-t-name">{{ ride.board || 'Pickup stop' }}</strong>
-            </div>
-          </div>
-          <div class="dc-t-connector"></div>
-          <div class="dc-timeline-node">
-            <div class="dc-t-dot dc-t-dot--drop"></div>
-            <div class="dc-t-content">
-              <span class="dc-t-label">DROP-OFF STOP</span>
-              <strong class="dc-t-name">{{ ride.drop || 'Drop stop' }}</strong>
-            </div>
-          </div>
-        </div>
-
-        <!-- Ride Meta Specs Grid (Fare, Seats, Payment, Date) -->
-        <div class="dc-specs-grid">
-          <div class="dc-spec-box">
-            <small>FARE</small>
-            <strong class="dc-spec-fare">{{ fareLine(ride) }}</strong>
-          </div>
-          <div class="dc-spec-box">
-            <small>SEATS</small>
-            <strong>{{ ride.seats }} seat{{ ride.seats > 1 ? 's' : '' }}</strong>
-          </div>
-          <div class="dc-spec-box">
-            <small>PAYMENT</small>
-            <span class="dc-spec-pill" [class.dc-spec-pill--paid]="ride.payment_status === 'PAID'">{{ ride.payment_status || 'PAID' }}</span>
-          </div>
-          <div class="dc-spec-box">
-            <small>BOOKING ID</small>
-            <strong>#{{ ride.id }}</strong>
-          </div>
-        </div>
-
-        <!-- Rating Section (When ride is completed/dropped) -->
-        <div class="dc-card dc-rating-card" *ngIf="canRate(ride)">
-          <div class="dc-rating-head">
-            <ion-icon name="star"></ion-icon>
-            <div>
-              <strong>How was your journey?</strong>
-              <p>Rate your ride with {{ ride.driver_name || 'your driver' }}</p>
-            </div>
-          </div>
-          <div class="dc-rating-stars">
-            <button type="button" *ngFor="let s of [1,2,3,4,5]" class="dc-star-btn" (click)="setRatingScore(s)">
-              <ion-icon [name]="s <= ratingScore ? 'star' : 'star-outline'" [class.is-filled]="s <= ratingScore"></ion-icon>
-            </button>
-          </div>
-          <textarea [(ngModel)]="ratingComment" class="dc-rating-input" rows="2" placeholder="Write feedback for the driver (optional)..."></textarea>
-          <button type="button" class="dc-btn dc-btn--primary dc-press" (click)="submitRating()" [disabled]="submittingRating">
-            <ion-spinner *ngIf="submittingRating" name="crescent"></ion-spinner>
-            <span *ngIf="!submittingRating">Submit Review</span>
-          </button>
-        </div>
-
-        <!-- Submitted Review Display -->
-        <div class="dc-card dc-review-done" *ngIf="ride.rating_score">
-          <div class="dc-review-head">
-            <ion-icon name="checkmark-circle"></ion-icon>
-            <span>Your Review: <strong>{{ ride.rating_score }}/5 ★</strong></span>
-          </div>
-          <p *ngIf="ride.rating_comment">"{{ ride.rating_comment }}"</p>
-        </div>
-
-      </div>
+      <button type="button" class="cancel-button" *ngIf="canCancel(ride)" (click)="cancelRide()" [disabled]="cancelling">{{ cancelling ? 'Cancelling…' : 'Cancel ride' }}</button>
+      <article class="ride-card rating-card" *ngIf="canRate(ride)">
+        <h2>How was your journey?</h2><p>Rate your ride with {{ ride.driver_name || 'your driver' }}</p>
+        <div class="rating-stars" aria-label="Rate your ride"><button type="button" *ngFor="let score of [1,2,3,4,5]" (click)="setRatingScore(score)" [attr.aria-label]="score + (score === 1 ? ' star' : ' stars')" [attr.aria-pressed]="ratingScore === score"><ion-icon [name]="score <= ratingScore ? 'star' : 'star-outline'" aria-hidden="true"></ion-icon></button></div>
+        <label for="ride-feedback">Feedback (optional)</label><textarea id="ride-feedback" [(ngModel)]="ratingComment" rows="2" maxlength="2000"></textarea>
+        <button type="button" class="primary-button" (click)="submitRating()" [disabled]="submittingRating">{{ submittingRating ? 'Submitting…' : 'Submit review' }}</button>
+      </article>
+      <article class="ride-card review-done" *ngIf="ride.rating_score"><strong>Your rating: {{ ride.rating_score }}/5</strong><p *ngIf="ride.rating_comment">{{ ride.rating_comment }}</p></article>
+      <a class="trip-history-link" *ngIf="!isActiveBooking(ride)" routerLink="/customer-tabs/trips"><ion-icon name="receipt-outline" aria-hidden="true"></ion-icon>View my trips<ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></a>
     </div>
-  </div>
+  </section>
 </ion-content>

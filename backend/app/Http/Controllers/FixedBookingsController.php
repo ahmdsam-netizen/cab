@@ -166,6 +166,13 @@ class FixedBookingsController extends Controller
         ]);
     }
 
+    public function updateSeatHoldCoupon(Request $request, FixedSeatHold $fixedSeatHold)
+    {
+        $data = $request->validate(['coupon_title' => ['present', 'nullable', 'string', 'max:128']]);
+        $hold = $this->seatHolds->updateCoupon($request->user(), $fixedSeatHold, $data['coupon_title']);
+        return response()->json(['hold' => $this->bookings->shapeSeatHold($hold->load('routeDeparture.route'))]);
+    }
+
     public function releaseSeatHold(Request $request, FixedSeatHold $fixedSeatHold)
     {
         if ($fixedSeatHold->customer_id !== $request->user()->id) {

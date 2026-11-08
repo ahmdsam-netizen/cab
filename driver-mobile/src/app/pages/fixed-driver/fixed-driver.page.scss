@@ -863,7 +863,12 @@ ion-content.is-map-fullscreen {
 
       &--recenter {
         right: 16px;
-        color: var(--fixed-green);
+        width: auto;
+        padding: 0 12px;
+        gap: 6px;
+        border-radius: 22px;
+        font-size: 12px;
+        font-weight: 700;
       }
 
       &:active {
@@ -895,6 +900,14 @@ ion-content.is-map-fullscreen {
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
         cursor: pointer;
         transition: transform 0.15s ease, background 0.15s ease;
+
+        &--camera {
+          width: auto;
+          padding: 0 10px;
+          gap: 5px;
+          font-size: 12px;
+          font-weight: 700;
+        }
 
         ion-icon {
           font-size: 18px;
@@ -1283,32 +1296,6 @@ ion-content.is-map-fullscreen {
   z-index: 1;
 }
 
-/* Floating Re-center FAB on Map */
-.dc-map-recenter-fab {
-  position: static;
-  align-self: flex-end;
-  flex-shrink: 0;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  color: #0F172A;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.16);
-  z-index: 25;
-  cursor: pointer;
-  transition: all 0.15s ease;
-
-  &:active {
-    transform: scale(0.92);
-    background: #F8FAFC;
-  }
-}
-
 /* ─── 2. Top Floating Banner ─── */
 .dc-top-banner {
   position: absolute;
@@ -1640,7 +1627,7 @@ ion-content.is-map-fullscreen {
 /* ─── 3. Floating Bottom Bar on Map ─── */
 .dc-map-floating-bottom-bar {
   position: absolute;
-  bottom: calc(14px + env(safe-area-inset-bottom));
+  bottom: calc(36px + env(safe-area-inset-bottom, 16px));
   left: 12px;
   right: 12px;
   max-width: 520px;
@@ -1648,7 +1635,29 @@ ion-content.is-map-fullscreen {
   z-index: 25;
   display: flex;
   flex-direction: column;
+  gap: 10px;
+}
+
+.route-lifecycle-actions {
+  display: flex;
   gap: 8px;
+  width: 100%;
+  > .dc-float-cta { flex: 1; min-width: 0; width: auto; }
+}
+
+.route-workspace .dc-map-floating-bottom-bar {
+  gap: 10px;
+  .route-lifecycle-actions { gap: 8px; margin-bottom: 2px; }
+  .route-navigate, .dc-float-cta {
+    height: 44px;
+    min-height: 44px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    gap: 6px;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, .1);
+    ion-icon { font-size: 16px; }
+  }
 }
 
 .dc-float-cta {
@@ -1796,8 +1805,8 @@ ion-content.is-map-fullscreen {
 .dc-manifest-modal-sheet {
   width: 100%;
   max-width: 520px;
-  height: 90vh;
-  max-height: 90vh;
+  height: 90dvh;
+  max-height: calc(100dvh - env(safe-area-inset-top) - 12px);
   background: #F8FAFC;
   border-top-left-radius: 28px;
   border-top-right-radius: 28px;
@@ -2769,7 +2778,7 @@ ion-content.is-map-fullscreen {
 .stop-detail-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 10000;
   background: rgba(15, 23, 42, 0.6);
   backdrop-filter: blur(4px);
   display: flex;
@@ -4063,3 +4072,512 @@ ion-content.is-map-fullscreen {
   to { opacity: 1; filter: drop-shadow(0 0 8px #EF4444); }
 }
 
+/* Client Choose Route reference: compact selectable list; preview/booking flow retained. */
+.is-route-choice {
+  --background: #f7f9fb;
+  .pg-hero { padding: 18px 18px 8px; background: transparent; }
+  .pg-title { display: none; }
+  .pg-subtitle { margin: 0; color: #657789; font-size: 13px; }
+  .pg-body { max-width: 620px; margin: 0 auto; padding: 12px 16px 24px; }
+  .route-filter-bar { padding: 0; border: 0; box-shadow: none; background: transparent; margin-bottom: 12px; gap: 8px; }
+  .route-search-box { display: flex; align-items: center; gap: 9px; min-height: 46px; padding: 0 12px; border: 1px solid #dfe6eb; border-radius: 13px; background: white; margin-bottom: 0; }
+  .route-search-box > ion-icon { font-size: 20px; color: #78909c; }
+  .route-search-input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: #10293d; font-size: 14px; }
+  .route-search-clear { padding: 8px; background: transparent; color: #657789; }
+  .route-registered-scope-badge { display: inline-flex; width: auto; margin: 0; padding: 7px 12px; border-radius: 20px; background: #102e44; color: white; font-size: 12px; }
+  .section-heading { margin: 0 0 10px; align-items: center; }
+  .section-heading h2 { font-size: 14px; margin: 0; color: #153247; }
+  .section-heading > span { font-size: 11px; color: #657789; }
+  .reference-route-list { display: grid; gap: 10px; }
+  .reference-route-card { display: flex; align-items: center; gap: 10px; width: 100%; padding: 16px 12px; border: 1px solid #e0e7ec; border-radius: 13px; background: white; color: #10293d; text-align: left; cursor: pointer; box-shadow: 0 2px 5px #10293d04; }
+  .reference-route-card.is-selected { border-color: #099652; background: #eefbf4; box-shadow: 0 0 0 1px #099652 inset; }
+  .reference-route-card:focus-visible { outline: 3px solid #65b5f0; outline-offset: 3px; }
+  .reference-route-pin { font-size: 22px; flex-shrink: 0; color: #102e44; }
+  .reference-route-copy { display: grid; gap: 5px; flex: 1; min-width: 0; }
+  .reference-route-copy strong { font-size: 15px; font-weight: 750; line-height: 1.35; }
+  .reference-route-copy .reference-route-endpoints { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .reference-route-endpoints span { min-width: 0; overflow-wrap: anywhere; }
+  .reference-route-endpoints ion-icon { flex: 0 0 auto; color: #73869a; font-size: 16px; }
+  .reference-route-meta { font-size: 12px; color: #617384; line-height: 1.4; }
+  .reference-route-fare { color: #087942; font-size: 16px; font-weight: 750; }
+  .reference-route-fare small { font-size: 12px; font-weight: 600; }
+  .reference-route-car { flex-shrink: 0; font-size: 42px; color: #687c88; }
+  .reference-route-check { display: grid; place-items: center; flex-shrink: 0; align-self: flex-start; width: 21px; height: 21px; border: 1.5px solid #d6dfe5; border-radius: 50%; color: white; }
+  .is-selected .reference-route-check { background: #098d4d; border-color: #098d4d; }
+}
+.route-choice-footer { background: #f7f9fb; }
+.route-choice-action { max-width: 620px; margin: auto; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
+.route-choice-action button { width: 100%; min-height: 54px; border: 0; border-radius: 13px; display: flex; align-items: center; justify-content: center; gap: 10px; background: #07984e; color: white; font-size: 17px; font-weight: 750; }
+.route-choice-action button:disabled { background: #dce8e1; color: #63786d; }
+@media (max-width: 360px) { .is-route-choice .reference-route-car { font-size: 30px; } }
+.is-route-choice .route-registered-scope-badge { align-self: flex-start; }
+/* Choose Route header and proximity filters. */
+.route-choice-toolbar {
+  .pg-header-title { position: absolute; left: 56px; right: 56px; width: auto; padding: 0; text-align: center; pointer-events: none; }
+}
+.is-route-choice {
+  .pg-body { padding-top: 18px; }
+  .route-proximity-chips { display: flex; gap: 8px; }
+  .route-proximity-chips button { min-height: 34px; padding: 6px 18px; border: 0; border-radius: 20px; background: #eaf0f5; color: #294355; font-size: 13px; font-weight: 650; }
+  .route-proximity-chips button.is-active { background: #102e44; color: white; }
+  .route-nearby-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: #657789; }
+  .route-nearby-status button { padding: 8px 0; background: transparent; border: 0; color: #087942; font-weight: 650; }
+}
+.route-choice-toolbar .pg-header-title { top: 0; height: 100%; }
+.is-route-choice .reference-route-visual { display: grid; place-items: center; width: 64px; height: 48px; flex-shrink: 0; }
+.is-route-choice .reference-route-visual img { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 6px; }
+@media (max-width: 360px) { .is-route-choice .reference-route-visual { width: 44px; height: 38px; } }
+/* Active ride: full-height map with controls and ride details floating above it. */
+.route-workspace.dc-fullmap-view {
+  position: fixed; inset: calc(env(safe-area-inset-top) + 56px) 0 0; width: 100%; height: auto; min-height: 0; overflow: hidden;
+  display: block; padding: 0; background: #f5f8fa;
+  .dc-fullscreen-map { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 0; }
+  .dc-map-floating-bottom-bar { position: absolute; left: 50%; right: auto; bottom: calc(8px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(90vw, 720px); max-width: none; margin: 0; padding: 8px; gap: 6px; box-sizing: border-box; }
+}
+.route-workspace .dc-map-floating-bottom-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(255,255,255,.96);
+  border-radius: 16px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 9px 30px rgba(15,35,50,.2);
+  backdrop-filter: blur(16px) saturate(1.15);
+  .route-lifecycle-actions { display: flex; align-items: center; gap: 8px; width: 100%; }
+  .route-lifecycle-actions > .dc-float-cta { flex: 1 1 0; width: auto; min-width: 0; min-height: 36px; height: 36px; padding: 6px 9px; border-radius: 10px; font-size: 11px; font-weight: 700; box-shadow: 0 2px 7px rgba(16,43,61,.11); white-space: nowrap; }
+  .route-lifecycle-actions > .dc-float-cta ion-icon { font-size: 14px; }
+  .route-lifecycle-actions > .dc-float-cta--start { background: #07864f; color: #fff; }
+  .route-lifecycle-actions > .dc-float-cta--complete { flex: 0 0 auto; width: auto; background: #edf5f1; color: #176145; border: 1px solid rgba(8,122,75,.12); box-shadow: none; }
+  .route-lifecycle-actions > .dc-float-cta--close { flex: 0 0 auto; width: auto; background: #fff2f2; color: #a33d3d; border: 1px solid rgba(163,61,61,.15); box-shadow: none; }
+}
+.route-workspace .dc-map-floating-bottom-bar:has(.route-lifecycle-actions > .dc-float-cta:nth-child(2)) {
+  grid-template-columns: minmax(0, 1fr);
+  .route-lifecycle-actions { grid-column: 1; }
+}
+.route-workspace .route-lifecycle-actions:not(:has(> .dc-float-cta:nth-child(2))) > .dc-float-cta { flex: 1 1 100%; width: 100%; }
+.route-live-summary { position: relative; grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.route-live-summary button, .route-live-summary .route-next { min-width: 0; text-align: left; border: 1px solid #e1eaf0; background: #f5f8fa; border-radius: 12px; padding: 9px 10px; color: #102b3d; display: grid; align-content: start; gap: 5px; box-shadow: none; }
+.route-live-summary .route-filled { grid-template-columns: minmax(0, 1fr); align-items: center; }
+.route-seat-progress { display: block; width: 100%; height: 3px; overflow: hidden; border-radius: 4px; background: #dfe8e4; }
+.route-seat-progress i { display: block; height: 100%; border-radius: inherit; background: #0a9854; transition: width .2s ease; }
+.route-live-summary span { font-size: 9px; color: #647786; letter-spacing: .02em; }
+.route-live-summary strong { min-width: 0; display: flex; align-items: center; gap: 5px; font-size: 12px; }
+.route-live-summary .route-next-heading, .route-live-summary .route-section-heading { font-size: 11px; font-weight: 650; }
+.route-live-summary .route-filled strong { font-size: 16px; }
+.route-live-summary .route-next strong { overflow-wrap: anywhere; }
+.route-live-summary .route-live-status { justify-self: start; white-space: normal; }
+.route-filled ion-icon { color: #0a9854; font-size: 18px; }
+.route-next strong b { display: grid; place-items: center; width: 23px; height: 23px; flex-shrink: 0; border-radius: 50%; background: #e74848; color: white; font-size: 12px; }
+.route-next strong b { width: 20px; height: 20px; font-size: 10px; }
+.route-next small { font-size: 10px; color: #657789; }
+.route-live-status { padding: 2px 6px; border-radius: 20px; background: #edf4f7; color: #536a78 !important; font-size: 9px !important; letter-spacing: .01em; white-space: nowrap; }
+.route-live-panel { grid-column: 2; grid-row: 2; background: white; border-radius: 15px; padding: 8px; overflow-y: auto; min-width: 0; }
+.route-view-tabs { display: flex; padding: 3px; border-radius: 12px; background: #eef2f5; gap: 3px; margin-bottom: 12px; }
+.route-view-tabs button { width: 50%; min-height: 34px; background: transparent; border: 0; border-radius: 10px; color: #657789; font-size: 13px; }
+.route-view-tabs button.is-active { background: #0a9854; color: white; font-weight: 700; }
+.route-mini-cabin { border: 5px solid #80909b; border-radius: 48px 48px 30px 30px; background: #24313a; padding: 12px 7px; box-shadow: inset 0 0 0 3px #131f27; }
+.route-mini-windshield { border-radius: 30px 30px 8px 8px; background: #111e26; color: #cdd8df; display: flex; justify-content: flex-end; align-items: center; gap: 5px; padding: 12px 4px; margin-bottom: 12px; font-size: 10px; }
+.route-mini-windshield ion-icon { font-size: 23px; }
+.route-mini-row { display: flex; gap: 5px; margin-bottom: 9px; }
+.route-mini-seat, .route-mini-gap { flex: 1; min-width: 0; }
+.route-mini-seat { border: 0; border-radius: 9px 9px 6px 6px; min-height: 42px; padding: 4px 1px; background: #cdd6dc; color: #24313a; font-size: 12px; font-weight: 750; box-shadow: inset 0 -4px #0002; }
+.route-mini-seat.is-booked { background: #0a9854; color: white; }
+.route-mini-seat.is-held { background: #e9b54b; }
+.route-mini-seat.is-blocked { background: #536372; color: white; }
+.route-mini-rear { display: block; text-align: center; font-size: 10px; color: #b2c1cb; padding-top: 6px; }
+.route-mini-legend { display: flex; flex-wrap: wrap; gap: 7px; padding: 12px 0 0; font-size: 10px; color: #536677; }
+.route-mini-legend span { display: flex; align-items: center; gap: 3px; }
+.route-mini-legend i { width: 8px; height: 8px; border-radius: 50%; background: #cdd6dc; }
+.route-mini-legend i.booked { background: #0a9854; }.route-mini-legend i.held { background: #e9b54b; }.route-mini-legend i.blocked { background: #536372; }
+.route-live-passengers button { width: 100%; display: flex; align-items: center; gap: 5px; border: 0; border-bottom: 1px solid #e1e8ed; background: white; padding: 12px 0; color: #102b3d; text-align: left; }
+.route-live-passengers button span { display: grid; gap: 4px; min-width: 0; }.route-live-passengers strong { font-size: 12px; overflow-wrap: anywhere; }.route-live-passengers small { font-size: 10px; color: #657789; }
+.route-live-passengers p, .route-seat-empty, .route-seat-loading { font-size: 12px; color: #657789; text-align: center; padding: 18px 0; }
+.route-navigate { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; width: 100%; border: 0; border-radius: 12px; background: #1166df; color: white; font-size: 14px; font-weight: 700; padding: 10px; }
+@media (min-width: 760px) { .route-workspace.dc-fullmap-view .dc-map-floating-bottom-bar { width: min(88vw, 720px); }.route-mini-cabin { max-width: 270px; margin: auto; }.route-mini-seat { min-height: 52px; } }
+.is-active-route .pg-body { max-width: none; padding: 0; margin: 0; }
+.is-active-route:not(.is-map-fullscreen) {
+  --background: #f5f8fa;
+  .route-workspace.dc-fullmap-view {
+    border-radius: 0;
+    padding: 0;
+  }
+}
+/* Connected route flow: arrival, code verification, boarding and completion. */
+.connected-stop-sheet.stop-detail-sheet { width: 100%; max-width: 560px; max-height: calc(100dvh - 24px); border-radius: 22px 22px 0 0; padding: 24px 18px calc(20px + env(safe-area-inset-bottom)); }
+.connected-stop-sheet .stop-detail-header { padding-right: 32px; }
+.connected-arrival-summary { display: flex; align-items: center; gap: 12px; padding: 16px; background: #eaf8f0; border-radius: 14px; margin: 16px 0; color: #087942; }
+.connected-arrival-summary > ion-icon { font-size: 32px; }.connected-arrival-summary span { display: grid; gap: 5px; }.connected-arrival-summary small { color: #526c60; }
+.connected-stop-sheet .stop-passenger-mini-card { flex-wrap: wrap; background: white; border: 1px solid #e0e8ed; border-radius: 14px; padding: 14px; margin-bottom: 10px; }
+.connected-stop-sheet .p-mini-avatar { color: #0a9854; background: #eaf8f0; font-size: 23px; }
+.connected-passenger-actions { display: grid; gap: 8px; width: 100%; padding-top: 8px; }.connected-passenger-actions small { color: #657789; font-size: 12px; }
+.connected-primary { display: flex; align-items: center; justify-content: center; min-height: 48px; border: 0; border-radius: 12px; background: #07984e; color: white; font-size: 14px; font-weight: 700; padding: 10px 16px; }
+.connected-primary:disabled { background: #e0e8e3; color: #748779; }.connected-text-action { min-height: 42px; border: 0; background: transparent; color: #167044; font-weight: 650; padding: 8px; }
+.connected-stop-rules { border-top: 1px solid #e0e8ed; padding-top: 12px; margin-top: 16px; }.connected-stop-rules summary { font-size: 13px; color: #657789; cursor: pointer; padding: 8px 0; }.connected-stop-rules .stop-rules-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.otp-overlay:has(.connected-verification) { align-items: center; padding: 16px; }
+.connected-verification.otp-sheet { border-radius: 22px; max-height: calc(100dvh - 32px); overflow-y: auto; padding: 28px 20px; }
+.connected-verification .otp-sheet__icon { display: none; }.connected-verification .otp-sheet__title { font-size: 21px; }.connected-verification .otp-sheet__passenger { display: none; }
+.connected-passenger-identity { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #e0e8ed; padding: 16px 0; margin-bottom: 16px; }.connected-passenger-identity > ion-icon { font-size: 42px; color: #0a9854; }.connected-passenger-identity > span { display: grid; gap: 4px; }.connected-passenger-identity strong { font-size: 15px; }.connected-passenger-identity small { font-size: 12px; color: #657789; }.connected-passenger-identity .connected-code-label { margin-left: auto; font-size: 11px; background: #edf3f7; border-radius: 14px; padding: 7px; white-space: nowrap; }
+.route-workspace .dc-map-floating-bottom-bar { grid-row: 3; }
+.connected-result-overlay { position: fixed; inset: 0; z-index: 11000; background: #eef5f8; display: grid; place-items: center; padding: calc(20px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom)); overflow-y: auto; }
+.connected-result-card { background: white; border-radius: 22px; padding: 30px 22px; max-width: 460px; width: 100%; text-align: center; color: #102b3d; box-shadow: 0 8px 32px #102b3d0b; }.connected-result-check { color: #07984e; font-size: 70px; }.connected-result-card h2 { font-size: 25px; margin: 14px 0 8px; }.connected-result-card p { font-size: 14px; color: #657789; line-height: 1.5; }.connected-result-card h3 { font-size: 17px; padding: 14px; background: #f5f8fa; border-radius: 12px; }.connected-result-card dl { margin: 20px 0; }.connected-result-card dl div { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #edf2f5; font-size: 14px; }.connected-result-card dd { font-weight: 750; }.connected-result-card .connected-primary { width: 100%; margin-top: 20px; }.connected-result-card .connected-text-action { display: block; width: 100%; }
+/* Seats live in the existing details modal; the route map takes the full row. */
+.route-workspace.dc-fullmap-view { grid-template-columns: minmax(0, 1fr); }
+.route-modal-panel.route-live-panel { width: 100%; max-width: 480px; margin: auto; padding: 4px 8px 20px; overflow: visible; }
+.route-modal-panel .route-mini-cabin { max-width: 300px; margin: auto; }
+.route-modal-panel .route-mini-seat { min-height: 52px; font-size: 15px; }
+.route-modal-panel .route-mini-legend { justify-content: center; font-size: 12px; }
+
+.passenger-avatar {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #eaf8f0;
+  color: #0a9854;
+  img { width: 100%; height: 100%; object-fit: cover; }
+  ion-icon { width: 32px; height: 32px; font-size: 32px; }
+}
+.stop-detail-overlay .stop-passengers-group .stop-passenger-mini-card {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  .p-mini-avatar.passenger-avatar { font-size: 32px; }
+  .p-mini-info strong { font-size: 14px; overflow-wrap: anywhere; }
+  .p-mini-info > span { font-size: 12px; }
+  .connected-board-action { min-height: 44px; padding: 8px 10px; font-size: 12px; white-space: nowrap; }
+  .connected-passenger-actions { grid-column: 2 / -1; padding-top: 0; }
+}
+.connected-passenger-identity .passenger-avatar { width: 56px; height: 56px; }
+@media (max-width: 360px) {
+  .stop-detail-overlay .stop-passengers-group .stop-passenger-mini-card {
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 10px;
+    .passenger-avatar { width: 48px; height: 48px; }
+    .connected-board-action { padding-inline: 8px; font-size: 11px; }
+  }
+}
+
+/* Ride-flow dialogs occupy the full available screen, with inner scrolling. */
+.dc-manifest-modal-sheet,
+.stop-detail-overlay .connected-stop-sheet.stop-detail-sheet,
+.connected-verification.otp-sheet {
+  box-sizing: border-box;
+  height: 100%;
+  max-height: 100%;
+  width: 100%;
+  max-width: none;
+  border-radius: 0;
+}
+.stop-detail-overlay .connected-stop-sheet.stop-detail-sheet {
+  padding-top: max(24px, env(safe-area-inset-top));
+}
+.otp-overlay:has(.connected-verification) {
+  padding: 0;
+  align-items: stretch;
+}
+.connected-verification.otp-sheet {
+  padding-top: max(28px, env(safe-area-inset-top));
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+}
+.stop-detail-close, .otp-sheet .otp-close {
+  top: max(14px, env(safe-area-inset-top));
+}
+.dc-modal-drag-handle-wrap { padding-top: max(10px, env(safe-area-inset-top)); }
+.connected-result-overlay {
+  padding: 0;
+  overflow: hidden;
+}
+.connected-result-card {
+  box-sizing: border-box;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  width: 100%;
+  max-width: none;
+  border-radius: 0;
+  padding-top: max(30px, env(safe-area-inset-top));
+  padding-bottom: max(22px, env(safe-area-inset-bottom));
+}
+
+/* Compact Fixed Ride details. */
+.dc-manifest-modal-sheet {
+  background: #f3f7fb;
+}
+.dc-manifest-modal-sheet .dc-modal-drag-handle-wrap,
+.dc-manifest-modal-sheet .dc-modal-header {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+.dc-manifest-modal-sheet .dc-modal-header {
+  padding: 6px 14px 8px;
+  border-bottom-color: #dce6ef;
+}
+.dc-manifest-modal-sheet .dc-modal-route-path { margin: 0; font-size: 13px; }
+.dc-manifest-modal-sheet .dc-modal-scrollable-body {
+  gap: 10px;
+  padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
+}
+.dc-manifest-modal-sheet .dc-overview-hero-card {
+  gap: 8px;
+  padding: 10px 12px;
+  border-color: #d8e5ed;
+  border-radius: 22px;
+  box-shadow: 0 8px 24px rgba(25, 55, 75, .07);
+}
+.dc-manifest-modal-sheet .dc-overview-seats-title { font-size: 13px; }
+.dc-manifest-modal-sheet .dc-overview-seats-title strong { font-size: 14px; }
+.dc-manifest-modal-sheet .dc-overview-seats-bar { height: 5px; background: #eaf0f5; }
+.dc-manifest-modal-sheet .dc-overview-actions {
+  display: flex;
+  gap: 8px;
+}
+.dc-manifest-modal-sheet .dc-overview-actions .dc-modal-action-cta {
+  flex: 0 1 auto;
+  min-width: 0;
+  height: auto;
+  min-height: 44px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  box-shadow: none;
+
+  ion-icon { flex-shrink: 0; font-size: 15px; }
+  &:only-child { flex: 1; }
+  &:focus-visible { outline: 2px solid #1761dc; outline-offset: 2px; }
+  &:disabled { opacity: .55; cursor: not-allowed; }
+}
+.dc-manifest-modal-sheet .dc-overview-actions .dc-modal-action-cta--start {
+  flex: 1;
+  background: #087f50;
+}
+.dc-manifest-modal-sheet .dc-overview-actions .dc-modal-action-cta--close {
+  background: #fff;
+  border: 1px solid #efcaca;
+  color: #a03333;
+}
+.dc-manifest-modal-sheet .dc-overview-actions .dc-modal-action-cta--complete {
+  background: #e8f5ee;
+  border: 1px solid #c2e5d1;
+  color: #126b48;
+  box-shadow: none;
+}
+.dc-manifest-modal-sheet .dc-modal-nav-tabs {
+  padding: 3px;
+  border: 1px solid #dbe5ed;
+  border-radius: 16px;
+  background: #e9f0f6;
+}
+.dc-manifest-modal-sheet .dc-modal-nav-tabs .dc-modal-tab-btn {
+  height: 36px;
+  min-width: 0;
+  gap: 4px;
+  padding: 0 2px;
+  border-radius: 10px;
+  font-size: 12px;
+  ion-icon { font-size: 14px; }
+}
+.dc-manifest-modal-sheet .dc-modal-nav-tabs .dc-modal-tab-btn.is-active {
+  background: #fff;
+  color: #102b3d;
+  box-shadow: 0 2px 8px rgba(18, 43, 61, .1);
+}
+.dc-manifest-modal-sheet .route-modal-panel.route-live-panel {
+  max-width: 520px;
+  padding: 8px 8px 12px;
+  border: 1px solid #dce7ee;
+  border-radius: 20px;
+  background: #fff;
+}
+.dc-manifest-modal-sheet .route-modal-panel .route-mini-cabin {
+  width: min(100%, 260px);
+  max-width: 260px;
+  padding: 8px 8px 10px;
+  border-width: 4px;
+  border-radius: 34px 34px 22px 22px;
+}
+.dc-manifest-modal-sheet .route-modal-panel .route-mini-seat {
+  min-height: 44px;
+  border-radius: 8px 8px 6px 6px;
+  font-size: 13px;
+}
+.dc-manifest-modal-sheet .route-modal-panel .route-mini-row { gap: 5px; margin-bottom: 5px; }
+.dc-manifest-modal-sheet .route-modal-panel .route-mini-windshield { padding: 5px 6px; margin-bottom: 6px; }
+.dc-manifest-modal-sheet .route-modal-panel .route-mini-windshield ion-icon { font-size: 16px; }
+.dc-manifest-modal-sheet .route-modal-panel .route-mini-legend { gap: 8px; padding-top: 8px; font-size: 11px; }
+
+@media (max-width: 360px) {
+  .dc-manifest-modal-sheet .dc-overview-actions { flex-direction: column; }
+  .dc-manifest-modal-sheet .dc-modal-nav-tabs .dc-modal-tab-btn ion-icon { display: none; }
+}
+
+/* Reference 4: fixed stop header/map, passenger list, then boarding action. */
+.stop-detail-overlay .connected-stop-sheet.stop-detail-sheet {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  background: #f3f6f9;
+}
+.arrival-stop-header {
+  flex-shrink: 0;
+  min-height: 64px;
+  padding: max(14px, env(safe-area-inset-top)) 56px 10px;
+  text-align: center;
+  background: #fff;
+  h2 { margin: 0; font-size: 17px; line-height: 1.3; }
+  p { margin: 3px 0 0; font-size: 12px; color: #657789; }
+}
+.stop-detail-overlay .stop-detail-close {
+  left: 12px;
+  right: auto;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  color: #102b3d;
+  z-index: 2;
+}
+.arrival-stop-map {
+  position: relative;
+  flex: 0 0 clamp(190px, 36dvh, 320px);
+  min-height: 0;
+}
+.arrival-map-navigate {
+  position: absolute;
+  right: 12px;
+  bottom: 28px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: white;
+  color: #1267d7;
+  box-shadow: 0 2px 8px #0002;
+  ion-icon { font-size: 20px; }
+}
+.arrival-passenger-body {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: -16px 12px 0;
+  border-radius: 20px 20px 0 0;
+  background: #fff;
+  box-shadow: 0 -4px 16px rgba(16, 43, 61, .1);
+  padding: 14px 16px;
+  .stop-passengers-section { margin: 0; }
+  .group-title--board { display: none; }
+  .stop-passengers-group .stop-passenger-mini-card { border: 0; border-bottom: 1px solid #edf1f4; border-radius: 0; padding: 10px 0; margin: 0; }
+  .stop-rules-grid { margin-bottom: 12px; }
+}
+.arrival-waiting-summary {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+  > ion-icon { width: 32px; font-size: 30px; color: #1267d7; }
+  h3.stop-passengers-title { margin: 0 0 3px; font-size: 15px; }
+  span, small { display: block; font-size: 12px; color: #657789; }
+}
+.arrival-stop-footer {
+  flex-shrink: 0;
+  padding: 10px 16px max(12px, env(safe-area-inset-bottom));
+  background: #fff;
+  border-top: 1px solid #edf1f4;
+  button { width: 100%; min-height: 48px; }
+}
+.stop-detail-overlay .arrival-passenger-body .stop-passengers-group {
+  .group-title--board { display: none; }
+  .stop-passenger-mini-card {
+    border: 0;
+    border-bottom: 1px solid #edf1f4;
+    border-radius: 0;
+    padding: 8px 0;
+    margin: 0;
+  }
+}
+@media (max-height: 540px) { .arrival-stop-map { flex-basis: 140px; } }
+
+/* Active fixed ride: keep the map and ride controls in distinct stacked sections. */
+.route-workspace.dc-fullmap-view {
+  position: relative;
+  inset: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  padding: 0 0 calc(56px + env(safe-area-inset-bottom, 24px));
+  background: #f5f8fa;
+}
+.route-workspace.dc-fullmap-view .route-map-section {
+  position: relative;
+  flex: none;
+  width: 100%;
+  height: min(55dvh, calc(90dvh - 214px));
+  min-height: 150px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid #dce6ec;
+  border-radius: 18px;
+  background: #e7edf0;
+  box-shadow: 0 4px 16px rgba(15,35,50,.08);
+}
+.route-workspace.dc-fullmap-view .route-map-navigate {
+  position: absolute;
+  z-index: 5;
+  right: 12px;
+  top: 12px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: #1166df;
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(17, 102, 223, 0.28);
+}
+.route-workspace.dc-fullmap-view .route-map-navigate ion-icon { font-size: 17px; }
+.route-workspace.dc-fullmap-view .route-map-navigate:active { transform: scale(.95); }
+.route-workspace.dc-fullmap-view .dc-fullscreen-map {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-radius: inherit;
+}
+.route-workspace.dc-fullmap-view .dc-map-floating-bottom-bar {
+  position: relative;
+  inset: auto;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  transform: none;
+  flex: 0 0 auto;
+  width: min(calc(100% - 16px), 720px);
+  max-width: none;
+  margin: 16px auto calc(48px + env(safe-area-inset-bottom, 24px));
+  padding: 12px;
+  gap: 10px;
+  border: 1px solid #d9e4eb;
+  border-radius: 20px;
+  background: #eef4f8;
+  box-shadow: 0 8px 24px rgba(15,35,50,.11);
+  backdrop-filter: none;
+}

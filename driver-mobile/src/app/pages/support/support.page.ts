@@ -100,7 +100,7 @@ export class SupportPage implements OnInit {
     const to = this.support?.support_email || '';
     const subject = encodeURIComponent('Driver app — Report a problem');
     const body = encodeURIComponent(
-      'Please describe the problem you are facing:\n\n\n— Sent from the DreamCabs driver app',
+      'Please describe the problem you are facing:\n\n\n— Sent from the Cabbies driver app',
     );
     window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
   }

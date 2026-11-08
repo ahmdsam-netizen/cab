@@ -1,7 +1,7 @@
 <ion-content [fullscreen]="true">
 
   <!-- Step 1 — pickup -->
-  <app-step-shell
+  <app-step-shell [reference]="true"
     *ngIf="step === 'pickup'"
     title="Where from?"
     subtitle="We'll collect you from this exact spot."
@@ -12,7 +12,7 @@
   </app-step-shell>
 
   <!-- Step 2 — drop -->
-  <app-step-shell
+  <app-step-shell [reference]="true"
     *ngIf="step === 'drop'"
     title="Where to?"
     [from]="fromLabel"
@@ -22,7 +22,7 @@
   </app-step-shell>
 
   <!-- Step 3 — fare -->
-  <app-step-shell
+  <app-step-shell [reference]="true"
     *ngIf="step === 'fare'"
     title="Your pool fare"
     [from]="fromLabel" [to]="toLabel"
@@ -33,7 +33,7 @@
     (primary)="choosePayment()">
 
     <div class="bk-opt bk-opt--on">
-      <span class="bk-opt__ic">🚐</span>
+      <span class="bk-opt__ic"><ion-icon name="bus-outline" aria-hidden="true"></ion-icon></span>
       <span class="bk-opt__main">
         <span class="bk-opt__t">Pool ride</span>
         <span class="bk-opt__s">{{ estimating ? 'Pricing…' : 'Others may join · pay after driver approval' }}</span>
@@ -41,51 +41,45 @@
       <span class="bk-opt__r" *ngIf="fare">₹{{ fare }}<small>a seat</small></span>
     </div>
 
-    <div class="fb-tip-chips" *ngIf="tipping && tipping.values && tipping.values.length > 0" style="margin: 12px 0; display: flex; gap: 8px;">
+    <div class="sh-tip-chips" *ngIf="tipping && tipping.values && tipping.values.length > 0" role="group" aria-label="Driver tip">
       <button type="button"
               *ngFor="let val of tipping.values"
-              class="fb-tip-chip"
-              [style.flex]="'1'"
-              [style.background]="selectedTipPreset === val ? '#E7F8EF' : '#FFFFFF'"
-              [style.color]="selectedTipPreset === val ? '#12B35B' : '#0D1B2A'"
-              [style.border]="'1.5px solid ' + (selectedTipPreset === val ? '#12B35B' : '#EEF0F2')"
-              [style.padding]="'9px 12px'"
-              [style.border-radius]="'12px'"
-              [style.font-weight]="'850'"
-              [style.font-size]="'13px'"
-              [style.cursor]="'pointer'"
+              class="sh-tip-chip"
+              [class.sh-tip-chip--selected]="selectedTipPreset === val"
+              [attr.aria-pressed]="selectedTipPreset === val"
               (click)="pickTipPreset(val)">
         Tip {{ tipPresetLabel(val) }}
       </button>
     </div>
 
     <!-- Coupon (operator-funded) -->
-    <div class="sh-coupon" *ngIf="fare" style="margin: 12px 0;">
-      <div style="display: flex; gap: 8px;" *ngIf="!coupon">
+    <div class="sh-coupon" *ngIf="fare">
+      <div class="sh-coupon__entry" *ngIf="!coupon">
         <input
           type="text"
           [(ngModel)]="couponTitle"
           (keyup.enter)="applyCoupon()"
           placeholder="Coupon code"
+          aria-label="Coupon code"
           autocapitalize="characters"
-          style="flex: 1; padding: 10px 12px; border: 1.5px solid #EEF0F2; border-radius: 12px; font-weight: 700; font-size: 14px;" />
+          />
         <button type="button"
                 [disabled]="!couponTitle.trim() || couponBusy"
                 (click)="applyCoupon()"
-                style="padding: 10px 16px; border: none; border-radius: 12px; background: #0D1B2A; color: #fff; font-weight: 850; font-size: 13px; cursor: pointer;">
+                class="sh-coupon__apply">
           {{ couponBusy ? '…' : 'Apply' }}
         </button>
       </div>
-      <div *ngIf="coupon" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #E7F8EF; border-radius: 12px;">
-        <span style="font-weight: 800; color: #12B35B; font-size: 13px;">
+      <div *ngIf="coupon" class="sh-coupon__applied">
+        <ion-icon name="pricetag-outline" aria-hidden="true"></ion-icon>
+        <span>
           Coupon applied · −₹{{ couponDiscount }}
         </span>
-        <button type="button" (click)="removeCoupon()"
-                style="border: none; background: transparent; color: #0D1B2A; font-weight: 800; font-size: 13px; cursor: pointer;">
+        <button type="button" (click)="removeCoupon()">
           Remove
         </button>
       </div>
-      <p class="bk-note bk-note--warn" *ngIf="couponError" style="margin-top: 6px;">{{ couponError }}</p>
+      <p class="bk-note bk-note--warn" *ngIf="couponError" role="alert">{{ couponError }}</p>
     </div>
 
     <p class="bk-note">A fixed price per seat — no bargaining. Cheaper than the whole car.</p>
@@ -93,7 +87,7 @@
   </app-step-shell>
 
   <!-- Step 4 — pick a seat -->
-  <app-step-shell
+  <app-step-shell [reference]="true"
     *ngIf="step === 'seats'"
     title="Choose your seat"
     subtitle="Tap where you'd like to sit."
@@ -120,15 +114,15 @@
       <span><i class="dot dot--taken"></i> Taken</span>
     </div>
 
-    <p class="bk-note" *ngIf="!seatError">You'll be alone or share the car — your seat is reserved either way.</p>
+    <p class="bk-note" *ngIf="!seatError">Choose your seat, then continue to your bookings. Pay after a driver accepts your request.</p>
     <p class="bk-note bk-note--warn" *ngIf="seatError">{{ seatError }}</p>
   </app-step-shell>
 
   <!-- Step 5 — pay -->
-  <app-step-shell
+  <app-step-shell [reference]="true"
     *ngIf="step === 'paying'"
     title="Pay for your seat"
-    subtitle="Pools are paid before we find the car."
+    subtitle="Complete payment after your driver accepts your request."
     [from]="fromLabel" [to]="toLabel"
     [step]="5" [total]="total"
     [cta]="busy ? 'Working…' : ('Pay ₹' + (payNowAmount || 0))"
@@ -153,13 +147,13 @@
     [open]="paymentModalOpen"
     [amount]="payableTotal"
     [busy]="busy"
-    title="How would you like to pay?"
+    title="Choose how to pay after driver approval"
     (select)="onPayMethod($event)"
     (dismiss)="paymentModalOpen = false">
   </app-payment-method-modal>
 
   <!-- Forming -->
-  <app-step-shell
+  <app-step-shell [reference]="true"
     *ngIf="step === 'forming'"
     title="Finding people to share with"
     barLabel="Pool ride"
@@ -168,7 +162,7 @@
     (back)="viewPools()"
     (primary)="viewPools()">
     <div class="sh-forming">
-      <div class="sh-pulse" aria-hidden="true">🚐</div>
+      <div class="sh-pulse" aria-hidden="true"><ion-icon name="bus-outline"></ion-icon></div>
       <span class="bk-badge bk-badge--amber">FORMING</span>
       <p class="bk-sub sh-forming__t">{{ fromLabel }} → {{ toLabel }} · ₹{{ fare }} paid</p>
       <p class="bk-note">We'll message you the moment a car forms. You can leave this screen.</p>

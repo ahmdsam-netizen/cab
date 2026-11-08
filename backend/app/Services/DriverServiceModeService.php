@@ -5,10 +5,35 @@ namespace App\Services;
 use App\Models\Driver;
 use App\Models\RouteDeparture;
 use App\Models\Trip;
+use App\Models\ShuttleJourney;
 use Illuminate\Validation\ValidationException;
 
 class DriverServiceModeService
 {
+    public function assertVehicleChangeAllowed(Driver $driver, array $data): void
+    {
+        $fields = ['ride_type_id', 'vehicle_type_id', 'city_vehicle_type_id',
+            'vehicle_reg_no', 'vehicle_brand', 'vehicle_model', 'vehicle_color', 'service_mode'];
+        $changed = false;
+        foreach ($fields as $field) {
+            if (!array_key_exists($field, $data)) continue;
+            $before = $driver->getAttribute($field);
+            $after = $data[$field];
+            // Form resubmissions include unchanged numeric IDs and empty nullable text.
+            $normalize = str_ends_with($field, '_id')
+                ? fn ($value) => $value === null || $value === '' ? null : (int) $value
+                : fn ($value) => $value === null || $value === '' ? null : (string) $value;
+            if ($normalize($before) !== $normalize($after)) { $changed = true; break; }
+        }
+        if (!$changed) return;
+
+        if ($this->hasActiveFixedVehicle($driver) || $this->hasActivePrivateTrip($driver)
+            || ShuttleJourney::query()->where('driver_id', $driver->user_id)
+                ->whereNotIn('status', ['COMPLETED', 'CANCELLED'])->exists()) {
+            abort(422, 'Complete or close the current ride/departure before changing this driver’s vehicle.');
+        }
+    }
+
     public function setMode(Driver $driver, ?string $mode, ?string $scope = null): Driver
     {
         if ($mode !== null && !in_array($mode, Driver::SERVICE_MODES, true)) {

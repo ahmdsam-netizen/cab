@@ -135,7 +135,7 @@ export class DriverPresenceService {
       this.nativeBackgroundWatch = true;
       const id = await locationWatchers.add('background', () => BackgroundGeolocation.addWatcher(
         {
-          backgroundTitle: 'DreamCabs is using your location',
+          backgroundTitle: 'Cabbies is using your location',
           backgroundMessage: 'Your location is shared while you are online or working on an active ride.',
           requestPermissions: true,
           stale: false,

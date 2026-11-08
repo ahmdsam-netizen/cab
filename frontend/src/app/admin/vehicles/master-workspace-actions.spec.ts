@@ -31,7 +31,7 @@ describe('Master live editor delegation', () => {
   });
   it('ignores route, group and driver responses from a previously selected city', () => {
     const requests: Subject<any>[] = [];
-    page.cityId = 1;
+    page.cityId = 1; page.supportLoading = new Set(); page.supportErrors = new Set();
     page.api = { get: () => { const response = new Subject<any>(); requests.push(response); return response; } };
     page.recompute = jasmine.createSpy();
     page.loadRoutes(); page.loadGroups(); page.loadDrivers();

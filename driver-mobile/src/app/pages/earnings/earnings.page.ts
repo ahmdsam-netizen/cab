@@ -16,6 +16,8 @@ export interface RideRow {
   cash_amount?: number;
   online_amount?: number;
   is_shared: boolean;
+  pickup_address?: string | null;
+  drop_address?: string | null;
 }
 
 export interface OperatorTransfer {
@@ -54,7 +56,8 @@ export interface EarningsResponse {
   rides: RideRow[];
 }
 
-export type EarningsTab = 'transfers' | 'received' | 'analytics';
+export type EarningsTab = 'overview' | 'transfers' | 'received' | 'analytics';
+type EarningsPeriod = 'today' | 'week' | 'month' | 'all';
 
 /**
  * Driver Earnings & Payouts Page.
@@ -77,7 +80,9 @@ export class EarningsPage implements OnInit {
   error: string | null = null;
 
   // Active navigation tab
-  activeTab: EarningsTab = 'transfers';
+  activeTab: EarningsTab = 'overview';
+  private loadGeneration = 0;
+  rideListLimited = false;
 
   // Money & stats
   rideEarnings = 0;
@@ -93,21 +98,24 @@ export class EarningsPage implements OnInit {
 
   // Filter & period
   currency = 'INR';
-  period: 'week' | 'month' | 'all' = 'week';
+  period: EarningsPeriod = 'today';
 
-  periodLabelMap: Record<'week' | 'month' | 'all', string> = {
+  periodLabelMap: Record<EarningsPeriod, string> = {
+    today: 'today',
     week: 'this week',
     month: 'this month',
     all: 'all time',
   };
 
-  periodRideTitleMap: Record<'week' | 'month' | 'all', string> = {
+  periodRideTitleMap: Record<EarningsPeriod, string> = {
+    today: "Today's Completed Rides",
     week: 'Weekly Completed Rides',
     month: 'Monthly Completed Rides',
     all: 'All Time Completed Rides',
   };
 
-  periodChartTitleMap: Record<'week' | 'month' | 'all', string> = {
+  periodChartTitleMap: Record<EarningsPeriod, string> = {
+    today: "Today's Earnings",
     week: 'Weekly Earnings Overview',
     month: 'Monthly Earnings Overview',
     all: 'All Time Earnings Activity',
@@ -131,18 +139,21 @@ export class EarningsPage implements OnInit {
     this.activeTab = tab;
   }
 
-  setPeriod(p: 'week' | 'month' | 'all'): void {
+  setPeriod(p: EarningsPeriod): void {
     if (this.period === p) return;
     this.period = p;
     this.load();
   }
 
   load(): void {
+    const generation = ++this.loadGeneration;
+    const period = this.period;
     this.loading = true;
     this.error = null;
 
-    this.api.get<EarningsResponse>(`/drivers/me/earnings?period=${this.period}`).subscribe({
+    this.api.get<EarningsResponse>(`/drivers/me/earnings?period=${period === 'today' ? 'week' : period}`).subscribe({
       next: (res) => {
+        if (generation !== this.loadGeneration) return;
         this.loading = false;
         this.rideEarnings = res.ride_earnings ?? 0;
         this.cashCollected = res.cash_collected ?? 0;
@@ -155,8 +166,21 @@ export class EarningsPage implements OnInit {
         this.currency = res.currency || 'INR';
         this.buckets = res.buckets || [];
         this.rides = res.rides || [];
+        this.rideListLimited = this.rides.length >= 500;
+        // Week API is a rolling seven days. Use its dated buckets for the
+        // calendar week/today summary without requiring an API deployment.
+        if (period === 'today' || period === 'week') {
+          const start = new Date(); start.setHours(0, 0, 0, 0);
+          if (period === 'week') start.setDate(start.getDate() - (start.getDay() + 6) % 7);
+          const today = new Date();
+          const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          this.buckets = this.buckets.filter(b => b.date >= key(start) && b.date <= key(today));
+          this.rides = this.rides.filter(r => r.date && new Date(r.date) >= start && new Date(r.date) <= today);
+          this.rideEarnings = this.buckets.reduce((total, b) => total + Number(b.amount || 0), 0);
+        }
       },
       error: (err) => {
+        if (generation !== this.loadGeneration) return;
         this.loading = false;
         this.error = err?.error?.message || 'Could not load driver earnings.';
       },
@@ -207,7 +231,7 @@ export class EarningsPage implements OnInit {
   }
 
   showLabel(idx: number): boolean {
-    if (this.period === 'week') return true;
+    if (this.period === 'today' || this.period === 'week') return true;
     return idx % 5 === 0;
   }
 

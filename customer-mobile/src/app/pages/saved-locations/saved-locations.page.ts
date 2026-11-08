@@ -1,3 +1,4 @@
+import { CUSTOMER_MAP_STYLE } from '../../core/customer-map';
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { AlertController, ToastController } from '@ionic/angular';
@@ -144,8 +145,8 @@ export class SavedLocationsPage implements OnInit {
     if (!div) return;
 
     this.map = new google.maps.Map(div, {
+      ...CUSTOMER_MAP_STYLE,
       center,
-      zoom: 16,
       disableDefaultUI: true,
       clickableIcons: false,
       mapId: 'DEMO_MAP_ID',

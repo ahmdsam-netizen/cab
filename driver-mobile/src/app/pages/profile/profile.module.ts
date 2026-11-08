@@ -1,3 +1,4 @@
+import { DriverTopbarComponent } from '../../shared/driver-topbar/driver-topbar.component';
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -8,7 +9,7 @@ import { ProfilePage } from './profile.page';
 const routes: Routes = [{ path: '', component: ProfilePage }];
 
 @NgModule({
-  imports: [CommonModule, FormsModule, IonicModule, RouterModule.forChild(routes)],
+  imports: [DriverTopbarComponent, CommonModule, FormsModule, IonicModule, RouterModule.forChild(routes)],
   declarations: [ProfilePage],
 })
 export class ProfilePageModule {}

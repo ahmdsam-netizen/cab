@@ -20,6 +20,10 @@ const routes: Routes = [
           import('../pages/booking/booking.module').then((m) => m.BookingPageModule),
       },
       {
+        path: 'trips',
+        loadComponent: () => import('../pages/my-trips/my-trips.page').then(m => m.MyTripsPage),
+      },
+      {
         path: 'my-trips',
         loadChildren: () =>
           import('../pages/customer-trips/customer-trips.module').then((m) => m.CustomerTripsPageModule),

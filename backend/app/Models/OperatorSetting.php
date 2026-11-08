@@ -5,8 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 #[Fillable([
+    'private_service_name',
+    'fixed_service_name',
+    'shuttle_service_name',
+    'private_service_image_path',
+    'fixed_service_image_path',
+    'shuttle_service_image_path',
+
     // Tipping
     'customer_tip_value_1',
     'customer_tip_value_2',
@@ -93,5 +101,12 @@ class OperatorSetting extends Model
     public static function instance(): self
     {
         return static::query()->firstOrCreate(['id' => 1]);
+    }
+
+    public function serviceImageUrl(string $mode): ?string
+    {
+        $path = $this->getAttribute($mode . '_service_image_path');
+
+        return $path ? Storage::disk('public')->url($path) : null;
     }
 }

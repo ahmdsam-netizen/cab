@@ -51,6 +51,43 @@ class FixedSeatHoldService
             "coupon" => $coupon["coupon"],
         ];
     }
+    public function updateCoupon(User $customer, FixedSeatHold $hold, ?string $code): FixedSeatHold
+    {
+        return DB::transaction(function () use ($customer, $hold, $code) {
+            $locked = FixedSeatHold::query()->lockForUpdate()->find($hold->id);
+            if (!$locked || (int) $locked->customer_id !== (int) $customer->id) {
+                throw new ReservationException('This seat hold could not be found.', 404);
+            }
+            if ($locked->status !== 'ACCEPTED' || !$locked->approved_driver_id || !$locked->expires_at || $locked->expires_at->isPast()) {
+                throw new ReservationException('Coupons can only be changed on an approved, active seat request.', 422);
+            }
+            if ($locked->razorpay_order_id || $locked->razorpay_payment_id || $locked->payment_reference) {
+                throw new ReservationException('Payment has already started. The coupon can no longer be changed.', 409);
+            }
+            $departure = RouteDeparture::query()->with('route')->lockForUpdate()->findOrFail($locked->route_departure_id);
+            if ((int) $departure->driver_id !== (int) $locked->approved_driver_id) {
+                throw new ReservationException('Driver approval is no longer valid.', 409);
+            }
+            $this->availability->assertBookableDeparture($departure, true);
+            $route = $departure->route;
+            if (!$route) throw new ReservationException('This fixed route is not available.', 404);
+            $board = $this->resolveStop($route->id, (int) $locked->board_stop_id, 'is_pickup', 'boarding');
+            $drop = $this->resolveStop($route->id, (int) $locked->drop_stop_id, 'is_drop', 'drop');
+            $this->availability->assertFutureBoardingStop($departure, $board);
+            $base = $this->pricing->bookingAmount($route, (int) $locked->seats, (int) $locked->extra_luggage_count);
+            if (round($base, 2) !== round((float) ($locked->original_amount ?? $locked->amount), 2)) {
+                throw new ReservationException('The fare has changed. Please request seats again.', 409);
+            }
+            $coupon = $this->resolveFixedCoupon($customer, $departure, $route, $board, $drop, $base, $code);
+            $locked->update([
+                'coupon_assignment_id' => $coupon['assignment_id'],
+                'discount_amount' => $coupon['discount'],
+                'amount' => round((float) $coupon['final_amount'] + (float) ($locked->tip_amount ?? 0), 2),
+            ]);
+            return $locked->fresh();
+        });
+    }
+
     public function createHold(User $customer, array $data): FixedSeatHold
     {
         $departure = RouteDeparture::query()->with('route')->findOrFail((int) $data['route_departure_id']);

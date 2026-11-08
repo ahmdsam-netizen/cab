@@ -65,7 +65,7 @@ class AdminDriverRouteGroupsController
                 ->whereIn('city_id', $cityIds)
                 ->count();
             if ($validCount !== count($groupIds)) {
-                abort(422, "Some route groups do not belong to this driver's registered cities.");
+                abort(422, "Some stands do not belong to this driver's registered cities.");
             }
         }
 
@@ -84,7 +84,7 @@ class AdminDriverRouteGroupsController
         return response()->json([
             'assigned_group_ids' => $groupIds,
             'effective_routes' => $this->effectiveRoutesPayload($driver),
-            'message' => 'Driver route groups updated.',
+            'message' => 'Driver stands updated.',
         ]);
     }
 

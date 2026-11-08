@@ -37,7 +37,7 @@ class AdminRouteGroupsController
             }
             return $groups;
         });
-        return response()->json(['data' => $groups, 'message' => count($groups).' groups created.'], 201);
+        return response()->json(['data' => $groups, 'message' => count($groups).' stands created.'], 201);
     }
 
     public function setup(Request $request, City $city, ?RouteGroup $routeGroup = null)
@@ -85,7 +85,7 @@ class AdminRouteGroupsController
             $group->vehicleSets()->sync(array_unique($setIds));
             return $group;
         });
-        return response()->json(['route_group' => $this->shape($group->fresh(['routes', 'drivers', 'vehicleSets'])), 'message' => 'Group setup saved.'], $isNew ? 201 : 200);
+        return response()->json(['route_group' => $this->shape($group->fresh(['routes', 'drivers', 'vehicleSets'])), 'message' => 'Stand setup saved.'], $isNew ? 201 : 200);
     }
 
     public function index(City $city)
@@ -124,7 +124,7 @@ class AdminRouteGroupsController
 
         return response()->json([
             'route_group' => $this->shape($group->fresh(['routes', 'drivers', 'vehicleSets'])),
-            'message' => 'Route group created.',
+            'message' => 'Stand created.',
         ], 201);
     }
 
@@ -151,7 +151,7 @@ class AdminRouteGroupsController
 
         return response()->json([
             'route_group' => $this->shape($routeGroup->fresh(['routes', 'drivers', 'vehicleSets'])),
-            'message' => 'Route group updated.',
+            'message' => 'Stand updated.',
         ]);
     }
 
@@ -160,7 +160,7 @@ class AdminRouteGroupsController
         $this->assertCityOwnsGroup($city, $routeGroup);
         $routeGroup->delete(); // FK cascade clears route_group_route + driver_route_group
 
-        return response()->json(['message' => 'Route group deleted.']);
+        return response()->json(['message' => 'Stand deleted.']);
     }
 
     /**
@@ -189,7 +189,7 @@ class AdminRouteGroupsController
 
         return response()->json([
             'driver_user_ids' => $ids,
-            'message' => 'Group drivers updated.',
+            'message' => 'Stand drivers updated.',
         ]);
     }
 
@@ -275,7 +275,7 @@ class AdminRouteGroupsController
             && isset($r->fare_config['seat_fare'])
             && (float) $r->fare_config['seat_fare'] > 0));
         if ($needsPricing) {
-            abort(422, 'Add a price to these routes before grouping them — they are still marked “Needs pricing”.');
+            abort(422, 'Add a price to these routes before adding them to a stand — they are still marked “Needs pricing”.');
         }
 
         return $valid;

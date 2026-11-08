@@ -1,6 +1,32 @@
 <ion-content [fullscreen]="true" class="bh-content">
 
-  <div class="bh-location-status" *ngIf="locationFetching" role="status">
+  <section class="loc-loader-overlay" *ngIf="!located && locationFetching" role="status">
+    <div class="loc-loader-card">
+      <div class="loc-radar-anim" aria-hidden="true">
+        <span class="loc-radar-ring r1"></span>
+        <span class="loc-radar-ring r2"></span>
+        <span class="loc-radar-ring r3"></span>
+        <div class="loc-radar-center"><ion-icon name="location"></ion-icon></div>
+      </div>
+      <h2 class="loc-loader-title">Fetching current location...</h2>
+      <p class="loc-loader-sub">Pinpointing your position on the map</p>
+      <div class="loc-loader-bar" aria-hidden="true"><div class="loc-loader-bar-fill"></div></div>
+    </div>
+  </section>
+
+  <section class="bh-location-gate" *ngIf="!located && !locationFetching" aria-labelledby="location-gate-title">
+    <div class="bh-location-gate-card">
+      <span class="bh-location-gate-icon"><ion-icon name="location-outline" aria-hidden="true"></ion-icon></span>
+      <h1 id="location-gate-title">No location available</h1>
+      <p role="status">{{ locationMessage }}</p>
+      <button type="button" (click)="requestLocation()"><ion-icon name="refresh-outline" aria-hidden="true"></ion-icon>Retry location</button>
+      <small>Enable location permission and turn on your device’s location services to continue.</small>
+    </div>
+  </section>
+  <div class="bh-home-content" [class.has-active-ride]="!!activeFixedRide" [class.is-sheet-expanded]="homeExpanded"
+    [class.has-service-choices]="tiles.length > 0"
+    [attr.inert]="!located ? '' : null" [attr.aria-hidden]="!located ? true : null">
+  <div class="bh-location-status" *ngIf="located && locationFetching" role="status">
     <ion-spinner name="crescent"></ion-spinner>
     <span>Finding your location…</span>
   </div>
@@ -8,59 +34,35 @@
   <!-- ── Live Google Map fills the whole screen ── -->
   <div #mapEl class="bh-map" aria-label="Map"></div>
 
-  <!-- Drawer button, top-left -->
-  <div class="bh-menu">
-    <ion-menu-button menu="customer-menu" aria-label="Open menu"></ion-menu-button>
-  </div>
-
-  <!-- ── Half Screen Floating Banner Card ── -->
-  <aside
-    class="dc-banner-half-card dc-anim-pop"
-    *ngIf="halfBanner && !isHalfBannerCollapsed"
-    role="complementary"
-    aria-label="Promotional banner"
-  >
-    <button
-      class="dc-banner-close-btn"
-      type="button"
-      (click)="collapseHalfBanner()"
-      aria-label="Collapse banner"
-    >
-      <ion-icon name="close"></ion-icon>
+  <header class="bh-topbar">
+    <div class="bh-profile-button">
+      <ion-menu-button menu="customer-menu" aria-label="Open menu">
+        <img *ngIf="profileImageUrl as avatarUrl; else profileIcon" class="bh-profile-image"
+          [src]="avatarUrl" alt="" aria-hidden="true" (error)="onProfileImageError(avatarUrl)" />
+        <ng-template #profileIcon><ion-icon name="person-outline" aria-hidden="true"></ion-icon></ng-template>
+      </ion-menu-button>
+    </div>
+    <button class="bh-location-button" type="button" (click)="recenterMap()" [disabled]="refreshingMapLocation" aria-label="Show my location on the map">
+      <ion-icon name="location-outline" aria-hidden="true"></ion-icon>
+      <span>{{ locationFetching || refreshingMapLocation ? 'Finding your location…' : (city?.name || 'Your location') }}</span>
+      <ion-icon name="chevron-down-outline" aria-hidden="true"></ion-icon>
     </button>
-    <div class="dc-banner-half-img-wrap" (click)="onBannerClick(halfBanner)">
-      <img
-        [src]="resolveBannerImageUrl(halfBanner.image_url)"
-        [alt]="halfBanner.title"
-        class="dc-banner-half-img"
-      />
-    </div>
-    <div class="dc-banner-half-body">
-      <h3 class="dc-banner-half-title" (click)="onBannerClick(halfBanner)">{{ halfBanner.title }}</h3>
-      <button
-        *ngIf="halfBanner.url_link"
-        class="dc-banner-cta-btn dc-press"
-        type="button"
-        (click)="onBannerClick(halfBanner)"
-      >
-        <span>Learn More</span>
-        <ion-icon name="open-outline"></ion-icon>
-      </button>
-    </div>
-  </aside>
+    <a class="bh-icon-button" routerLink="/customer-tabs/notifications" aria-label="Notifications">
+      <ion-icon name="notifications-outline" aria-hidden="true"></ion-icon>
+    </a>
+  </header>
 
-  <!-- ── Collapsed Floating Trigger Pill (Shows for both Full-Screen & Half Banners) ── -->
-  <button
-    class="dc-banner-floating-pill dc-anim-pop dc-press"
-    type="button"
-    *ngIf="showOfferPill"
-    (click)="reopenOfferBanner()"
-    aria-label="View promotional banner"
-  >
-    <span class="dc-banner-pill-pulse"></span>
-    <ion-icon name="gift-outline" class="dc-banner-pill-icon"></ion-icon>
-    <span class="dc-banner-pill-label">Offer</span>
-  </button>
+  <div class="bh-map-controls" *ngIf="mapReady && located && (activeFixedRide || hasSelectedPickupRoute || mapLocationMessage)">
+    <button *ngIf="activeFixedRide" type="button" (click)="toggleMapMode()" [disabled]="refreshingMapLocation">
+      <ion-icon [name]="gpsFollow ? 'map-outline' : 'locate-outline'" aria-hidden="true"></ion-icon>
+      {{ refreshingMapLocation ? 'Finding location…' : (gpsFollow ? 'Route overview' : 'Follow GPS') }}
+    </button>
+    <button *ngIf="hasSelectedPickupRoute" class="bh-clear-route" type="button" (click)="clearSelectedPickupRoute()">
+      <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
+      Clear route
+    </button>
+    <span *ngIf="mapLocationMessage" role="status">{{ mapLocationMessage }}</span>
+  </div>
 
   <!-- ── Floating AI Booking Assistant Pill ── -->
   <button
@@ -77,7 +79,7 @@
   <!-- ── Full-Screen App Banner Overlay Modal (True Mobile Full Screen) ── -->
   <div
     class="dc-banner-fullscreen-modal dc-anim-fade"
-    *ngIf="fullScreenBanner && !isFullScreenDismissed"
+    *ngIf="!activeFixedRide && fullScreenBanner && !isFullScreenDismissed"
     role="dialog"
     aria-modal="true"
     [attr.aria-label]="fullScreenBanner.title"
@@ -92,7 +94,7 @@
     </button>
     <div class="dc-banner-fullscreen-hero" (click)="onBannerClick(fullScreenBanner)">
       <img
-        [src]="resolveBannerImageUrl(fullScreenBanner.image_url)"
+        [src]="resolveHomeImageUrl(fullScreenBanner.image_url)"
         [alt]="fullScreenBanner.title"
         class="dc-banner-fullscreen-hero-img"
       />
@@ -121,8 +123,12 @@
   </div>
 
   <!-- ── 1. Active Fixed Ride Bottom Sheet (Replaces "Where are you going" when booking exists) ── -->
-  <section class="bh-sheet bh-active-sheet dc-anim-pop" *ngIf="activeFixedRide as ride">
-    <span class="bh-grip" aria-hidden="true"></span>
+  <section class="bh-home-sheet bh-active-sheet" *ngIf="activeFixedRide as ride" [class.is-expanded]="homeExpanded" aria-label="Your active ride">
+    <button class="bh-sheet-toggle" type="button" (click)="homeExpanded = !homeExpanded"
+      [attr.aria-expanded]="homeExpanded" [attr.aria-label]="homeExpanded ? 'Collapse Home panel' : 'Expand Home panel'">
+      <span aria-hidden="true"></span>
+    </button>
+    <div class="bh-home-scroll bh-active-scroll">
 
     <!-- Multiple Active Rides Navigation Bar -->
     <div class="bh-active-multi-nav" *ngIf="activeFixedRides.length > 1">
@@ -142,14 +148,9 @@
     </div>
 
     <!-- Status & OTP Row -->
-    <div class="bh-active-top-row">
-      <div class="bh-active-status-pill" [class.is-onboard]="ride.status === 'BOARDED'">
-        <span class="bh-live-dot"></span>
-        <span>{{ activeRideStatusLabel(ride) }}</span>
-      </div>
-
+    <div class="bh-active-top-row" *ngIf="ride.boarding_code">
       <div class="bh-active-otp-box" *ngIf="ride.boarding_code">
-        <span class="bh-otp-tag">OTP</span>
+        <span class="bh-otp-tag">Boarding code</span>
         <span class="bh-otp-code">{{ ride.boarding_code }}</span>
       </div>
     </div>
@@ -158,36 +159,7 @@
     <div class="bh-active-title-row">
       <div class="bh-active-route-col">
         <h2 class="bh-active-route-text">{{ ride.route_name || (ride.board + ' → ' + ride.drop) }}</h2>
-        <span class="bh-active-seat-tag" *ngIf="ride.seats">
-          💺 {{ ride.seats }} Seat{{ ride.seats > 1 ? 's' : '' }} Booked
-        </span>
       </div>
-    </div>
-
-    <!-- Driver & Vehicle Box -->
-    <div class="bh-active-driver-box">
-      <div class="bh-active-driver-left">
-        <div class="bh-driver-avatar">
-          <ion-icon name="person"></ion-icon>
-        </div>
-        <div class="bh-driver-meta">
-          <strong class="bh-driver-name">{{ ride.driver_name || 'Driver Assigned' }}</strong>
-          <span class="bh-driver-vehicle">
-            {{ ride.vehicle_name || ride.vehicle_model || 'Fixed Ride' }}
-            <span *ngIf="ride.vehicle_reg_no"> · {{ ride.vehicle_reg_no }}</span>
-          </span>
-        </div>
-      </div>
-
-      <a
-        *ngIf="ride.driver_phone"
-        class="bh-driver-call-btn dc-press"
-        [href]="'tel:' + ride.driver_phone"
-        (click)="$event.stopPropagation()"
-        aria-label="Call Driver"
-      >
-        <ion-icon name="call"></ion-icon>
-      </a>
     </div>
 
     <!-- Transit Itinerary (Pickup & Drop) -->
@@ -211,65 +183,166 @@
 
     <!-- View Live Full Page Details CTA -->
     <button class="bh-active-cta dc-press" type="button" (click)="openActiveFixedRide()">
-      <span>Open Live Map &amp; Stop Manifest</span>
+      <span>Ride</span>
       <ion-icon name="arrow-forward-outline"></ion-icon>
     </button>
+    </div>
   </section>
 
-  <!-- ── 2. Standard "Where are you going?" Bottom Sheet (When NO active ride) ── -->
-  <section class="bh-sheet" *ngIf="city && !activeFixedRide" [class.bh-sheet--loading]="loading">
-    <span class="bh-grip" aria-hidden="true"></span>
-
-    <h1 class="bk-title">Where are you going?</h1>
-
-    <!-- City indicator -->
-    <p class="bh-city" *ngIf="city">
-      <span class="bh-city__dot" aria-hidden="true"></span>
-      <span>Services in {{ city.name }}</span>
-    </p>
-
-    <!-- Local / Outstation switch -->
-    <div class="bh-seg" *ngIf="hasScopeSwitch" role="tablist">
-      <button
-        *ngFor="let s of scopes"
-        class="bh-seg__b"
-        type="button"
-        role="tab"
-        [attr.aria-selected]="scope === s"
-        [class.bh-seg__b--on]="scope === s"
-        (click)="pickScope(s)">
-        {{ scopeLabel(s) }}
-      </button>
-    </div>
-
-    <!-- Mode cards -->
-    <div class="bh-modes" *ngIf="tiles.length; else noModes">
-      <button
-        *ngFor="let tile of tiles; trackBy: trackByMode"
-        class="bh-mode"
-        type="button"
-        [class.bh-mode--on]="mode === tile.mode"
-        (click)="pickMode(tile)">
-        <span class="bh-mode__tick" *ngIf="mode === tile.mode" aria-hidden="true">✓</span>
-        <ion-icon class="bh-mode__ic" [name]="tile.icon" aria-hidden="true"></ion-icon>
-        <span class="bh-mode__n">{{ tile.title }}</span>
-        <span class="bh-mode__s">{{ tile.hint }}</span>
-      </button>
-    </div>
-
-    <ng-template #noModes>
-      <p class="bk-note" *ngIf="!loading">
-        No rides are set up for this area yet. Please try again later.
-      </p>
-    </ng-template>
-
-    <!-- Where to? CTA -->
-    <button class="bh-wt" type="button" [disabled]="!tiles.length" (click)="whereTo()">
-      <ion-icon name="search-outline" aria-hidden="true"></ion-icon>
-      <span>Where to?</span>
-      <ion-icon class="bh-wt__go" name="arrow-forward-outline" aria-hidden="true"></ion-icon>
+  <section class="bh-home-sheet bh-booking-sheet" *ngIf="!activeFixedRide" [class.is-expanded]="homeExpanded" aria-label="Book a ride">
+    <button class="bh-sheet-toggle bh-booking-sheet-handle" type="button"
+      (pointerdown)="startHomeSheetSwipe($event)" (pointerup)="finishHomeSheetSwipe($event)"
+      (pointercancel)="finishHomeSheetSwipe($event)" (lostpointercapture)="finishHomeSheetSwipe($event)"
+      (click)="toggleBookingSheet($event)"
+      [attr.aria-expanded]="homeExpanded" [attr.aria-label]="homeExpanded ? 'Close booking' : 'Open booking'">
+      <span class="bh-booking-arrow" aria-hidden="true"><ion-icon name="chevron-up-outline"></ion-icon></span>
     </button>
+    <div class="bh-service-controls" *ngIf="tiles.length">
+      <div class="bh-services" role="group" aria-label="Ride services">
+        <button *ngFor="let tile of tiles; trackBy: trackByMode" type="button"
+          [class.is-selected]="mode === tile.mode" [attr.aria-pressed]="mode === tile.mode"
+          aria-controls="home-service-panel" (click)="pickMode(tile)">
+          <span class="bh-service-art" aria-hidden="true">
+            <img *ngIf="resolveHomeImageUrl(tile.imageUrl) as imageUrl; else serviceIcon" class="bh-service-image"
+              [src]="imageUrl" alt="" (error)="tile.imageUrl = null">
+            <ng-template #serviceIcon><ion-icon [name]="tile.icon"></ion-icon></ng-template>
+          </span>
+          <strong>{{ tile.title }}</strong>
+        </button>
+      </div>
+      <div class="bh-scope-row" *ngIf="hasScopeSwitch" role="group" aria-label="Journey type">
+        <button *ngFor="let s of scopes" type="button" [class.is-selected]="scope === s"
+          [attr.aria-pressed]="scope === s" (click)="pickScope(s)">{{ scopeLabel(s) }}</button>
+        <span *ngIf="city">{{ city.name }}</span>
+      </div>
+    </div>
+
+    <div #bookingScroll class="bh-home-scroll">
+      <div id="home-service-panel" [ngSwitch]="mode">
+        <section *ngSwitchCase="'private'" class="bh-service-panel" aria-label="Private booking">
+          <h1 class="bh-home-title">Where are you going?</h1>
+          <button class="bh-search" type="button" (click)="whereTo()">
+            <ion-icon name="search-outline" aria-hidden="true"></ion-icon>
+            <span>Where to?</span>
+            <span class="bh-search-action"><ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></span>
+          </button>
+          <ng-container *ngTemplateOutlet="savedPlacesPanel"></ng-container>
+        </section>
+        <section *ngSwitchCase="'fixed'" class="bh-service-panel" aria-label="Fixed booking">
+          <ng-container *ngTemplateOutlet="fixedRoutes"></ng-container>
+        </section>
+        <section *ngSwitchCase="'shuttle'" class="bh-service-panel" aria-label="Shuttle booking">
+          <h1 class="bh-home-title">Find a shuttle</h1>
+          <button class="bh-search" type="button" (click)="whereTo()">
+            <ion-icon name="bus-outline" aria-hidden="true"></ion-icon>
+            <span>Browse shuttles</span>
+            <span class="bh-search-action"><ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></span>
+          </button>
+        </section>
+      </div>
+
+      <div class="bh-home-notice" *ngIf="loading" role="status">
+        <ion-spinner name="crescent"></ion-spinner><span>Finding rides in your area…</span>
+      </div>
+      <div class="bh-home-notice" *ngIf="!loading && !tiles.length" role="status">
+        <ion-icon name="location-outline" aria-hidden="true"></ion-icon>
+        <div><strong>No rides available{{ city ? ' in ' + city.name : '' }}</strong>
+          <p>There are no services set up for this area yet.</p></div>
+      </div>
+      <button class="bh-location-retry" *ngIf="!locationFetching && !located" type="button" (click)="requestLocation()">
+        <ion-icon name="locate-outline" aria-hidden="true"></ion-icon>Use my current location
+      </button>
+
+      <section class="bh-offers-section" aria-labelledby="bh-home-offers-title">
+        <div class="bh-section-heading"><h2 id="bh-home-offers-title">Offers for you</h2></div>
+        <div class="bh-promotion-tabs" role="tablist" aria-label="Offers and coupons">
+          <button type="button" role="tab" aria-controls="bh-home-offers-panel" [class.is-selected]="offersTab === 'offers'" [attr.aria-selected]="offersTab === 'offers'" (click)="offersTab = 'offers'">Offers</button>
+          <button type="button" role="tab" aria-controls="bh-home-coupons-panel" [class.is-selected]="offersTab === 'coupons'" [attr.aria-selected]="offersTab === 'coupons'" (click)="offersTab = 'coupons'">Coupons</button>
+        </div>
+        <div id="bh-home-offers-panel" [hidden]="offersTab !== 'offers'" role="tabpanel" aria-label="Offers">
+          <div class="bh-offer-carousel" aria-label="Promotional offers">
+            <aside class="bh-inline-offer bh-banner-offer" *ngFor="let banner of homeOfferBanners; trackBy: trackHomeBanner" aria-label="Promotional banner">
+              <img *ngIf="homeBannerImage(banner) as bannerImage; else bannerIcon" class="bh-offer-banner-image"
+                [src]="bannerImage" alt="" aria-hidden="true" (error)="onHomeBannerImageError(banner)" />
+              <ng-template #bannerIcon><span class="bh-offer-art" aria-hidden="true"><ion-icon name="gift-outline"></ion-icon></span></ng-template>
+              <div class="bh-banner-copy"><span class="bh-eyebrow">FROM DREAMCABS</span><h2>{{ banner.title }}</h2>
+                <button *ngIf="banner.url_link" type="button" (click)="onBannerClick(banner)">Learn more<ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></button>
+              </div>
+            </aside>
+            <p class="bh-promotion-empty" *ngIf="!homeOfferBanners.length">No offers to show right now. Check back soon.</p>
+          </div>
+        </div>
+        <div id="bh-home-coupons-panel" [hidden]="offersTab !== 'coupons'" role="tabpanel" aria-label="Coupons">
+          <div class="bh-offer-carousel" aria-label="Available coupons">
+            <article class="bh-inline-offer bh-coupon-offer" *ngFor="let offer of homeOffers">
+              <span class="bh-offer-art" aria-hidden="true"><ion-icon name="pricetag-outline"></ion-icon></span>
+              <div><span class="bh-eyebrow">YOUR COUPON</span><h2>{{ offer.discount_label }}</h2>
+                <p>{{ offer.subtitle || offer.description || 'View your coupon for offer details.' }}</p>
+                <a routerLink="/customer-tabs/coupons">{{ offer.title }}<ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon></a>
+              </div>
+            </article>
+            <p class="bh-promotion-empty" *ngIf="!homeOffers.length">No available coupons right now.</p>
+          </div>
+          <a class="bh-offers-section__all-coupons" routerLink="/customer-tabs/coupons">View all coupons<ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon></a>
+        </div>
+      </section>
+
+      <ng-template #savedPlacesPanel>
+      <div class="bh-saved-places" aria-label="Saved places">
+        <a *ngFor="let place of savedPlaces" routerLink="/customer-tabs/saved-locations" [attr.aria-label]="'View saved place: ' + place.label">
+          <ion-icon [name]="place.label.toLowerCase() === 'home' ? 'home-outline' : (place.label.toLowerCase() === 'work' ? 'briefcase-outline' : 'location-outline')" aria-hidden="true"></ion-icon>{{ place.label }}
+        </a>
+        <a routerLink="/customer-tabs/saved-locations"><ion-icon name="add-outline" aria-hidden="true"></ion-icon>{{ savedPlaces.length ? 'Add place' : 'Save a place' }}</a>
+      </div>
+
+      </ng-template>
+
+      <ng-template #fixedRoutes>
+      <section class="bh-route-section" aria-labelledby="home-routes-title">
+        <div class="bh-section-heading"><h2 id="home-routes-title">Explore fixed routes</h2>
+          <button type="button" (click)="browseFixedRoutes()">See all<ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon></button></div>
+        <p class="bh-section-subtitle">Pickup stops within 1 km of your location.</p>
+        <p class="bh-route-state" *ngIf="routesLoading">Loading routes…</p>
+        <p class="bh-route-state" *ngIf="!routesLoading && !homeRoutes.length">{{ routesError ? 'Routes could not load. Open all routes to try again.' : 'No pickup stops within 1 km. Tap See all to browse farther.' }}</p>
+        <button type="button" class="bh-route-card" *ngFor="let route of homeRoutes; trackBy: trackByHomeRoute" (click)="openHomeRoute(route)" [attr.aria-label]="'View departures for ' + route.name">
+          <span class="bh-route-icon"><ion-icon name="bus-outline" aria-hidden="true"></ion-icon></span>
+          <div><h3>{{ route.name }}</h3><p *ngIf="route.origin_name || route.dest_name">{{ route.origin_name }}<span *ngIf="route.dest_name"> → {{ route.dest_name }}</span></p>
+            <span class="bh-route-scope" *ngIf="route.nearbyPickups?.[0] as pickup">{{ pickup.name }} · {{ pickup.distanceMeters | number:'1.0-0' }} m away</span></div>
+          <strong class="bh-route-fare" *ngIf="route.flat_fare != null">₹{{ route.flat_fare | number:'1.0-0' }}<small>/ seat</small></strong>
+        </button>
+      </section>
+      </ng-template>
+
+      <section class="bh-how" aria-labelledby="home-how-title">
+        <div class="bh-section-heading"><h2 id="home-how-title">How it works</h2><span>YOUR JOURNEY, SIMPLIFIED</span></div>
+        <div class="bh-how-grid">
+          <div><span>1</span><strong>Choose your ride</strong><p>Find the service for you.</p></div>
+          <div><span>2</span><strong>Review &amp; book</strong><p>Check the trip and fare.</p></div>
+          <div><span>3</span><strong>You're on your way</strong><p>Follow your ride in the app.</p></div>
+        </div>
+      </section>
+      <section class="bh-promise" aria-labelledby="home-promise-title">
+        <div class="bh-section-heading"><h2 id="home-promise-title">The DreamCabs promise</h2></div>
+        <div class="bh-promise-grid">
+          <article><ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon><h3>Fixed fare</h3><p>No surge. Price locked before you pay.</p></article>
+          <article><ion-icon name="sync-outline" aria-hidden="true"></ion-icon><h3>Cancel cover</h3><p>Driver cancels? We rebook you free.</p></article>
+          <article><ion-icon name="heart-outline" aria-hidden="true"></ion-icon><h3>Women-safe</h3><p>Women-only seats, verified drivers.</p></article>
+          <a routerLink="/customer-tabs/support"><ion-icon name="search-outline" aria-hidden="true"></ion-icon><h3>Lost and found</h3><p>Report a lost item in two taps.</p></a>
+        </div>
+      </section>
+    </div>
   </section>
 
+  <nav class="bh-home-nav" aria-label="Customer navigation">
+    <a routerLink="/customer-tabs/go" class="is-selected" aria-current="page"><ion-icon name="home-outline" aria-hidden="true"></ion-icon><span>Home</span></a>
+    <a id="home-trips-tab" routerLink="/customer-tabs/trips"><ion-icon name="document-text-outline" aria-hidden="true"></ion-icon><span>Trips</span></a>
+    <button type="button" (click)="openVoice()"><ion-icon name="mic-outline" aria-hidden="true"></ion-icon><span>Voice</span></button>
+    <a routerLink="/customer-tabs/support"><ion-icon name="shield-checkmark-outline" aria-hidden="true"></ion-icon><span>Safety</span></a>
+    <a routerLink="/customer-tabs/profile"><ion-icon name="person-outline" aria-hidden="true"></ion-icon><span>Account</span></a>
+  </nav>
+
+
+
+  </div>
 </ion-content>
 

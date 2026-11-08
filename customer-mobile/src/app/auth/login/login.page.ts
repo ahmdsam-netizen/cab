@@ -1,3 +1,4 @@
+import { CUSTOMER_MAP_STYLE } from '../../core/customer-map';
 import { dateOfBirthError, latestAdultBirthDate } from '../../core/date-of-birth';
 import { Component, ElementRef, HostListener, NgZone, OnDestroy, ViewChild } from '@angular/core';
 import { Router } from '@angular/router';
@@ -349,8 +350,8 @@ export class LoginPage implements ViewWillEnter, ViewDidEnter, ViewWillLeave, On
       await this.places.ensureLoaded();
       const center = await this.initialMapCenter();
       this.addressMap = new google.maps.Map(el, {
+        ...CUSTOMER_MAP_STYLE,
         center,
-        zoom: 15,
         disableDefaultUI: true,
         zoomControl: true,
         gestureHandling: 'greedy',

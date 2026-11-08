@@ -5,12 +5,14 @@ import {
   EventEmitter,
   HostListener,
   Input,
+  OnDestroy,
   OnChanges,
   Output,
   SimpleChanges,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IconComponent } from '../icon/icon.component';
+import { acquireDocumentScrollLock } from '../document-scroll-lock';
 
 /**
  * Reusable modal dialog.
@@ -197,7 +199,7 @@ import { IconComponent } from '../icon/icon.component';
     }
   `],
 })
-export class ModalComponent implements OnChanges {
+export class ModalComponent implements OnChanges, OnDestroy {
   @Input() open = false;
   @Input() title?: string;
   /** Show the × close button in the header. */
@@ -216,25 +218,50 @@ export class ModalComponent implements OnChanges {
 
   private static idCounter = 0;
   readonly labelId = `tm-modal-${++ModalComponent.idCounter}`;
+  private releaseScrollLock?: () => void;
+  private closeTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private cdr: ChangeDetectorRef) {}
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['lockScroll'] && this.mounted) {
+      if (this.lockScroll) this.acquireScrollLock();
+      else this.unlockScroll();
+    }
     if (!changes['open']) return;
     if (this.open) {
+      if (this.closeTimer) clearTimeout(this.closeTimer);
+      this.closeTimer = null;
       this.mounted = true;
       this.closing = false;
-      if (this.lockScroll) document.body.style.overflow = 'hidden';
+      if (this.lockScroll) this.acquireScrollLock();
     } else if (this.mounted) {
       this.closing = true;
       // Allow the close animation to play before unmounting.
-      setTimeout(() => {
+      this.closeTimer = setTimeout(() => {
+        if (this.open) return;
         this.mounted = false;
         this.closing = false;
-        if (this.lockScroll) document.body.style.overflow = '';
+        this.closeTimer = null;
+        this.unlockScroll();
         this.cdr.markForCheck();
       }, 220);
     }
+  }
+
+  ngOnDestroy(): void {
+    if (this.closeTimer) clearTimeout(this.closeTimer);
+    this.closeTimer = null;
+    this.unlockScroll();
+  }
+
+  private acquireScrollLock(): void {
+    if (!this.releaseScrollLock) this.releaseScrollLock = acquireDocumentScrollLock();
+  }
+
+  private unlockScroll(): void {
+    this.releaseScrollLock?.();
+    this.releaseScrollLock = undefined;
   }
 
   close(): void {

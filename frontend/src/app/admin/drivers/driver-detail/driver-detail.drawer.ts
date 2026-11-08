@@ -20,6 +20,7 @@ import { ButtonComponent, FileDropComponent, IconComponent, ModalComponent } fro
 import { DriverApprovalActionsPaneComponent } from './driver-approval-actions.pane';
 import { DriverProfilePaneComponent } from './driver-profile.pane';
 import { DriverDocumentsPaneComponent } from './driver-documents.pane';
+import { acquireDocumentScrollLock } from '../../../ui/document-scroll-lock';
 import {
   CatalogDoc,
   DocumentRequirement,
@@ -619,6 +620,7 @@ export class DriverDetailDrawerComponent implements OnChanges, OnDestroy {
   closing = false;
   private generation = 0;
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
+  private releaseScrollLock?: () => void;
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private refreshInFlight = false;
 
@@ -667,7 +669,8 @@ export class DriverDetailDrawerComponent implements OnChanges, OnDestroy {
     if (this.adminResendTimer) { clearInterval(this.adminResendTimer); this.adminResendTimer = null; }
     if (this.closeTimer) clearTimeout(this.closeTimer);
     this.stopLiveRefresh();
-    if (this.mounted) document.body.style.overflow = '';
+    this.releaseScrollLock?.();
+    this.releaseScrollLock = undefined;
   }
 
   // ------------------------------------------------------------------------
@@ -679,7 +682,7 @@ export class DriverDetailDrawerComponent implements OnChanges, OnDestroy {
     if (this.closeTimer) { clearTimeout(this.closeTimer); this.closeTimer = null; }
     this.mounted = true;
     this.closing = false;
-    document.body.style.overflow = 'hidden';
+    if (!this.releaseScrollLock) this.releaseScrollLock = acquireDocumentScrollLock();
     this.driver = null;
     this.documents = [];
     this.requirements = [];
@@ -703,7 +706,8 @@ export class DriverDetailDrawerComponent implements OnChanges, OnDestroy {
       this.mounted = false;
       this.closing = false;
       this.closeTimer = null;
-      document.body.style.overflow = '';
+      this.releaseScrollLock?.();
+      this.releaseScrollLock = undefined;
       this.cdr.markForCheck();
     }, 200);
   }
