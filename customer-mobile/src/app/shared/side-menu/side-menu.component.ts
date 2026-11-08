@@ -1,9 +1,10 @@
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
-import { AlertController, MenuController, NavController } from '@ionic/angular';
+import { AlertController, MenuController, ModalController, NavController } from '@ionic/angular';
 import { ApiService } from '../../core/api.service';
 import { AuthService, AuthUser } from '../../core/auth.service';
 import { PushService } from '../../core/push.service';
+import { AiBookingAssistantModalComponent } from '../ai-booking-assistant/ai-booking-assistant.component';
 
 @Component({
   selector: 'app-side-menu',
@@ -23,6 +24,7 @@ export class SideMenuComponent {
     private router: Router,
     private alertCtrl: AlertController,
     private menuCtrl: MenuController,
+    private modalCtrl: ModalController,
     private navCtrl: NavController,
     private push: PushService
   ) {}
@@ -95,6 +97,15 @@ export class SideMenuComponent {
   async go(url: string): Promise<void> {
     await this.menuCtrl.close('customer-menu');
     this.router.navigateByUrl(url);
+  }
+
+  async openAiAssistant(): Promise<void> {
+    await this.menuCtrl.close('customer-menu');
+    const modal = await this.modalCtrl.create({
+      component: AiBookingAssistantModalComponent,
+      cssClass: 'dc-ai-booking-modal',
+    });
+    await modal.present();
   }
 
   toggleRidesMenu(): void {

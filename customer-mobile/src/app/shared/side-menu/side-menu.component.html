@@ -29,6 +29,11 @@
         <span class="dc-row__text"><strong>Home</strong><small>Book a ride</small></span>
         <ion-icon class="dc-row__chev" name="chevron-forward-outline"></ion-icon>
       </button>
+      <button class="dc-row nav-row dc-press" (click)="openAiAssistant()">
+        <span class="dc-row__icon dc-row__icon--sparkles"><ion-icon name="sparkles"></ion-icon></span>
+        <span class="dc-row__text"><strong>AI Assistant</strong><small>Voice &amp; chat booking</small></span>
+        <ion-icon class="dc-row__chev" name="chevron-forward-outline"></ion-icon>
+      </button>
 
       <p class="drawer__group">Bookings</p>
       <button class="dc-row nav-row dc-press" (click)="toggleRidesMenu()" [attr.aria-expanded]="ridesMenuOpen">

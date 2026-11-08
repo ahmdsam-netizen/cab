@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AlertController, ToastController } from '@ionic/angular';
 import { interval, Subscription } from 'rxjs';
 
@@ -171,6 +171,7 @@ export class FixedBookPage implements OnInit, OnDestroy {
     private auth: AuthService,
     private booking: BookingService,
     private router: Router,
+    private activatedRoute: ActivatedRoute,
     private alertCtrl: AlertController,
     private toastCtrl: ToastController,
     private cdr: ChangeDetectorRef,
@@ -180,6 +181,10 @@ export class FixedBookPage implements OnInit, OnDestroy {
     private realtime: RealtimeService,
     private audioAlert: AudioAlertService,
   ) {}
+
+  ionViewWillEnter(): void {
+    this.checkActiveHold();
+  }
 
   async ngOnInit(): Promise<void> {
     this.cityId = this.booking.trip.cityId;
@@ -684,7 +689,9 @@ export class FixedBookPage implements OnInit, OnDestroy {
   }
 
   checkActiveHold(): void {
-    this.api.get<{ hold: SeatHold | null }>('/fixed/active-hold').subscribe({
+    const queryHoldId = this.activatedRoute.snapshot.queryParamMap.get('hold_id');
+    const endpoint = queryHoldId ? `/fixed/seat-holds/${queryHoldId}` : '/fixed/active-hold';
+    this.api.get<{ hold: any }>(endpoint).subscribe({
       next: (res) => {
         const active = res?.hold;
         if (!active) return;
@@ -697,6 +704,15 @@ export class FixedBookPage implements OnInit, OnDestroy {
         if (active.drop_stop_id) this.dropStopId = active.drop_stop_id;
         if (active.seat_labels && active.seat_labels.length) {
           this.selected = active.seat_labels;
+        }
+        if (active.route_departure) {
+          this.departure = { id: active.route_departure_id || active.route_departure.id, ...active.route_departure } as any;
+          if (active.route_departure.route) {
+            this.route = active.route_departure.route as any;
+          }
+        }
+        if (active.has_extra_luggage) {
+          this.luggage = active.extra_luggage_count || 1;
         }
 
         if (active.status === 'PENDING_DRIVER_APPROVAL') {

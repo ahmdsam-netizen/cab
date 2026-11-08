@@ -6,7 +6,7 @@ import { ApiService } from '../../../core/api.service';
 import { AuthService } from '../../../core/auth.service';
 import { PaymentOptionsService } from '../../../core/payment-options.service';
 import { PaymentChoice } from '../../../shared/payment-method-modal.component';
-import { BookingService } from '../booking.service';
+import { BookingService, resolveCity } from '../booking.service';
 import { Place } from '../booking.models';
 import { SeatCell } from '../fixed/seat-grid.component';
 
@@ -94,10 +94,27 @@ export class ShuttleBookPage implements OnInit {
     private paymentOptions: PaymentOptionsService,
   ) {}
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
+    if (!this.bookingSvc.trip.cityId) {
+      try {
+        const cities = await this.bookingSvc.cities();
+        if (this.bookingSvc.trip.pickup) {
+          const match = resolveCity(cities, this.bookingSvc.trip.pickup.lat, this.bookingSvc.trip.pickup.lng);
+          if (match?.id) this.bookingSvc.setCity(match.id);
+        }
+        if (!this.bookingSvc.trip.cityId && cities.length) {
+          this.bookingSvc.setCity(cities[0].id);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
     if (!this.bookingSvc.trip.cityId) {
       void this.router.navigate(['/customer-tabs/go']);
       return;
+    }
+    if (!this.bookingSvc.trip.rideTypeId) {
+      this.bookingSvc.setMode('shuttle', 3);
     }
     if (this.bookingSvc.trip.pickup) this.step = 'drop';
     this.loadTippingConfig();
@@ -141,8 +158,18 @@ export class ShuttleBookPage implements OnInit {
   // ---- step 3: fare -----------------------------------------------------
 
   private async loadEstimate(): Promise<void> {
-    const { pickup, drop, cityId, rideTypeId } = this.bookingSvc.trip;
-    if (!pickup || !drop || !cityId) return;
+    let { pickup, drop, cityId, rideTypeId } = this.bookingSvc.trip;
+    if (!pickup || !drop) return;
+
+    if (!cityId) {
+      const cities = await this.bookingSvc.cities().catch(() => []);
+      const match = resolveCity(cities, pickup.lat, pickup.lng);
+      if (match?.id) {
+        cityId = match.id;
+        this.bookingSvc.setCity(cityId);
+      }
+    }
+    if (!cityId) return;
 
     this.estimating = true;
     this.error = null;
@@ -156,7 +183,7 @@ export class ShuttleBookPage implements OnInit {
         .post<Estimate>('/pricing/estimate', {
           city_id: cityId,
           vehicle_type_id: null,
-          ride_type_id: rideTypeId,
+          ride_type_id: rideTypeId || 3,
           pickup_lat: pickup.lat,
           pickup_lng: pickup.lng,
           drop_lat: drop.lat,

@@ -14,8 +14,11 @@ export interface DepartureOption {
   seats_taken?: number;
   available_seats?: number;
   price_per_seat?: number;
+  fare_per_seat?: number;
   boarding_opened_at?: string | null;
   announced_depart_at?: string | null;
+  depart_at?: string | null;
+  departure_time?: string | null;
   status?: string;
 }
 
@@ -39,10 +42,13 @@ export interface AiChatResponse {
     | 'SERVICE_UNAVAILABLE'
     | string;
   thread_id: string;
+  audio_base64?: string | null;
   options?: DepartureOption[];
+  selected_departure?: DepartureOption;
   matched_route?: MatchedRoute;
   available_seats?: string[];
   selected_seats?: string[];
+  seats_requested?: number;
   luggage?: {
     has_extra_luggage: boolean;
     extra_luggage_count: number;
@@ -59,9 +65,12 @@ export interface AiChatRequest {
   user_current_lng?: number;
   action?: string;
   selected_departure_id?: number;
+  seats_requested?: number;
   has_extra_luggage?: boolean;
   extra_luggage_count?: number;
   selected_seat_labels?: string[];
+  voice_mode?: boolean;
+  preferred_language?: string;
 }
 
 @Injectable({
@@ -84,14 +93,14 @@ export class AiAssistantService {
    * Send a conversational query to the backend AI agent endpoint.
    */
   chat(request: AiChatRequest): Observable<AiChatResponse> {
-    return this.api.post<AiChatResponse>('/ai/chat', request);
+    return this.api.post<AiChatResponse>('/agentic/chat', request);
   }
 
   /**
    * Check if the Agentic AI service is reachable and healthy.
    */
   checkHealth(): Observable<{ online: boolean; status: string; service_response?: any }> {
-    return this.api.get<{ online: boolean; status: string; service_response?: any }>('/ai/health');
+    return this.api.get<{ online: boolean; status: string; service_response?: any }>('/agentic/health');
   }
 
   /**

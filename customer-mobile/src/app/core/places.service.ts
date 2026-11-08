@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
-import { environment } from '../../../src/environments/environment';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 declare const google: any;
 
@@ -21,13 +23,18 @@ export type PlaceDetail = {
 export class PlacesService {
   private scriptPromise: Promise<void> | null = null;
   private sessionToken: any | null = null;
+  private localPlacesCache = new Map<string, PlaceDetail>();
+
+  constructor(private http: HttpClient) {}
 
   async ensureLoaded(): Promise<void> {
     if ((window as any).google?.maps?.places) return;
     if (this.scriptPromise) return this.scriptPromise;
 
     const apiKey = environment.googleMapsApiKey;
-    if (!apiKey) throw new Error('Missing googleMapsApiKey in environment.');
+    if (!apiKey || apiKey.startsWith('REPLACE_WITH')) {
+      return Promise.reject(new Error('Google Maps API key is not configured.'));
+    }
 
     this.scriptPromise = new Promise<void>((resolve, reject) => {
       const cbName = '__sharedInitGoogleMaps';
@@ -68,34 +75,59 @@ export class PlacesService {
   }
 
   /**
-   * Autocomplete using the new AutocompleteSuggestion API (replaces the
-   * deprecated AutocompleteService). Returns the same PlaceSuggestion shape
-   * we already pass around so callers don't need to change.
-   *
-   * Requires the **Places API (New)** to be enabled in Google Cloud — the
-   * legacy Places API key alone returns REQUEST_DENIED.
+   * Query the backend local database search endpoint for seeded landmarks
+   * and saved locations.
+   */
+  private async searchBackendPlaces(query: string): Promise<PlaceSuggestion[]> {
+    try {
+      const url = `${environment.apiUrl}/places/search?q=${encodeURIComponent(query)}`;
+      const res = await firstValueFrom(this.http.get<{ data?: any[] }>(url));
+      const items = res?.data ?? [];
+      return items.map((r: any) => {
+        const detail: PlaceDetail = {
+          place_id: r.place_id,
+          description: r.description,
+          lat: Number(r.lat),
+          lng: Number(r.lng),
+        };
+        this.localPlacesCache.set(r.place_id, detail);
+        return {
+          place_id: r.place_id,
+          description: r.description,
+          main_text: r.main_text,
+          secondary_text: r.secondary_text,
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Autocomplete using Google Places API + fallback/merge with database places.
+   * Ensures that test locations (e.g. Hazratbal, Lal Chowk) always show up
+   * even if Google API is offline, restricted, or unconfigured.
    */
   async autocompleteSearch(query: string, near?: { lat: number; lng: number }): Promise<PlaceSuggestion[]> {
     if (!query || query.trim().length < 2) return [];
-    await this.ensureLoaded();
-    this.ensureSession();
 
-    const opts: any = {
-      input: query,
-      sessionToken: this.sessionToken,
-      includedRegionCodes: ['IN'],
-    };
-    if (near) {
-      // locationBias replaces the deprecated location/radius pair. Circle
-      // accepts a literal {center, radius_meters}; we keep the same 50 km
-      // radius the legacy call used.
-      opts.locationBias = { center: { lat: near.lat, lng: near.lng }, radius: 50_000 };
-    }
-
+    let googleResults: PlaceSuggestion[] = [];
     try {
+      await this.ensureLoaded();
+      this.ensureSession();
+
+      const opts: any = {
+        input: query,
+        sessionToken: this.sessionToken,
+        includedRegionCodes: ['IN'],
+      };
+      if (near) {
+        opts.locationBias = { center: { lat: near.lat, lng: near.lng }, radius: 50_000 };
+      }
+
       const { suggestions } =
         await google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions(opts);
-      return (suggestions ?? [])
+      googleResults = (suggestions ?? [])
         .filter((s: any) => s?.placePrediction)
         .map((s: any) => {
           const p = s.placePrediction;
@@ -109,21 +141,39 @@ export class PlacesService {
           };
         });
     } catch {
-      return [];
+      googleResults = [];
     }
+
+    // Always fetch database landmarks matching the query
+    const localResults = await this.searchBackendPlaces(query);
+
+    // Merge results, giving priority to matching local database records
+    const seen = new Set<string>();
+    const merged: PlaceSuggestion[] = [];
+
+    for (const item of [...localResults, ...googleResults]) {
+      const key = (item.main_text + '|' + item.description).toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(item);
+      }
+    }
+
+    return merged;
   }
 
   /**
-   * Place details via the new Place class (replaces the deprecated
-   * PlacesService.getDetails). Returns the same PlaceDetail shape we already
-   * pass around. Closes the autocomplete session on success — a new search
-   * begins a new session.
+   * Place details via local cache / backend or Google Place class.
    */
   async getPlaceDetail(placeId: string): Promise<PlaceDetail | null> {
-    await this.ensureLoaded();
-    this.ensureSession();
+    if (this.localPlacesCache.has(placeId)) {
+      return this.localPlacesCache.get(placeId)!;
+    }
 
     try {
+      await this.ensureLoaded();
+      this.ensureSession();
+
       const place = new google.maps.places.Place({ id: placeId });
       await place.fetchFields({ fields: ['id', 'formattedAddress', 'displayName', 'location'] });
       if (!place.location) return null;

@@ -181,6 +181,12 @@ ion-menu {
   ion-icon { color: var(--ion-color-danger, #eb445a); }
 }
 
+.dc-row__icon--sparkles {
+  background: rgba(99, 102, 241, 0.15);
+
+  ion-icon { color: #6366f1; }
+}
+
 .dc-row__text {
   flex: 1;
   min-width: 0;

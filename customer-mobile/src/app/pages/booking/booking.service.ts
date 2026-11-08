@@ -32,6 +32,12 @@ export class BookingService {
 
   setPickup(place: Place): void {
     this.draft.pickup = place;
+    void this.cities().then((cities) => {
+      const match = resolveCity(cities, place.lat, place.lng);
+      if (match?.id) {
+        this.draft.cityId = match.id;
+      }
+    }).catch(() => {});
   }
 
   setDrop(place: Place): void {

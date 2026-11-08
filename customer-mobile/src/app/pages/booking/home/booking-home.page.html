@@ -124,6 +124,23 @@
   <section class="bh-sheet bh-active-sheet dc-anim-pop" *ngIf="activeFixedRide as ride">
     <span class="bh-grip" aria-hidden="true"></span>
 
+    <!-- Multiple Active Rides Navigation Bar -->
+    <div class="bh-active-multi-nav" *ngIf="activeFixedRides.length > 1">
+      <button type="button" class="bh-multi-arrow dc-press" (click)="prevActiveRide()" [disabled]="activeRideIndex <= 0" aria-label="Previous active ride">
+        <ion-icon name="chevron-back-outline"></ion-icon>
+      </button>
+      <div class="bh-multi-info dc-press" (click)="viewAllActiveRides()" role="button" tabindex="0">
+        <span class="bh-multi-counter">
+          <span class="bh-multi-dot"></span>
+          Live Ride {{ activeRideIndex + 1 }} of {{ activeFixedRides.length }}
+        </span>
+        <small class="bh-multi-sub">Tap to view all cards →</small>
+      </div>
+      <button type="button" class="bh-multi-arrow dc-press" (click)="nextActiveRide()" [disabled]="activeRideIndex >= activeFixedRides.length - 1" aria-label="Next active ride">
+        <ion-icon name="chevron-forward-outline"></ion-icon>
+      </button>
+    </div>
+
     <!-- Status & OTP Row -->
     <div class="bh-active-top-row">
       <div class="bh-active-status-pill" [class.is-onboard]="ride.status === 'BOARDED'">

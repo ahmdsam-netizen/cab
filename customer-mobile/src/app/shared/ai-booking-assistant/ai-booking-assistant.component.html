@@ -16,6 +16,16 @@
         <button
           type="button"
           class="dc-ai-icon-btn dc-press"
+          [class.is-active]="voiceModeEnabled"
+          (click)="toggleVoiceMode()"
+          [attr.aria-label]="voiceModeEnabled ? 'Mute AI voice' : 'Enable AI voice'"
+          [title]="voiceModeEnabled ? 'Mute AI voice' : 'Enable AI voice'"
+        >
+          <ion-icon [name]="voiceModeEnabled ? (isSpeaking ? 'volume-high' : 'volume-medium') : 'volume-mute-outline'"></ion-icon>
+        </button>
+        <button
+          type="button"
+          class="dc-ai-icon-btn dc-press"
           (click)="resetConversation()"
           aria-label="Reset conversation"
           title="Restart Chat"
@@ -46,7 +56,7 @@
         [class.is-assistant]="msg.sender === 'assistant'"
       >
         <div class="dc-ai-msg-bubble">
-          <p class="dc-ai-msg-text">{{ msg.text }}</p>
+          <p class="dc-ai-msg-text" [innerHTML]="formatMessage(msg.text)"></p>
 
           <!-- 1. Matched Route Badge Card -->
           <div class="dc-ai-route-card" *ngIf="msg.matchedRoute">
@@ -54,13 +64,13 @@
               <ion-icon name="navigate-outline"></ion-icon>
               <span>{{ msg.matchedRoute.name }}</span>
             </div>
-            <div class="dc-ai-route-stops">
-              <div class="dc-ai-stop">
+            <div class="dc-ai-route-stops" *ngIf="msg.matchedRoute.board_stop?.name || msg.matchedRoute.drop_stop?.name">
+              <div class="dc-ai-stop" *ngIf="msg.matchedRoute.board_stop?.name">
                 <span class="dc-ai-stop-dot is-pickup"></span>
                 <span class="dc-ai-stop-label">Boarding:</span>
                 <strong class="dc-ai-stop-name">{{ msg.matchedRoute.board_stop.name }}</strong>
               </div>
-              <div class="dc-ai-stop">
+              <div class="dc-ai-stop" *ngIf="msg.matchedRoute.drop_stop?.name">
                 <span class="dc-ai-stop-dot is-drop"></span>
                 <span class="dc-ai-stop-label">Drop-off:</span>
                 <strong class="dc-ai-stop-name">{{ msg.matchedRoute.drop_stop.name }}</strong>
@@ -68,96 +78,85 @@
             </div>
           </div>
 
-          <!-- 2. Departures Options List -->
-          <div class="dc-ai-departures-card" *ngIf="msg.options && msg.options.length">
-            <h4 class="dc-ai-card-heading">Available Departures</h4>
-            <div
-              *ngFor="let dep of msg.options"
-              class="dc-ai-dep-item dc-press"
-              [class.is-selected]="selectedDepartureId === dep.id"
-              (click)="selectDeparture(dep)"
-            >
-              <div class="dc-ai-dep-header">
-                <div class="dc-ai-dep-time">
-                  <ion-icon name="time-outline"></ion-icon>
-                  <span>{{ dep.announced_depart_at || 'Ready to board' }}</span>
-                </div>
-                <div class="dc-ai-dep-fare" *ngIf="dep.price_per_seat">
-                  ₹{{ dep.price_per_seat }}<small>/seat</small>
-                </div>
+          <!-- 2a. Selected Departure Detail Card (When a specific ride is selected) -->
+          <div class="dc-ai-selected-dep-card" *ngIf="msg.selectedDeparture && msg.stage === 'CONFIRMING_DEPARTURE'">
+            <div class="dc-ai-selected-header">
+              <div class="dc-ai-selected-title">
+                <ion-icon name="car-sport"></ion-icon>
+                <span>Selected Ride Details</span>
               </div>
-
-              <div class="dc-ai-dep-meta">
-                <span class="dc-ai-dep-vehicle">{{ dep.vehicle_name || 'Fixed Shared Cab' }}</span>
-                <span class="dc-ai-dep-seats" *ngIf="dep.available_seats !== undefined">
-                  {{ dep.available_seats }} seats left
-                </span>
-              </div>
-
-              <button type="button" class="dc-ai-select-btn">
-                <span>Select this ride</span>
-                <ion-icon name="arrow-forward"></ion-icon>
+              <button type="button" class="dc-ai-switch-btn dc-press" (click)="onSwitchRideClick()">
+                <ion-icon name="swap-horizontal"></ion-icon>
+                <span>Change ride</span>
               </button>
+            </div>
+
+            <div class="dc-ai-selected-body">
+              <div class="dc-ai-detail-row">
+                <span class="dc-ai-detail-label">Vehicle:</span>
+                <strong class="dc-ai-detail-val">{{ msg.selectedDeparture.vehicle_name || 'Sumo Maxi' }}</strong>
+              </div>
+              <div class="dc-ai-detail-row" *ngIf="msg.selectedDeparture.driver_name">
+                <span class="dc-ai-detail-label">Driver:</span>
+                <strong class="dc-ai-detail-val">{{ msg.selectedDeparture.driver_name }}</strong>
+              </div>
+              <div class="dc-ai-detail-row">
+                <span class="dc-ai-detail-label">Departure:</span>
+                <strong class="dc-ai-detail-val dc-highlight">{{ formatDepartTime(msg.selectedDeparture.announced_depart_at || msg.selectedDeparture.depart_at) }}</strong>
+              </div>
+              <div class="dc-ai-detail-row">
+                <span class="dc-ai-detail-label">Fare:</span>
+                <strong class="dc-ai-detail-val">₹{{ msg.selectedDeparture.price_per_seat || msg.selectedDeparture.fare_per_seat }} / seat</strong>
+              </div>
             </div>
           </div>
 
-          <!-- 3. Available Seat Selection Chips -->
-          <div class="dc-ai-seats-card" *ngIf="msg.availableSeats && msg.availableSeats.length">
-            <h4 class="dc-ai-card-heading">Select Preferred Seat</h4>
-            <div class="dc-ai-seat-chips">
-              <button
-                type="button"
+          <!-- 2b. Departures Info Boxes (Shown ONLY when NO specific ride is selected yet) -->
+          <div class="dc-ai-departures-card" *ngIf="!msg.selectedDeparture && msg.options && msg.options.length && msg.stage === 'CONFIRMING_DEPARTURE'">
+            <div class="dc-ai-boxes-header">
+              <span class="dc-ai-boxes-title">Available Rides ({{ msg.options.length }})</span>
+              <span class="dc-ai-boxes-hint">Tap any box to quote in your message</span>
+            </div>
+            <div class="dc-ai-boxes-grid">
+              <div
+                *ngFor="let dep of msg.options"
+                class="dc-ai-dep-item dc-press"
+                (click)="onRideBoxClick(dep)"
+              >
+                <div class="dc-ai-dep-header">
+                  <div class="dc-ai-dep-time">
+                    <ion-icon name="time-outline"></ion-icon>
+                    <span>{{ formatDepartTime(dep.announced_depart_at || dep.depart_at) }}</span>
+                  </div>
+                  <div class="dc-ai-dep-fare" *ngIf="dep.price_per_seat || dep.fare_per_seat">
+                    ₹{{ dep.price_per_seat || dep.fare_per_seat }}<small>/seat</small>
+                  </div>
+                </div>
+
+                <div class="dc-ai-dep-meta">
+                  <span class="dc-ai-dep-vehicle">{{ dep.vehicle_name || 'Sumo Maxi' }}</span>
+                  <span class="dc-ai-dep-seats" *ngIf="dep.available_seats !== undefined">
+                    {{ dep.available_seats }} seats left
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Available Seats Info Tags (when specific ride is selected in CONFIRMING_DEPARTURE) -->
+          <div class="dc-ai-seats-info-card" *ngIf="msg.availableSeats && msg.availableSeats.length && msg.stage === 'CONFIRMING_DEPARTURE'">
+            <span class="dc-ai-seats-title">Available Seats for this Ride:</span>
+            <div class="dc-ai-seat-tags">
+              <span
                 *ngFor="let s of msg.availableSeats"
-                class="dc-ai-seat-chip dc-press"
-                [class.is-picked]="selectedSeats.includes(s)"
-                (click)="toggleSeat(s)"
+                class="dc-ai-seat-tag dc-press"
+                [class.selected]="isSeatSelected(s)"
+                (click)="onSeatTagClick(s)"
+                title="Tap to quote in message"
               >
-                💺 {{ s }}
-              </button>
+                Seat {{ s }}
+              </span>
             </div>
-          </div>
-
-          <!-- 4. Luggage Options -->
-          <div class="dc-ai-luggage-card" *ngIf="msg.stage === 'CONFIRMING_DEPARTURE'">
-            <div class="dc-ai-luggage-header">
-              <ion-icon name="briefcase-outline"></ion-icon>
-              <span>Extra Luggage:</span>
-            </div>
-            <div class="dc-ai-luggage-chips">
-              <button
-                type="button"
-                class="dc-ai-lug-chip dc-press"
-                [class.is-active]="!hasExtraLuggage"
-                (click)="setLuggage(false, 0)"
-              >
-                No extra luggage
-              </button>
-              <button
-                type="button"
-                class="dc-ai-lug-chip dc-press"
-                [class.is-active]="hasExtraLuggage && extraLuggageCount === 1"
-                (click)="setLuggage(true, 1)"
-              >
-                +1 Extra Bag
-              </button>
-              <button
-                type="button"
-                class="dc-ai-lug-chip dc-press"
-                [class.is-active]="hasExtraLuggage && extraLuggageCount === 2"
-                (click)="setLuggage(true, 2)"
-              >
-                +2 Extra Bags
-              </button>
-            </div>
-
-            <button
-              type="button"
-              class="dc-ai-confirm-btn dc-press"
-              (click)="confirmBooking()"
-            >
-              <ion-icon name="checkmark-circle"></ion-icon>
-              <span>Confirm &amp; Request Driver</span>
-            </button>
           </div>
 
           <!-- 5. Awaiting Driver Status Card -->
@@ -167,7 +166,14 @@
             </div>
             <div class="dc-ai-hold-body">
               <strong>Driver Notified</strong>
+              <p *ngIf="msg.selectedDeparture">
+                {{ msg.selectedDeparture.vehicle_name || 'Vehicle' }} (Driver: {{ msg.selectedDeparture.driver_name || 'Assigned' }})
+                <span *ngIf="msg.selectedSeats && msg.selectedSeats.length"> • Seat {{ msg.selectedSeats.join(', ') }}</span>
+              </p>
               <p>Waiting for driver to accept seat hold (Hold #{{ msg.seatHoldId }})...</p>
+              <button type="button" class="dc-ai-cancel-hold-btn dc-press" (click)="cancelHold()">
+                Cancel request
+              </button>
             </div>
           </div>
 

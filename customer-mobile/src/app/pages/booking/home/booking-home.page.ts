@@ -109,6 +109,8 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
 
   // Active Live Fixed Ride
   activeFixedRide: ActiveFixedRide | null = null;
+  activeFixedRides: ActiveFixedRide[] = [];
+  activeRideIndex = 0;
   private activeRidePollSub?: Subscription;
   private activeRideTrackingUnsub: (() => void) | null = null;
   private activeRideTrackingTripId: number | null = null;
@@ -446,29 +448,38 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
     this.currentCoords = latlng;
     this.located = true;
 
-    if (!this.userMarker) {
-      const { AdvancedMarkerElement } = await (google.maps as any).importLibrary('marker');
+    try {
+      if (typeof google === 'undefined' || !google.maps) return;
 
-      this.userMarker = new AdvancedMarkerElement({
-        map: this.map,
-        position: latlng,
-        content: buildPassengerMarkerElement({
-          kind: 'pickup',
-          name: this.auth.getUser()?.name || 'You',
-          isLive: true,
-          avatarUrl: this.auth.resolveAvatarUrl(this.auth.getUser()),
-        }),
-        zIndex: 1100,
-        title: 'Your exact location',
-      });
-    } else {
-      this.userMarker.position = latlng;
-      if (!this.userMarker.map) this.userMarker.map = this.map;
-    }
+      if (!this.userMarker) {
+        const { AdvancedMarkerElement } = await (google.maps as any).importLibrary('marker');
+        if (!AdvancedMarkerElement) return;
 
-    if (pan) {
-      this.map.setCenter(latlng);
-      this.map.setZoom(16);
+        this.userMarker = new AdvancedMarkerElement({
+          map: this.map,
+          position: latlng,
+          content: buildPassengerMarkerElement({
+            kind: 'pickup',
+            name: this.auth.getUser()?.name || 'You',
+            isLive: true,
+            avatarUrl: this.auth.resolveAvatarUrl(this.auth.getUser()),
+          }),
+          zIndex: 1100,
+          title: 'Your exact location',
+        });
+      } else {
+        this.userMarker.position = latlng;
+        if (!this.userMarker.map) this.userMarker.map = this.map;
+      }
+
+      if (pan && typeof this.map.setCenter === 'function') {
+        this.map.setCenter(latlng);
+        if (typeof this.map.setZoom === 'function') {
+          this.map.setZoom(16);
+        }
+      }
+    } catch {
+      // Maps not ready or invalid key
     }
   }
 
@@ -618,7 +629,8 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
 
   whereTo(): void {
     this.booking.setScope(this.scope);
-    if (this.mode) this.booking.setMode(this.mode);
+    const selectedTile = this.tiles.find((t) => t.mode === this.mode);
+    if (this.mode) this.booking.setMode(this.mode, selectedTile?.rideTypeId ?? null);
 
     switch (this.mode) {
       case 'private': void this.router.navigate(['/customer-tabs/go/private']); break;
@@ -641,43 +653,27 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
 
   // ── Active Live Fixed Ride Tracking & Map ────────────────────────────────
   checkActiveFixedRide(): void {
-    this.api.get<{ data: ActiveFixedRide[] }>('/fixed/bookings?per_page=5').subscribe({
+    this.api.get<{ data: ActiveFixedRide[] }>('/fixed/bookings?per_page=20').subscribe({
       next: (res) => {
         const list = res?.data || [];
-        const active = list.find((b) =>
+        const actives = list.filter((b) =>
           ['BOOKED', 'CONFIRMED', 'BOARDED'].includes((b.status || '').toUpperCase()) &&
           !['DROPPED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'].includes((b.status || '').toUpperCase())
         );
 
-        if (active) {
-          this.api.get<{ booking: ActiveFixedRide }>('/fixed/bookings/' + active.id).subscribe({
-            next: (bRes) => {
-              const full = bRes?.booking || active;
-              this.activeFixedRide = full;
-              if (full.latest_driver_location?.lat != null && full.latest_driver_location?.lng != null) {
-                this.driverPosition = {
-                  lat: Number(full.latest_driver_location.lat),
-                  lng: Number(full.latest_driver_location.lng),
-                };
-              }
-              if (this.map) {
-                this.syncActiveRideMap();
-              }
-              this.syncActiveRideTracking();
-              this.cdr.markForCheck();
-            },
-            error: () => {
-              this.activeFixedRide = active;
-              if (this.map) {
-                this.syncActiveRideMap();
-              }
-              this.syncActiveRideTracking();
-              this.cdr.markForCheck();
-            },
-          });
+        this.activeFixedRides = actives;
+
+        if (actives.length > 0) {
+          if (this.activeRideIndex >= actives.length) {
+            this.activeRideIndex = 0;
+          }
+          const currentActive = actives[this.activeRideIndex];
+          this.loadSingleActiveRide(currentActive);
         } else {
           if (this.activeFixedRide) {
             this.activeFixedRide = null;
+            this.activeFixedRides = [];
+            this.activeRideIndex = 0;
             this.driverPosition = null;
             this.hasFittedActiveBounds = false;
             this.clearActiveRideMap();
@@ -688,6 +684,58 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
       },
       error: () => {},
     });
+  }
+
+  loadSingleActiveRide(active: ActiveFixedRide): void {
+    this.api.get<{ booking: ActiveFixedRide }>('/fixed/bookings/' + active.id).subscribe({
+      next: (bRes) => {
+        const full = bRes?.booking || active;
+        this.activeFixedRide = full;
+        if (full.latest_driver_location?.lat != null && full.latest_driver_location?.lng != null) {
+          this.driverPosition = {
+            lat: Number(full.latest_driver_location.lat),
+            lng: Number(full.latest_driver_location.lng),
+          };
+        }
+        if (this.map) {
+          this.syncActiveRideMap();
+        }
+        this.syncActiveRideTracking();
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.activeFixedRide = active;
+        if (this.map) {
+          this.syncActiveRideMap();
+        }
+        this.syncActiveRideTracking();
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  nextActiveRide(): void {
+    if (this.activeRideIndex < this.activeFixedRides.length - 1) {
+      this.activeRideIndex++;
+      this.hasFittedActiveBounds = false;
+      this.clearActiveRideMap();
+      this.stopActiveRideTracking();
+      this.loadSingleActiveRide(this.activeFixedRides[this.activeRideIndex]);
+    }
+  }
+
+  prevActiveRide(): void {
+    if (this.activeRideIndex > 0) {
+      this.activeRideIndex--;
+      this.hasFittedActiveBounds = false;
+      this.clearActiveRideMap();
+      this.stopActiveRideTracking();
+      this.loadSingleActiveRide(this.activeFixedRides[this.activeRideIndex]);
+    }
+  }
+
+  viewAllActiveRides(): void {
+    void this.router.navigate(['/customer-tabs/fixed-rides'], { queryParams: { active: 1 } });
   }
 
   private syncActiveRideMap(): void {
@@ -895,11 +943,11 @@ export class BookingHomePage implements OnInit, ViewWillEnter, ViewDidEnter, Vie
   }
 
   /**
-   * Opens the conversational AI Booking Assistant modal.
+   * Opens the conversational AI Booking Assistant modal component.
    */
   async openAiAssistant(initialQuery?: string): Promise<void> {
-    const lat = this.userLocation?.lat;
-    const lng = this.userLocation?.lng;
+    const lat = this.currentCoords?.lat;
+    const lng = this.currentCoords?.lng;
 
     const modal = await this.modalCtrl.create({
       component: AiBookingAssistantModalComponent,

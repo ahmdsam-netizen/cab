@@ -1,9 +1,14 @@
 :host {
-  display: block;
-  height: 100%;
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  width: 100% !important;
+  position: relative !important;
+  background: #090d16;
 }
 
 .dc-ai-header {
+  flex-shrink: 0;
   background: #0f172a;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 
@@ -95,6 +100,13 @@
   cursor: pointer;
   transition: all 0.2s ease;
 
+  &.is-active {
+    background: rgba(99, 102, 241, 0.25);
+    border-color: rgba(99, 102, 241, 0.6);
+    color: #818cf8;
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.35);
+  }
+
   &:active {
     transform: scale(0.92);
     background: rgba(255, 255, 255, 0.12);
@@ -168,9 +180,23 @@
 
 .dc-ai-msg-text {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13.5px;
+  line-height: 1.6;
   word-break: break-word;
+
+  strong {
+    font-weight: 700;
+    color: #f8fafc;
+  }
+
+  em {
+    font-style: normal;
+    color: #cbd5e1;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 12.5px;
+  }
 }
 
 .dc-ai-msg-time {
@@ -233,12 +259,115 @@
   }
 }
 
-/* 2. Departures Options List */
+/* 2a. Selected Departure Detail Card */
+.dc-ai-selected-dep-card {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+
+  .dc-ai-selected-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 8px;
+  }
+
+  .dc-ai-selected-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #38bdf8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+
+    ion-icon {
+      font-size: 16px;
+    }
+  }
+
+  .dc-ai-switch-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #94a3b8;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover, &:active {
+      color: #38bdf8;
+      border-color: #38bdf8;
+      background: rgba(56, 189, 248, 0.12);
+    }
+  }
+
+  .dc-ai-selected-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .dc-ai-detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+
+    .dc-ai-detail-label {
+      color: #94a3b8;
+    }
+
+    .dc-ai-detail-val {
+      color: #f1f5f9;
+      font-weight: 600;
+
+      &.dc-highlight {
+        color: #38bdf8;
+      }
+    }
+  }
+}
+
+/* 2. Departures Options List / Info Boxes */
 .dc-ai-departures-card {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 4px;
+  margin-top: 6px;
+
+  .dc-ai-boxes-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 2px;
+  }
+
+  .dc-ai-boxes-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #38bdf8;
+  }
+
+  .dc-ai-boxes-hint {
+    font-size: 10px;
+    color: #64748b;
+  }
 
   .dc-ai-card-heading {
     margin: 4px 0 2px;
@@ -250,24 +379,31 @@
   }
 }
 
-.dc-ai-dep-item {
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 12px;
+.dc-ai-boxes-grid {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+}
+
+.dc-ai-dep-item {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
+
+  &:hover, &:active {
+    border-color: rgba(56, 189, 248, 0.4);
+    background: rgba(56, 189, 248, 0.06);
+  }
 
   &.is-selected {
     border-color: #38bdf8;
     background: rgba(56, 189, 248, 0.1);
-  }
-
-  &:active {
-    transform: scale(0.98);
   }
 }
 
@@ -321,7 +457,54 @@
   cursor: pointer;
 }
 
-/* 3. Seats Card */
+/* 3. Seats Info Card */
+.dc-ai-seats-info-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+
+  .dc-ai-seats-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #38bdf8;
+  }
+
+  .dc-ai-seat-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
+
+.dc-ai-seat-tag {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover, &:active {
+    border-color: #38bdf8;
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+  }
+
+  &.selected {
+    border-color: #38bdf8;
+    background: rgba(56, 189, 248, 0.25);
+    color: #38bdf8;
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+  }
+}
+
+/* 3. Legacy Seats Card */
 .dc-ai-seats-card {
   display: flex;
   flex-direction: column;
@@ -449,6 +632,24 @@
       font-size: 11px;
       color: #cbd5e1;
     }
+
+    .dc-ai-cancel-hold-btn {
+      margin-top: 6px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #f87171;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+
+      &:hover, &:active {
+        background: rgba(239, 68, 68, 0.25);
+        color: #ef4444;
+      }
+    }
   }
 }
 
@@ -540,6 +741,10 @@
 
 /* Footer & Input Bar */
 .dc-ai-footer {
+  flex-shrink: 0;
+  display: block;
+  position: relative;
+  z-index: 10;
   background: #0f172a;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
@@ -566,6 +771,13 @@
   font-size: 11px;
   cursor: pointer;
   transition: all 0.2s ease;
+
+  &.is-active {
+    background: rgba(99, 102, 241, 0.25);
+    border-color: rgba(99, 102, 241, 0.6);
+    color: #818cf8;
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.35);
+  }
 
   &:active {
     background: rgba(99, 102, 241, 0.2);

@@ -67,6 +67,9 @@ export class PushService {
       this.bindListenersOnce();
 
       const platform = Capacitor.getPlatform();
+      if (platform === 'web' && !environment.fcmVapidKey) {
+        return;
+      }
       const opts =
         platform === 'web' && environment.fcmVapidKey
           ? { vapidKey: environment.fcmVapidKey }
